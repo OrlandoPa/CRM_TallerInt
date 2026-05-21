@@ -49,6 +49,7 @@ function App() {
   // Active chat state
   const [activeChatPhone, setActiveChatPhone] = useState(null);
   const [activeConversationId, setActiveConversationId] = useState(null);
+  const [chatViewMode, setChatViewMode] = useState('monitor'); // 'monitor' o 'chatwoot'
   const [chatMessages, setChatMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
 
@@ -897,16 +898,57 @@ function App() {
                             </p>
                           </div>
                         </div>
+
+                        {/* View Switcher Tabs */}
+                        <div style={{display:'flex', background:'var(--bg-tertiary)', padding:'4px', borderRadius:'8px', border:'1px solid var(--border-color)', margin:'0 10px'}}>
+                          <button 
+                            onClick={() => setChatViewMode('monitor')}
+                            className="btn"
+                            type="button"
+                            style={{
+                              padding: '6px 12px', 
+                              fontSize: '0.8rem', 
+                              background: chatViewMode === 'monitor' ? 'var(--primary)' : 'transparent',
+                              color: chatViewMode === 'monitor' ? '#fff' : 'var(--text-secondary)',
+                              border: 'none',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              fontWeight: chatViewMode === 'monitor' ? 600 : 400
+                            }}
+                          >
+                            Monitor CRM
+                          </button>
+                          <button 
+                            onClick={() => setChatViewMode('chatwoot')}
+                            className="btn"
+                            type="button"
+                            style={{
+                              padding: '6px 12px', 
+                              fontSize: '0.8rem', 
+                              background: chatViewMode === 'chatwoot' ? 'var(--primary)' : 'transparent',
+                              color: chatViewMode === 'chatwoot' ? '#fff' : 'var(--text-secondary)',
+                              border: 'none',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              fontWeight: chatViewMode === 'chatwoot' ? 600 : 400
+                            }}
+                          >
+                            Consola Chatwoot
+                          </button>
+                        </div>
+
                         <div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
                           {/* Direct link to Chatwoot Dashboard */}
                           <a 
-                            href={`https://app.chatwoot.com/app/accounts/${settings.chatwootAccountId}/dashboard`} 
+                            href={activeConversationId 
+                              ? `https://app.chatwoot.com/app/accounts/${settings.chatwootAccountId}/conversations/${activeConversationId}`
+                              : `https://app.chatwoot.com/app/accounts/${settings.chatwootAccountId}/dashboard`} 
                             target="_blank" 
                             rel="noopener noreferrer"
                             className="btn btn-secondary" 
                             style={{padding: '8px 14px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px', textDecoration: 'none'}}
                           >
-                            Abrir en Chatwoot <ExternalLink size={14} />
+                            Abrir en pestaña nueva <ExternalLink size={14} />
                           </a>
                           <button onClick={() => {
                             const found = leads.find(l => l.phone_number === activeChatPhone);
@@ -920,43 +962,69 @@ function App() {
                         </div>
                       </header>
 
-                      {/* Chat Messages */}
-                      <div className="chat-messages">
-                        {chatMessages.length === 0 ? (
-                          <div style={{display:'flex', justifyContent:'center', alignItems:'center', flexGrow:1, color:'var(--text-muted)'}}>
-                            No hay mensajes en esta conversación. Escribe un mensaje abajo para simular.
+                      {chatViewMode === 'chatwoot' ? (
+                        <div style={{flexGrow: 1, display: 'flex', flexDirection: 'column', height: 'calc(100% - 65px)', overflow: 'hidden'}}>
+                          <div style={{
+                            padding: '10px 16px', 
+                            background: 'rgba(167, 139, 250, 0.08)', 
+                            color: '#a78bfa', 
+                            fontSize: '0.8rem', 
+                            borderRadius: '8px', 
+                            margin: '12px 12px 0 12px',
+                            border: '1px solid rgba(167, 139, 250, 0.2)'
+                          }}>
+                            ⚠️ <strong>Nota sobre CORS</strong>: Si estás usando la nube de Chatwoot (app.chatwoot.com) y este panel se muestra en blanco o no carga, es debido a la protección de iframe de tu navegador. Puedes trabajar cómodamente haciendo clic en <strong>"Abrir en pestaña nueva"</strong> arriba para chatear directamente. Si usas Chatwoot auto-alojado configurado para iframe, se cargará a continuación.
                           </div>
-                        ) : (
-                          chatMessages.map(msg => (
-                            <div 
-                              key={msg.id} 
-                              className={`message-bubble ${msg.sender === 'client' ? 'incoming' : 'outgoing'}`}
-                            >
-                              <p style={{whiteSpace:'pre-wrap'}}>{msg.content}</p>
-                              <div className="message-meta">
-                                <span className="message-sender-type" style={{color: msg.sender === 'client' ? 'var(--primary)' : 'rgba(255,255,255,0.7)'}}>
-                                  {msg.sender_type || (msg.sender === 'client' ? 'Cliente' : 'Agente')}
-                                </span>
-                                <span>{new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                          <iframe 
+                            src={activeConversationId 
+                              ? `https://app.chatwoot.com/app/accounts/${settings.chatwootAccountId}/conversations/${activeConversationId}` 
+                              : `https://app.chatwoot.com/app/accounts/${settings.chatwootAccountId}/dashboard`}
+                            style={{width: '100%', flexGrow: 1, border: 'none', background: 'var(--bg-secondary)', padding: '12px', borderRadius: '12px'}}
+                            title="Consola de Chatwoot"
+                            allow="camera; microphone; geolocation"
+                          />
+                        </div>
+                      ) : (
+                        <>
+                          {/* Chat Messages */}
+                          <div className="chat-messages">
+                            {chatMessages.length === 0 ? (
+                              <div style={{display:'flex', justifyContent:'center', alignItems:'center', flexGrow:1, color:'var(--text-muted)'}}>
+                                No hay mensajes en esta conversación. Escribe un mensaje abajo para simular.
                               </div>
-                            </div>
-                          ))
-                        )}
-                      </div>
+                            ) : (
+                              chatMessages.map(msg => (
+                                <div 
+                                  key={msg.id} 
+                                  className={`message-bubble ${msg.sender === 'client' ? 'incoming' : 'outgoing'}`}
+                                >
+                                  <p style={{whiteSpace:'pre-wrap'}}>{msg.content}</p>
+                                  <div className="message-meta">
+                                    <span className="message-sender-type" style={{color: msg.sender === 'client' ? 'var(--primary)' : 'rgba(255,255,255,0.7)'}}>
+                                      {msg.sender_type || (msg.sender === 'client' ? 'Cliente' : 'Agente')}
+                                    </span>
+                                    <span>{new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
 
-                      {/* Message Input */}
-                      <form onSubmit={handleSendMessage} className="chat-input-bar">
-                        <input 
-                          type="text" 
-                          placeholder="Intervenir conversación y responder como humano..." 
-                          className="chat-input"
-                          value={newMessage}
-                          onChange={(e) => setNewMessage(e.target.value)}
-                        />
-                        <button type="submit" className="btn btn-primary" style={{width: '45px', height: '45px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '12px', padding: 0}}>
-                          <Send size={18} />
-                        </button>
-                      </form>
+                          {/* Message Input */}
+                          <form onSubmit={handleSendMessage} className="chat-input-bar">
+                            <input 
+                              type="text" 
+                              placeholder="Intervenir conversación y responder como humano..." 
+                              className="chat-input"
+                              value={newMessage}
+                              onChange={(e) => setNewMessage(e.target.value)}
+                            />
+                            <button type="submit" className="btn btn-primary" style={{width: '45px', height: '45px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '12px', padding: 0}}>
+                              <Send size={18} />
+                            </button>
+                          </form>
+                        </>
+                      )}
                     </>
                   ) : (
                     <div style={{display:'flex', justifyContent:'center', alignItems:'center', flexGrow:1, color:'var(--text-muted)'}}>

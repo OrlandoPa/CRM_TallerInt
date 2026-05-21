@@ -1,15 +1,20 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Load environment variables
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+// Load Supabase credentials dynamically (prioritizing localStorage settings)
+const getSupabaseCredentials = () => {
+  const url = localStorage.getItem('crm_supabase_url') || import.meta.env.VITE_SUPABASE_URL || '';
+  const key = localStorage.getItem('crm_supabase_anon_key') || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+  return { url: url.trim(), key: key.trim() };
+};
 
-// Initialize Supabase Client (if credentials are provided)
-export const supabase = (supabaseUrl && supabaseAnonKey) 
-  ? createClient(supabaseUrl, supabaseAnonKey) 
+const creds = getSupabaseCredentials();
+
+// Initialize Supabase Client
+export const supabase = (creds.url && creds.key) 
+  ? createClient(creds.url, creds.key) 
   : null;
 
-console.log('Supabase Connection Status:', supabase ? 'Configured' : 'Using Mock Data');
+console.log('Supabase Connection Status:', supabase ? 'Configured dynamically' : 'Using Mock Data (no credentials)');
 
 // Helper to check and get Google Calendar access token
 export const getGCalToken = () => {
