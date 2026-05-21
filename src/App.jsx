@@ -48,6 +48,7 @@ function App() {
 
   // Active chat state
   const [activeChatPhone, setActiveChatPhone] = useState(null);
+  const [activeConversationId, setActiveConversationId] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
 
@@ -70,7 +71,8 @@ function App() {
     supabaseAnonKey: localStorage.getItem('crm_supabase_anon_key') || '',
     googleClientId: localStorage.getItem('crm_google_client_id') || '',
     calendarId: localStorage.getItem('crm_calendar_id') || 'primary',
-    chatwootAccountId: localStorage.getItem('crm_chatwoot_account_id') || '1'
+    chatwootAccountId: localStorage.getItem('crm_chatwoot_account_id') || '1',
+    chatwootAccessToken: localStorage.getItem('crm_chatwoot_access_token') || ''
   });
 
   // Calendar month state
@@ -81,6 +83,7 @@ function App() {
     const params = new URLSearchParams(window.location.search);
     const embedParam = params.get('embed');
     const phoneParam = params.get('phone') || params.get('phone_number');
+    const conversationIdParam = params.get('conversation_id');
     
     if (embedParam === 'true') {
       setIsEmbedded(true);
@@ -91,6 +94,10 @@ function App() {
       // Decode phone parameter
       const formatted = decodeURIComponent(phoneParam).trim();
       setActiveChatPhone(formatted);
+    }
+
+    if (conversationIdParam) {
+      setActiveConversationId(conversationIdParam);
     }
   }, []);
 
@@ -202,7 +209,7 @@ function App() {
 
   const loadChat = async (phone) => {
     try {
-      const messages = await api.getChatHistory(phone);
+      const messages = await api.getChatHistory(phone, activeConversationId);
       setChatMessages(messages);
     } catch (err) {
       console.error('Error loading chat:', err);
@@ -228,7 +235,7 @@ function App() {
     setChatMessages(prev => [...prev, tempMsg]);
 
     try {
-      await api.sendWhatsAppMessage(activeChatPhone, content);
+      await api.sendWhatsAppMessage(activeChatPhone, content, activeConversationId);
       loadChat(activeChatPhone);
     } catch (err) {
       console.error(err);
@@ -308,6 +315,7 @@ function App() {
     localStorage.setItem('crm_google_client_id', settings.googleClientId);
     localStorage.setItem('crm_calendar_id', settings.calendarId);
     localStorage.setItem('crm_chatwoot_account_id', settings.chatwootAccountId);
+    localStorage.setItem('crm_chatwoot_access_token', settings.chatwootAccessToken || '');
     
     // Set custom env variables for runtime
     import.meta.env.VITE_SUPABASE_URL = settings.supabaseUrl;
@@ -849,7 +857,12 @@ function App() {
                       <div 
                         key={lead.phone_number} 
                         className={`chat-item ${activeChatPhone === lead.phone_number ? 'active' : ''}`}
-                        onClick={() => setActiveChatPhone(lead.phone_number)}
+                        onClick={() => {
+                          if (lead.phone_number !== activeChatPhone) {
+                            setActiveConversationId(null);
+                            setActiveChatPhone(lead.phone_number);
+                          }
+                        }}
                       >
                         <div className="chat-avatar">
                           {lead.client_name.slice(0, 2).toUpperCase() || 'WA'}
@@ -1209,17 +1222,31 @@ function App() {
 
                     <div style={{borderBottom: '1px solid var(--border-color)', paddingBottom: '16px'}}>
                       <h3 style={{fontSize:'1rem', marginBottom:'12px', color:'var(--primary)'}}>Chatwoot (Dashboard Integration)</h3>
-                      <div className="form-group">
-                        <label>ID de Cuenta de Chatwoot</label>
+                      <div className="form-group" style={{marginBottom:'12px'}}>
+                        <label>ID de Cuenta o URL de Chatwoot</label>
                         <input 
                           type="text" 
                           className="form-control" 
-                          placeholder="Ej. 1"
+                          placeholder="Ej. 164153 o la URL completa de la cuenta"
                           value={settings.chatwootAccountId}
                           onChange={(e) => setSettings(prev => ({ ...prev, chatwootAccountId: e.target.value }))}
                         />
                         <p style={{fontSize:'0.75rem', color:'var(--text-muted)', marginTop:'4px'}}>
-                          El identificador numérico de tu cuenta que aparece en la URL de Chatwoot (ej. `https://app.chatwoot.com/app/accounts/XXXX`). Esto sirve para generar enlaces directos a tus chats de mensajería.
+                          Introduce el número o pega la URL completa de tu panel (ej: <code style={{color:'var(--primary)'}}>https://app.chatwoot.com/app/accounts/164153/</code>). El CRM extraerá el ID automáticamente.
+                        </p>
+                      </div>
+
+                      <div className="form-group">
+                        <label>Token de Acceso de la API (Opcional)</label>
+                        <input 
+                          type="password" 
+                          className="form-control" 
+                          placeholder="Introduce tu API Token de Chatwoot"
+                          value={settings.chatwootAccessToken}
+                          onChange={(e) => setSettings(prev => ({ ...prev, chatwootAccessToken: e.target.value }))}
+                        />
+                        <p style={{fontSize:'0.75rem', color:'var(--text-muted)', marginTop:'4px'}}>
+                          Token de acceso de usuario para sincronizar en tiempo real (consultar historial y contestar mensajes reales). Lo encuentras en Chatwoot &rarr; Ajustes de Perfil &rarr; Token de acceso.
                         </p>
                       </div>
                     </div>

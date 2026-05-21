@@ -31,6 +31,61 @@ const getCalendarId = () => {
   return localStorage.getItem('crm_calendar_id') || 'primary';
 };
 
+// Helper to parse Chatwoot configuration and extract Account ID from full URLs
+export const getChatwootConfig = () => {
+  const accountVal = localStorage.getItem('crm_chatwoot_account_id') || '';
+  const token = localStorage.getItem('crm_chatwoot_access_token') || '';
+  const baseUrl = localStorage.getItem('crm_chatwoot_base_url') || 'https://app.chatwoot.com';
+  
+  if (!accountVal) return null;
+  
+  // Extract number if they paste the full URL (e.g., https://app.chatwoot.com/app/accounts/164153/)
+  let accountId = accountVal.trim();
+  const match = accountId.match(/accounts\/(\d+)/);
+  if (match) {
+    accountId = match[1];
+  }
+  
+  return {
+    accountId,
+    token: token.trim(),
+    baseUrl: baseUrl.trim()
+  };
+};
+
+// Look up a conversation ID in Chatwoot using a client's phone number
+export const getChatwootConversationIdByPhone = async (phone) => {
+  const config = getChatwootConfig();
+  if (!config || !config.token) return null;
+  
+  try {
+    // Format phone: remove spaces to improve search matching
+    const cleanPhone = phone.replace(/[\s\-\+]/g, '');
+    const searchUrl = `${config.baseUrl}/api/v1/accounts/${config.accountId}/contacts/search?q=${encodeURIComponent(cleanPhone)}`;
+    const response = await fetch(searchUrl, {
+      headers: { 'api_access_token': config.token }
+    });
+    
+    if (!response.ok) return null;
+    const data = await response.json();
+    const contact = data.payload?.[0];
+    if (!contact) return null;
+    
+    // Fetch conversations for this contact
+    const convUrl = `${config.baseUrl}/api/v1/accounts/${config.accountId}/contacts/${contact.id}/conversations`;
+    const convResponse = await fetch(convUrl, {
+      headers: { 'api_access_token': config.token }
+    });
+    
+    if (!convResponse.ok) return null;
+    const convData = await convResponse.json();
+    return convData.payload?.[0]?.id || null;
+  } catch (err) {
+    console.error('Error finding Chatwoot conversation by phone:', err);
+    return null;
+  }
+};
+
 // --- HIGH FIDELITY MOCK DATA ---
 const mockLeads = [
   {
@@ -222,7 +277,44 @@ export const updateLead = async (lead) => {
 };
 
 // 2. WHATSAPP CHATS
-export const getChatHistory = async (phoneNumber) => {
+export const getChatHistory = async (phoneNumber, conversationId = null) => {
+  const config = getChatwootConfig();
+  
+  // Try fetching directly from Chatwoot API if credentials are provided
+  if (config && config.token) {
+    try {
+      let convId = conversationId;
+      if (!convId) {
+        convId = await getChatwootConversationIdByPhone(phoneNumber);
+      }
+      
+      if (convId) {
+        const msgUrl = `${config.baseUrl}/api/v1/accounts/${config.accountId}/conversations/${convId}/messages`;
+        const response = await fetch(msgUrl, {
+          headers: { 'api_access_token': config.token }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          // Map Chatwoot messages to CRM chat format
+          return (data.payload || []).map(row => {
+            const isClient = row.message_type === 0;
+            return {
+              id: row.id,
+              sender: isClient ? 'client' : 'bot',
+              content: row.content,
+              timestamp: row.created_at || new Date().toISOString(),
+              sender_type: row.sender?.name || (isClient ? 'Cliente' : 'Agente')
+            };
+          }).reverse(); // Chronological order
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching chat history from Chatwoot API, using fallback:', err);
+    }
+  }
+
+  // Fallback to Supabase Database
   if (supabase) {
     try {
       const { data, error } = await supabase
@@ -262,13 +354,45 @@ export const getChatHistory = async (phoneNumber) => {
   return stateChats[phoneNumber] || [];
 };
 
-export const sendWhatsAppMessage = async (phoneNumber, content) => {
-  // If supabase is configured, we could also log this member reply into the chat log in Supabase!
+export const sendWhatsAppMessage = async (phoneNumber, content, conversationId = null) => {
+  const config = getChatwootConfig();
+
+  // Try sending directly through Chatwoot API if credentials are provided
+  if (config && config.token) {
+    try {
+      let convId = conversationId;
+      if (!convId) {
+        convId = await getChatwootConversationIdByPhone(phoneNumber);
+      }
+      
+      if (convId) {
+        const msgUrl = `${config.baseUrl}/api/v1/accounts/${config.accountId}/conversations/${convId}/messages`;
+        const response = await fetch(msgUrl, {
+          method: 'POST',
+          headers: { 
+            'api_access_token': config.token,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            content: content,
+            message_type: 'outgoing'
+          })
+        });
+        
+        if (response.ok) {
+          return true;
+        }
+      }
+    } catch (err) {
+      console.error('Error sending message via Chatwoot API, using fallback:', err);
+    }
+  }
+
+  // Fallback to Supabase Database
   if (supabase) {
     try {
-      // Simulate/insert human takeover reply directly to messages log in Supabase
       const messagePayload = {
-        type: "ai", // Standard LangChain system labels
+        type: "ai", 
         data: {
           content: content,
           additional_kwargs: { agent_name: "Soporte Humano (CRM)" }
@@ -310,7 +434,6 @@ export const getAppointments = async (timeMin, timeMax) => {
   if (token) {
     try {
       const cal = encodeURIComponent(calendarId);
-      // Default time range: 7 days ago to 30 days in future if not specified
       const tMin = timeMin || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
       const tMax = timeMax || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
       
@@ -323,7 +446,6 @@ export const getAppointments = async (timeMin, timeMax) => {
       
       if (!response.ok) {
         if (response.status === 401) {
-          // Token expired, clear it
           localStorage.removeItem('gcal_access_token');
           localStorage.removeItem('gcal_token_expiry');
         }
@@ -331,8 +453,6 @@ export const getAppointments = async (timeMin, timeMax) => {
       }
       
       const data = await response.json();
-      
-      // Standardize the response array to matches GCal Resource representation in mock
       return (data.items || []).map(item => ({
         id: item.id,
         summary: item.summary || 'Cita Odontológica',
