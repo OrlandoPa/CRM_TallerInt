@@ -220,22 +220,33 @@ export const getLeads = async () => {
         
       if (msgError) throw msgError;
       
-      const uniquePhones = [...new Set(msgData.map(m => m.session_id))];
+      const uniquePhones = msgData ? [...new Set(msgData.map(m => m.session_id).filter(Boolean))] : [];
       
-      const mergedLeads = uniquePhones.map(phone => {
-        const existing = crmData?.find(l => l.phone_number === phone);
-        if (existing) return existing;
-        return {
-          phone_number: phone,
-          client_name: `WhatsApp Lead (${phone.slice(-4)})`,
-          client_email: '',
-          status: 'lead',
-          internal_notes: 'Nuevo contacto detectado en WhatsApp.',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
+      const leadsMap = new Map();
+      if (crmData) {
+        crmData.forEach(l => {
+          if (l.phone_number) {
+            leadsMap.set(l.phone_number.replace(/[\s\-\+]/g, ''), l);
+          }
+        });
+      }
+      
+      uniquePhones.forEach(phone => {
+        const cleanPhone = phone.replace(/[\s\-\+]/g, '');
+        if (!leadsMap.has(cleanPhone)) {
+          leadsMap.set(cleanPhone, {
+            phone_number: phone,
+            client_name: `WhatsApp Lead (${phone.slice(-4)})`,
+            client_email: '',
+            status: 'lead',
+            internal_notes: 'Nuevo contacto detectado en WhatsApp.',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
+        }
       });
       
+      const mergedLeads = Array.from(leadsMap.values());
       return mergedLeads.length > 0 ? mergedLeads : crmData || [];
     } catch (err) {
       console.error('Error fetching leads from Supabase, using mock:', err);
@@ -317,40 +328,50 @@ export const getChatHistory = async (phoneNumber, conversationId = null) => {
   // Fallback to Supabase Database
   if (supabase) {
     try {
+      const cleanPhone = phoneNumber.replace(/[\s\-\+]/g, '');
       const { data, error } = await supabase
         .from('mensajes_whatsapp')
         .select('*')
-        .eq('session_id', phoneNumber)
-        .order('id', { ascending: true });
+        .or(`session_id.eq.${phoneNumber},session_id.eq.${cleanPhone},session_id.eq.+${cleanPhone}`);
         
       if (error) throw error;
       
-      return data.map(row => {
-        let msgObj = {};
-        try {
-          msgObj = typeof row.message === 'string' ? JSON.parse(row.message) : row.message;
-        } catch(e) {
-          msgObj = { data: { content: row.message } };
-        }
-        
-        const type = msgObj.type;
-        const content = msgObj.data?.content || row.message;
-        const senderType = msgObj.data?.additional_kwargs?.agent_name || (type === 'human' ? 'human' : 'bot');
-        
-        return {
-          id: row.id,
-          sender: type === 'human' ? 'client' : 'bot',
-          content: content,
-          timestamp: row.created_at || new Date().toISOString(),
-          sender_type: senderType
-        };
-      });
+      if (data && data.length > 0) {
+        // Sort ascending by ID or Date to make sure they display in correct order
+        const sortedData = [...data].sort((a, b) => a.id - b.id);
+        return sortedData.map(row => {
+          let msgObj = {};
+          try {
+            msgObj = typeof row.message === 'string' ? JSON.parse(row.message) : row.message;
+          } catch(e) {
+            msgObj = { data: { content: row.message } };
+          }
+          
+          const type = msgObj.type;
+          const content = msgObj.data?.content || row.message;
+          const senderType = msgObj.data?.additional_kwargs?.agent_name || (type === 'human' ? 'human' : 'bot');
+          
+          return {
+            id: row.id,
+            sender: type === 'human' ? 'client' : 'bot',
+            content: content,
+            timestamp: row.created_at || new Date().toISOString(),
+            sender_type: senderType
+          };
+        });
+      }
     } catch (err) {
       console.error('Error fetching chat history from Supabase, using mock:', err);
     }
   }
   
   await new Promise(r => setTimeout(r, 200));
+  // Clean phone matching for mock key lookup
+  const cleanPhone = phoneNumber.replace(/[\s\-\+]/g, '');
+  const mockKey = Object.keys(stateChats).find(k => k.replace(/[\s\-\+]/g, '') === cleanPhone);
+  if (mockKey) {
+    return stateChats[mockKey];
+  }
   return stateChats[phoneNumber] || [];
 };
 
