@@ -73,6 +73,7 @@ function App() {
     googleClientId: localStorage.getItem('crm_google_client_id') || '',
     calendarId: localStorage.getItem('crm_calendar_id') || 'primary',
     chatwootAccountId: localStorage.getItem('crm_chatwoot_account_id') || '1',
+    chatwootBaseUrl: localStorage.getItem('crm_chatwoot_base_url') || 'https://app.chatwoot.com',
     chatwootAccessToken: localStorage.getItem('crm_chatwoot_access_token') || ''
   });
 
@@ -101,6 +102,9 @@ function App() {
       setActiveConversationId(conversationIdParam);
     }
   }, []);
+
+  const chatwootDashboardUrl = api.getChatwootDashboardUrl(activeConversationId);
+  const chatwootEmbedUrl = chatwootDashboardUrl;
 
   // Verify Google Token on mount and settings changes
   useEffect(() => {
@@ -210,7 +214,13 @@ function App() {
 
   const loadChat = async (phone) => {
     try {
-      const messages = await api.getChatHistory(phone, activeConversationId);
+      const config = api.getChatwootConfig();
+      let convId = null;
+      if (config && config.token) {
+        convId = await api.getChatwootConversationIdByPhone(phone);
+      }
+      setActiveConversationId(convId);
+      const messages = await api.getChatHistory(phone, convId);
       setChatMessages(messages);
     } catch (err) {
       console.error('Error loading chat:', err);
@@ -316,6 +326,7 @@ function App() {
     localStorage.setItem('crm_google_client_id', settings.googleClientId);
     localStorage.setItem('crm_calendar_id', settings.calendarId);
     localStorage.setItem('crm_chatwoot_account_id', settings.chatwootAccountId);
+    localStorage.setItem('crm_chatwoot_base_url', settings.chatwootBaseUrl);
     localStorage.setItem('crm_chatwoot_access_token', settings.chatwootAccessToken || '');
     
     // Set custom env variables for runtime
@@ -940,9 +951,7 @@ function App() {
                         <div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
                           {/* Direct link to Chatwoot Dashboard */}
                           <a 
-                            href={activeConversationId 
-                              ? `https://app.chatwoot.com/app/accounts/${settings.chatwootAccountId}/conversations/${activeConversationId}`
-                              : `https://app.chatwoot.com/app/accounts/${settings.chatwootAccountId}/dashboard`} 
+                            href={chatwootDashboardUrl} 
                             target="_blank" 
                             rel="noopener noreferrer"
                             className="btn btn-secondary" 
@@ -973,15 +982,14 @@ function App() {
                             margin: '12px 12px 0 12px',
                             border: '1px solid rgba(167, 139, 250, 0.2)'
                           }}>
-                            ⚠️ <strong>Nota sobre CORS</strong>: Si estás usando la nube de Chatwoot (app.chatwoot.com) y este panel se muestra en blanco o no carga, es debido a la protección de iframe de tu navegador. Puedes trabajar cómodamente haciendo clic en <strong>"Abrir en pestaña nueva"</strong> arriba para chatear directamente. Si usas Chatwoot auto-alojado configurado para iframe, se cargará a continuación.
+                            ⚠️ <strong>Nota sobre iframe</strong>: Si este panel se muestra en blanco, es probable que tu instancia de Chatwoot bloquee embebidos por <strong>X-Frame-Options</strong> o <strong>CSP</strong>. Puedes usar <strong>"Abrir en pestaña nueva"</strong> arriba para trabajar directo, o configurar una instancia autoalojada compatible con iframe.
                           </div>
                           <iframe 
-                            src={activeConversationId 
-                              ? `https://app.chatwoot.com/app/accounts/${settings.chatwootAccountId}/conversations/${activeConversationId}` 
-                              : `https://app.chatwoot.com/app/accounts/${settings.chatwootAccountId}/dashboard`}
+                            src={chatwootEmbedUrl}
                             style={{width: '100%', flexGrow: 1, border: 'none', background: 'var(--bg-secondary)', padding: '12px', borderRadius: '12px'}}
                             title="Consola de Chatwoot"
                             allow="camera; microphone; geolocation"
+                            referrerPolicy="strict-origin-when-cross-origin"
                           />
                         </div>
                       ) : (
@@ -1301,6 +1309,20 @@ function App() {
                         />
                         <p style={{fontSize:'0.75rem', color:'var(--text-muted)', marginTop:'4px'}}>
                           Introduce el número o pega la URL completa de tu panel (ej: <code style={{color:'var(--primary)'}}>https://app.chatwoot.com/app/accounts/164153/</code>). El CRM extraerá el ID automáticamente.
+                        </p>
+                      </div>
+
+                      <div className="form-group" style={{marginBottom:'12px'}}>
+                        <label>Base URL de Chatwoot</label>
+                        <input 
+                          type="text" 
+                          className="form-control" 
+                          placeholder="https://app.chatwoot.com o tu instancia self-hosted"
+                          value={settings.chatwootBaseUrl}
+                          onChange={(e) => setSettings(prev => ({ ...prev, chatwootBaseUrl: e.target.value }))}
+                        />
+                        <p style={{fontSize:'0.75rem', color:'var(--text-muted)', marginTop:'4px'}}>
+                          Esta URL se usa para abrir y embeber Chatwoot desde esta aplicación.
                         </p>
                       </div>
 

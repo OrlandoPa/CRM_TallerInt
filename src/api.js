@@ -54,8 +54,17 @@ export const getChatwootConfig = () => {
   return {
     accountId,
     token: token.trim(),
-    baseUrl: baseUrl.trim()
+    baseUrl: baseUrl.trim().replace(/\/+$/, '') || 'https://app.chatwoot.com'
   };
+};
+
+export const getChatwootDashboardUrl = (conversationId = null) => {
+  const config = getChatwootConfig();
+  if (!config) return '';
+
+  return conversationId
+    ? `${config.baseUrl}/app/accounts/${config.accountId}/conversations/${conversationId}`
+    : `${config.baseUrl}/app/accounts/${config.accountId}/dashboard`;
 };
 
 // Look up a conversation ID in Chatwoot using a client's phone number
