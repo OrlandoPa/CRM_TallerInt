@@ -49,7 +49,7 @@ function App() {
   // Active chat state
   const [activeChatPhone, setActiveChatPhone] = useState(null);
   const [activeConversationId, setActiveConversationId] = useState(null);
-  const [chatViewMode, setChatViewMode] = useState('monitor'); // 'monitor' o 'chatwoot'
+  const [chatViewMode, setChatViewMode] = useState('chatwoot'); // Default to chatwoot iframe
   const [chatMessages, setChatMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
 
@@ -468,13 +468,7 @@ function App() {
               <LayoutDashboard size={20} />
               Dashboard
             </button>
-            <button 
-              className={`menu-item ${activeTab === 'crm' ? 'active' : ''}`}
-              onClick={() => setActiveTab('crm')}
-            >
-              <Users size={20} />
-              CRM Pipeline
-            </button>
+
             <button 
               className={`menu-item ${activeTab === 'chats' ? 'active' : ''}`}
               onClick={() => setActiveTab('chats')}
@@ -513,7 +507,9 @@ function App() {
         {!isEmbedded && (
           <header className="top-bar">
             <div className="page-title">
-              <h1 style={{textTransform: 'capitalize'}}>{activeTab === 'crm' ? 'Pipeline CRM' : activeTab}</h1>
+              <h1 style={{textTransform: 'capitalize'}}>
+                {activeTab === 'chats' ? 'Consola de Chatwoot' : activeTab === 'integrations' ? 'Configuración' : activeTab === 'calendar' ? 'Calendario' : activeTab}
+              </h1>
             </div>
             <div className="top-bar-actions">
               {/* Google Calendar OAuth Login status in header */}
@@ -552,557 +548,92 @@ function App() {
           <>
             {/* 1. DASHBOARD VIEW */}
             {activeTab === 'dashboard' && (
-              <div className="dashboard-view animate-fade-in">
-                {/* KPI Metrics cards */}
-                <div className="metrics-grid">
-                  <div className="glass-card metric-card">
-                    <div className="metric-icon-wrapper" style={{background: 'rgba(139, 92, 246, 0.15)', color: 'var(--primary)'}}>
-                      <Users size={24} />
+              <div className="dashboard-view animate-fade-in" style={{display: 'flex', flexDirection: 'column', gap: '24px'}}>
+                {/* KPI Metrics card */}
+                <div style={{maxWidth: '350px'}}>
+                  <div className="glass-card metric-card" style={{display: 'flex', alignItems: 'center', gap: '16px', padding: '20px'}}>
+                    <div className="metric-icon-wrapper" style={{background: 'rgba(245, 158, 11, 0.15)', color: 'var(--warning)', padding: '12px', borderRadius: '10px'}}>
+                      <CalendarIcon size={28} />
                     </div>
                     <div className="metric-info">
-                      <span className="metric-label">Contactos Totales</span>
-                      <span className="metric-value">{totalLeads}</span>
-                      <span className="metric-change positive">Activos en WhatsApp</span>
-                    </div>
-                  </div>
-
-                  <div className="glass-card metric-card">
-                    <div className="metric-icon-wrapper" style={{background: 'rgba(245, 158, 11, 0.15)', color: 'var(--warning)'}}>
-                      <CalendarIcon size={24} />
-                    </div>
-                    <div className="metric-info">
-                      <span className="metric-label">Citas Agendadas</span>
-                      <span className="metric-value">{appointments.length}</span>
-                      <span className="metric-change positive">
-                        {gcalConnected ? 'Google Calendar ONLINE' : 'Modo Demo (Offline)'}
+                      <span className="metric-label" style={{fontSize: '0.85rem', color: 'var(--text-secondary)'}}>Citas Agendadas</span>
+                      <span className="metric-value" style={{fontSize: '2rem', fontWeight: 700, display: 'block', margin: '4px 0'}}>{appointments.length}</span>
+                      <span className="metric-change positive" style={{fontSize: '0.75rem', fontWeight: 500}}>
+                        {gcalConnected ? '● Google Calendar Conectado' : '○ Modo Demo (Sin conexión)'}
                       </span>
                     </div>
                   </div>
-
-                  <div className="glass-card metric-card">
-                    <div className="metric-icon-wrapper" style={{background: 'rgba(16, 185, 129, 0.15)', color: 'var(--success)'}}>
-                      <MessageSquare size={24} />
-                    </div>
-                    <div className="metric-info">
-                      <span className="metric-label">Conversaciones del Bot</span>
-                      <span className="metric-value">{totalLeads}</span>
-                      <span className="metric-change positive">IA activa (Gemini)</span>
-                    </div>
-                  </div>
-
-                  <div className="glass-card metric-card">
-                    <div className="metric-icon-wrapper" style={{background: 'rgba(14, 165, 233, 0.15)', color: 'var(--info)'}}>
-                      <ArrowUpRight size={24} />
-                    </div>
-                    <div className="metric-info">
-                      <span className="metric-label">Tasa de Conversión</span>
-                      <span className="metric-value">{conversionRate}%</span>
-                      <span className="metric-change positive">Chat → Cita</span>
-                    </div>
-                  </div>
                 </div>
 
-                {/* Dashboard charts and details */}
-                <div className="charts-grid">
-                  <div className="glass-card" style={{display: 'flex', flexDirection: 'column', gap: '16px'}}>
-                    <div style={{display:'flex', justifyContent:'between', alignItems:'center'}}>
-                      <h2 style={{fontSize: '1.1rem'}}>Efectividad del Embudo de Citas</h2>
-                    </div>
-                    
-                    {/* CUSTOM PREMIUM SVG BAR CHART */}
-                    <div style={{flexGrow: 1, minHeight: '220px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-around', padding: '20px 0 10px 0'}}>
-                      <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', flex: 1}}>
-                        <div style={{
-                          height: `${Math.max(20, (totalLeads / (totalLeads || 1)) * 180)}px`, 
-                          width: '45px', 
-                          background: 'linear-gradient(to top, rgba(139, 92, 246, 0.2), var(--primary))', 
-                          borderRadius: '8px 8px 0 0',
-                          boxShadow: '0 4px 12px var(--primary-glow)',
-                          transition: 'height 1s ease'
-                        }}></div>
-                        <span style={{fontSize: '0.85rem', fontWeight: 600}}>{totalLeads}</span>
-                        <span style={{fontSize: '0.75rem', color: 'var(--text-secondary)'}}>Leads Totales</span>
-                      </div>
-
-                      <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', flex: 1}}>
-                        <div style={{
-                          height: `${Math.max(20, (contactedCount / (totalLeads || 1)) * 180)}px`, 
-                          width: '45px', 
-                          background: 'linear-gradient(to top, rgba(96, 165, 250, 0.2), #60a5fa)', 
-                          borderRadius: '8px 8px 0 0',
-                          transition: 'height 1s ease'
-                        }}></div>
-                        <span style={{fontSize: '0.85rem', fontWeight: 600}}>{contactedCount}</span>
-                        <span style={{fontSize: '0.75rem', color: 'var(--text-secondary)'}}>Contactados</span>
-                      </div>
-
-                      <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', flex: 1}}>
-                        <div style={{
-                          height: `${Math.max(20, (scheduledCount / (totalLeads || 1)) * 180)}px`, 
-                          width: '45px', 
-                          background: 'linear-gradient(to top, rgba(245, 158, 11, 0.2), var(--warning))', 
-                          borderRadius: '8px 8px 0 0',
-                          boxShadow: '0 4px 12px rgba(245, 158, 11, 0.2)',
-                          transition: 'height 1s ease'
-                        }}></div>
-                        <span style={{fontSize: '0.85rem', fontWeight: 600}}>{scheduledCount}</span>
-                        <span style={{fontSize: '0.75rem', color: 'var(--text-secondary)'}}>Citas Agendadas</span>
-                      </div>
-
-                      <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', flex: 1}}>
-                        <div style={{
-                          height: `${Math.max(20, (completedCount / (totalLeads || 1)) * 180)}px`, 
-                          width: '45px', 
-                          background: 'linear-gradient(to top, rgba(16, 185, 129, 0.2), var(--success))', 
-                          borderRadius: '8px 8px 0 0',
-                          boxShadow: '0 4px 12px var(--success-glow)',
-                          transition: 'height 1s ease'
-                        }}></div>
-                        <span style={{fontSize: '0.85rem', fontWeight: 600}}>{completedCount}</span>
-                        <span style={{fontSize: '0.75rem', color: 'var(--text-secondary)'}}>Completadas</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="glass-card" style={{display: 'flex', flexDirection: 'column', gap: '16px'}}>
-                    <h2 style={{fontSize: '1.1rem'}}>Próximas Citas (Google Calendar)</h2>
-                    <div style={{display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', maxHeight: '250px'}}>
-                      {appointments.length === 0 ? (
-                        <p style={{fontSize: '0.9rem', color: 'var(--text-muted)', textAlign: 'center', padding: '20px 0'}}>
-                          No hay citas programadas próximamente.
-                        </p>
-                      ) : (
-                        appointments.slice(0, 4).map(app => {
-                          const date = new Date(app.start.dateTime);
-                          return (
-                            <div key={app.id} style={{
-                              display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
-                              padding: '12px', background: 'var(--bg-tertiary)', borderRadius: '10px',
-                              borderLeft: '4px solid var(--primary)'
-                            }}>
-                              <div style={{overflow: 'hidden', marginRight: '10px'}}>
-                                <p style={{fontWeight: 600, fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>{app.summary}</p>
-                                <p style={{fontSize: '0.75rem', color: 'var(--text-secondary)'}}>
-                                  {date.toLocaleDateString('es-ES', {weekday: 'short', day: 'numeric', month: 'short'})} a las {date.toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'})}
-                                </p>
-                              </div>
-                              <button onClick={() => handleDeleteAppointment(app.id)} className="btn-icon" style={{width:'30px', height:'30px', borderRadius:'6px', color:'var(--danger)'}} title="Cancelar Cita">
-                                <Trash size={14} />
-                              </button>
+                {/* Upcoming Appointments */}
+                <div className="glass-card" style={{display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px', maxWidth: '600px'}}>
+                  <h2 style={{fontSize: '1.1rem', fontWeight: 600}}>Próximas Citas (Google Calendar)</h2>
+                  <div style={{display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', maxHeight: '350px'}}>
+                    {appointments.length === 0 ? (
+                      <p style={{fontSize: '0.9rem', color: 'var(--text-muted)', textAlign: 'center', padding: '20px 0'}}>
+                        No hay citas programadas próximamente.
+                      </p>
+                    ) : (
+                      appointments.slice(0, 8).map(app => {
+                        const date = new Date(app.start.dateTime);
+                        return (
+                          <div key={app.id} style={{
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
+                            padding: '12px', background: 'var(--bg-tertiary)', borderRadius: '10px',
+                            borderLeft: '4px solid var(--primary)', border: '1px solid var(--border-color)',
+                            borderLeftWidth: '4px'
+                          }}>
+                            <div style={{overflow: 'hidden', marginRight: '10px'}}>
+                              <p style={{fontWeight: 600, fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-main)'}}>{app.summary}</p>
+                              <p style={{fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px'}}>
+                                {date.toLocaleDateString('es-ES', {weekday: 'short', day: 'numeric', month: 'short'})} a las {date.toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'})}
+                              </p>
                             </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* WhatsApp bot active monitor */}
-                <div className="glass-card" style={{display:'flex', flexDirection:'column', gap:'16px'}}>
-                  <h2 style={{fontSize:'1.1rem'}}>Monitoreo de Agentes en Tiempo Real</h2>
-                  <div style={{display:'flex', flexDirection:'column', gap:'12px'}}>
-                    {leads.slice(0, 3).map(lead => (
-                      <div key={lead.phone_number} style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', 
-                        padding: '16px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '12px'
-                      }}>
-                        <div style={{display:'flex', alignItems:'center', gap:'14px'}}>
-                          <div className="chat-avatar" style={{width:'40px', height:'40px', fontSize:'0.9rem'}}>
-                            {lead.client_name.slice(0, 2).toUpperCase()}
+                            <button onClick={() => handleDeleteAppointment(app.id)} className="btn-icon" style={{width:'30px', height:'30px', borderRadius:'6px', color:'var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', cursor: 'pointer'}} title="Cancelar Cita">
+                              <Trash size={14} />
+                            </button>
                           </div>
-                          <div>
-                            <p style={{fontWeight:600, fontSize:'0.925rem'}}>{lead.client_name} <span style={{fontSize:'0.8rem', color:'var(--text-muted)'}}>({lead.phone_number})</span></p>
-                            <p style={{fontSize:'0.8rem', color:'var(--text-secondary)'}}>{lead.internal_notes || 'Sin notas del bot'}</p>
-                          </div>
-                        </div>
-                        <div style={{display:'flex', alignItems:'center', gap:'16px'}}>
-                          {getStatusBadge(lead.status)}
-                          <button onClick={() => {
-                            setActiveChatPhone(lead.phone_number);
-                            setActiveTab('chats');
-                          }} className="btn btn-secondary" style={{padding:'6px 12px', fontSize:'0.8rem'}}>
-                            Ver Conversación
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                        );
+                      })
+                    )}
                   </div>
-                </div>
-              </div>
-            )}
-
-            {/* 2. CRM PIPELINE VIEW */}
-            {activeTab === 'crm' && (
-              <div className="crm-view animate-fade-in">
-                <div className="crm-header">
-                  <div className="search-input-wrapper">
-                    <Search size={18} />
-                    <input 
-                      type="text" 
-                      placeholder="Buscar por nombre o celular..." 
-                      className="search-input"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                  </div>
-                  <div className="crm-actions">
-                    <button onClick={() => {
-                      setSelectedLead({
-                        phone_number: `+51 9${Math.floor(10000000 + Math.random() * 90000000)}`,
-                        client_name: '',
-                        client_email: '',
-                        status: 'lead',
-                        internal_notes: ''
-                      });
-                      setIsLeadModalOpen(true);
-                    }} className="btn btn-primary">
-                      <Plus size={16} /> Nuevo Lead
-                    </button>
-                  </div>
-                </div>
-
-                <div className="kanban-board">
-                  {/* Pipeline columns */}
-                  {['lead', 'contacted', 'scheduled', 'completed', 'lost'].map(statusName => {
-                    const statusLeads = filteredLeads.filter(l => l.status === statusName);
-                    
-                    return (
-                      <div key={statusName} className="kanban-column">
-                        <div className="column-header">
-                          <div className="column-title">
-                            <div style={{
-                              width: '8px', height: '8px', borderRadius: '50%',
-                              background: statusName === 'lead' ? '#ef4444' : 
-                                          statusName === 'contacted' ? '#3b82f6' : 
-                                          statusName === 'scheduled' ? '#f59e0b' : 
-                                          statusName === 'completed' ? '#10b981' : '#94a3b8'
-                            }}></div>
-                            <span style={{textTransform:'capitalize'}}>{statusName === 'lead' ? 'Nuevo' : statusName === 'contacted' ? 'Contactado' : statusName === 'scheduled' ? 'Agendado' : statusName === 'completed' ? 'Completado' : 'Perdido'}</span>
-                          </div>
-                          <span className="column-badge">{statusLeads.length}</span>
-                        </div>
-                        <div className="kanban-cards">
-                          {statusLeads.length === 0 ? (
-                            <div style={{
-                              padding: '24px 0', border: '1px dashed var(--border-color)', 
-                              borderRadius: '8px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem'
-                            }}>
-                              Vacío
-                            </div>
-                          ) : (
-                            statusLeads.map(lead => (
-                              <div key={lead.phone_number} className="kanban-card">
-                                <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}>
-                                  <div className="card-client-name">{lead.client_name}</div>
-                                  <button onClick={() => {
-                                    setSelectedLead(lead);
-                                    setIsLeadModalOpen(true);
-                                  }} style={{background:'none', border:'none', color:'var(--primary)', cursor:'pointer', fontSize:'0.75rem', fontWeight:600}}>
-                                    Editar
-                                  </button>
-                                </div>
-                                <div className="card-phone">
-                                  <Phone size={12} />
-                                  <span>{lead.phone_number}</span>
-                                </div>
-                                <p style={{fontSize:'0.75rem', color:'var(--text-secondary)', marginBottom:'12px', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden'}}>
-                                  {lead.internal_notes || 'Sin notas.'}
-                                </p>
-                                <div className="card-footer">
-                                  <div className="card-time">
-                                    <Clock size={10} />
-                                    <span>{new Date(lead.updated_at).toLocaleDateString()}</span>
-                                  </div>
-                                  <div style={{display:'flex', gap:'4px'}}>
-                                    {/* Move buttons for kanban columns */}
-                                    {statusName !== 'lead' && (
-                                      <button 
-                                        onClick={() => handleStatusChange(lead.phone_number, statusName === 'contacted' ? 'lead' : statusName === 'scheduled' ? 'contacted' : statusName === 'completed' ? 'scheduled' : 'completed')}
-                                        style={{padding:'2px 4px', background:'var(--bg-tertiary)', border:'none', borderRadius:'4px', color:'var(--text-secondary)', cursor:'pointer'}}
-                                        title="Retroceder estado"
-                                      >
-                                        ←
-                                      </button>
-                                    )}
-                                    {statusName !== 'lost' && statusName !== 'completed' && (
-                                      <button 
-                                        onClick={() => handleStatusChange(lead.phone_number, statusName === 'lead' ? 'contacted' : statusName === 'contacted' ? 'scheduled' : 'completed')}
-                                        style={{padding:'2px 4px', background:'var(--bg-tertiary)', border:'none', borderRadius:'4px', color:'var(--text-secondary)', cursor:'pointer'}}
-                                        title="Avanzar estado"
-                                      >
-                                        →
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
                 </div>
               </div>
             )}
 
             {/* 3. CHATS WHATSAPP MONITOR VIEW */}
             {activeTab === 'chats' && (
-              <div className="chats-view animate-fade-in">
-                {/* Chats Sidebar */}
-                <div className="chats-sidebar">
-                  <div className="chats-sidebar-header">
-                    <div className="search-input-wrapper" style={{width: '100%'}}>
-                      <Search size={18} />
-                      <input 
-                        type="text" 
-                        placeholder="Buscar chat..." 
-                        className="search-input"
-                        style={{width: '100%'}}
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <div className="chats-list">
-                    {filteredLeads.map(lead => (
-                      <div 
-                        key={lead.phone_number} 
-                        className={`chat-item ${activeChatPhone === lead.phone_number ? 'active' : ''}`}
-                        onClick={() => {
-                          if (lead.phone_number !== activeChatPhone) {
-                            setActiveConversationId(null);
-                            setActiveChatPhone(lead.phone_number);
-                          }
-                        }}
-                      >
-                        <div className="chat-avatar">
-                          {lead.client_name.slice(0, 2).toUpperCase() || 'WA'}
-                        </div>
-                        <div className="chat-info">
-                          <div className="chat-name-row">
-                            <span className="chat-name">{lead.client_name || lead.phone_number}</span>
-                          </div>
-                          <span className="chat-last-message">{lead.phone_number}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Chat Panel */}
-                <div className="chat-area">
-                  {activeChatPhone ? (
-                    <>
-                      {/* Chat Header */}
-                      <header className="chat-header">
-                        <div className="chat-header-client">
-                          <div className="chat-avatar" style={{width: '40px', height: '40px'}}>
-                            {leads.find(l => l.phone_number === activeChatPhone)?.client_name.slice(0, 2).toUpperCase() || 'WA'}
-                          </div>
-                          <div>
-                            <span className="chat-name" style={{fontSize: '1rem'}}>
-                              {leads.find(l => l.phone_number === activeChatPhone)?.client_name || activeChatPhone}
-                            </span>
-                            <p style={{fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px'}}>
-                              <Phone size={10} /> {activeChatPhone}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* View Switcher Tabs */}
-                        <div style={{display:'flex', background:'var(--bg-tertiary)', padding:'4px', borderRadius:'8px', border:'1px solid var(--border-color)', margin:'0 10px'}}>
-                          <button 
-                            onClick={() => setChatViewMode('monitor')}
-                            className="btn"
-                            type="button"
-                            style={{
-                              padding: '6px 12px', 
-                              fontSize: '0.8rem', 
-                              background: chatViewMode === 'monitor' ? 'var(--primary)' : 'transparent',
-                              color: chatViewMode === 'monitor' ? '#fff' : 'var(--text-secondary)',
-                              border: 'none',
-                              borderRadius: '6px',
-                              cursor: 'pointer',
-                              fontWeight: chatViewMode === 'monitor' ? 600 : 400
-                            }}
-                          >
-                            Monitor CRM
-                          </button>
-                          <button 
-                            onClick={() => setChatViewMode('chatwoot')}
-                            className="btn"
-                            type="button"
-                            style={{
-                              padding: '6px 12px', 
-                              fontSize: '0.8rem', 
-                              background: chatViewMode === 'chatwoot' ? 'var(--primary)' : 'transparent',
-                              color: chatViewMode === 'chatwoot' ? '#fff' : 'var(--text-secondary)',
-                              border: 'none',
-                              borderRadius: '6px',
-                              cursor: 'pointer',
-                              fontWeight: chatViewMode === 'chatwoot' ? 600 : 400
-                            }}
-                          >
-                            Consola Chatwoot
-                          </button>
-                        </div>
-
-                        <div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
-                          {/* Direct link to Chatwoot Dashboard */}
-                          <a 
-                            href={chatwootDashboardUrl} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="btn btn-secondary" 
-                            style={{padding: '8px 14px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px', textDecoration: 'none'}}
-                          >
-                            Abrir en pestaña nueva <ExternalLink size={14} />
-                          </a>
-                          <button onClick={() => {
-                            const found = leads.find(l => l.phone_number === activeChatPhone);
-                            if (found) {
-                              setSelectedLead(found);
-                              setIsLeadModalOpen(true);
-                            }
-                          }} className="btn btn-secondary" style={{padding: '8px 14px', fontSize: '0.85rem'}}>
-                            Editar Datos CRM
-                          </button>
-                        </div>
-                      </header>
-
-                      {chatViewMode === 'chatwoot' ? (
-                        <div style={{flexGrow: 1, display: 'flex', flexDirection: 'column', height: 'calc(100% - 65px)', overflow: 'hidden'}}>
-                          <div style={{
-                            padding: '10px 16px', 
-                            background: 'rgba(167, 139, 250, 0.08)', 
-                            color: '#a78bfa', 
-                            fontSize: '0.8rem', 
-                            borderRadius: '8px', 
-                            margin: '12px 12px 0 12px',
-                            border: '1px solid rgba(167, 139, 250, 0.2)'
-                          }}>
-                            ⚠️ <strong>Nota sobre iframe</strong>: Si este panel se muestra en blanco, es probable que tu instancia de Chatwoot bloquee embebidos por <strong>X-Frame-Options</strong> o <strong>CSP</strong>. Puedes usar <strong>"Abrir en pestaña nueva"</strong> arriba para trabajar directo, o configurar una instancia autoalojada compatible con iframe.
-                          </div>
-                          <iframe 
-                            src={chatwootEmbedUrl}
-                            style={{width: '100%', flexGrow: 1, border: 'none', background: 'var(--bg-secondary)', padding: '12px', borderRadius: '12px'}}
-                            title="Consola de Chatwoot"
-                            allow="camera; microphone; geolocation"
-                            referrerPolicy="strict-origin-when-cross-origin"
-                          />
-                        </div>
-                      ) : (
-                        <>
-                          {/* Chat Messages */}
-                          <div className="chat-messages">
-                            {chatMessages.length === 0 ? (
-                              <div style={{display:'flex', justifyContent:'center', alignItems:'center', flexGrow:1, color:'var(--text-muted)'}}>
-                                No hay mensajes en esta conversación. Escribe un mensaje abajo para simular.
-                              </div>
-                            ) : (
-                              chatMessages.map(msg => (
-                                <div 
-                                  key={msg.id} 
-                                  className={`message-bubble ${msg.sender === 'client' ? 'incoming' : 'outgoing'}`}
-                                >
-                                  <p style={{whiteSpace:'pre-wrap'}}>{msg.content}</p>
-                                  <div className="message-meta">
-                                    <span className="message-sender-type" style={{color: msg.sender === 'client' ? 'var(--primary)' : 'rgba(255,255,255,0.7)'}}>
-                                      {msg.sender_type || (msg.sender === 'client' ? 'Cliente' : 'Agente')}
-                                    </span>
-                                    <span>{new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                                  </div>
-                                </div>
-                              ))
-                            )}
-                          </div>
-
-                          {/* Message Input */}
-                          <form onSubmit={handleSendMessage} className="chat-input-bar">
-                            <input 
-                              type="text" 
-                              placeholder="Intervenir conversación y responder como humano..." 
-                              className="chat-input"
-                              value={newMessage}
-                              onChange={(e) => setNewMessage(e.target.value)}
-                            />
-                            <button type="submit" className="btn btn-primary" style={{width: '45px', height: '45px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '12px', padding: 0}}>
-                              <Send size={18} />
-                            </button>
-                          </form>
-                        </>
-                      )}
-                    </>
-                  ) : (
-                    <div style={{display:'flex', justifyContent:'center', alignItems:'center', flexGrow:1, color:'var(--text-muted)'}}>
-                      Selecciona una conversación del panel izquierdo o conéctate vía Chatwoot.
-                    </div>
-                  )}
-                </div>
-
-                {/* Right Quick CRM Panel */}
-                {activeChatPhone && (
-                  <div className="chats-detail-panel">
+              <div className="chats-view animate-fade-in" style={{display: 'flex', flexDirection: 'column', height: '100%', padding: '20px 0'}}>
+                <header className="chat-header" style={{margin: '0 20px 15px 20px', padding: '0 0 15px 0', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                  <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
+                    <MessageSquare size={24} style={{color: 'var(--primary)'}} />
                     <div>
-                      <div className="panel-section-title">Detalles CRM</div>
-                      <div style={{display:'flex', flexDirection:'column', gap:'12px'}}>
-                        <div>
-                          <label style={{fontSize:'0.75rem', color:'var(--text-secondary)', fontWeight:600}}>Nombre:</label>
-                          <p style={{fontWeight:600}}>{leads.find(l => l.phone_number === activeChatPhone)?.client_name || 'Sin Nombre'}</p>
-                        </div>
-                        <div>
-                          <label style={{fontSize:'0.75rem', color:'var(--text-secondary)', fontWeight:600}}>Correo:</label>
-                          <p style={{fontSize:'0.85rem'}}>{leads.find(l => l.phone_number === activeChatPhone)?.client_email || 'Sin correo'}</p>
-                        </div>
-                        <div>
-                          <label style={{fontSize:'0.75rem', color:'var(--text-secondary)', fontWeight:600}}>Estado en CRM:</label>
-                          <div style={{marginTop:'4px'}}>
-                            {getStatusBadge(leads.find(l => l.phone_number === activeChatPhone)?.status)}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div style={{borderTop:'1px solid var(--border-color)', paddingTop:'20px'}}>
-                      <div className="panel-section-title">Notas de Asistencia</div>
-                      <textarea 
-                        className="form-control"
-                        rows={6}
-                        style={{width:'100%', resize:'none', fontSize:'0.85rem'}}
-                        placeholder="Escribe notas sobre este paciente (tratamiento requerido, dolores, detalles de pago)..."
-                        value={leads.find(l => l.phone_number === activeChatPhone)?.internal_notes || ''}
-                        onChange={async (e) => {
-                          const val = e.target.value;
-                          const lead = leads.find(l => l.phone_number === activeChatPhone);
-                          if (!lead) return;
-                          
-                          // Quick local update
-                          setLeads(prev => prev.map(l => l.phone_number === activeChatPhone ? { ...l, internal_notes: val } : l));
-                          
-                          // Debounced API call simulation
-                          await api.updateLead({ ...lead, internal_notes: val });
-                        }}
-                      />
-                      <p style={{fontSize:'0.7rem', color:'var(--text-muted)', marginTop:'6px'}}>Las notas se guardan automáticamente.</p>
-                    </div>
-
-                    <div style={{borderTop:'1px solid var(--border-color)', paddingTop:'20px', marginTop:'auto'}}>
-                      <button 
-                        onClick={() => {
-                          setNewEvent(prev => ({ ...prev, phone_number: activeChatPhone, summary: `${leads.find(l => l.phone_number === activeChatPhone)?.client_name || 'Cliente'} - Consulta` }));
-                          setIsAppointmentModalOpen(true);
-                        }}
-                        className="btn btn-primary" 
-                        style={{width:'100%', justifyContent:'center'}}
-                        disabled={!gcalConnected}
-                        title={!gcalConnected ? 'Debes conectar Google Calendar primero' : ''}
-                      >
-                        Agendar Cita GCal
-                      </button>
+                      <span className="chat-name" style={{fontSize: '1.15rem', fontWeight: 600}}>Consola de Chatwoot</span>
+                      <p style={{fontSize: '0.75rem', color: 'var(--text-secondary)'}}>Gestiona tus conversaciones y contactos de WhatsApp</p>
                     </div>
                   </div>
-                )}
+                  <div>
+                    <a 
+                      href={chatwootDashboardUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="btn btn-secondary" 
+                      style={{padding: '8px 14px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px', textDecoration: 'none'}}
+                    >
+                      Abrir en pestaña nueva <ExternalLink size={14} />
+                    </a>
+                  </div>
+                </header>
+
+                <div style={{flexGrow: 1, display: 'flex', flexDirection: 'column', height: 'calc(100% - 80px)', overflow: 'hidden', padding: '0 20px'}}>
+                  <iframe 
+                    src={chatwootEmbedUrl}
+                    style={{width: '100%', flexGrow: 1, border: 'none', background: 'var(--bg-secondary)', borderRadius: '12px', height: '100%'}}
+                    title="Consola de Chatwoot"
+                    allow="camera; microphone; geolocation"
+                    referrerPolicy="strict-origin-when-cross-origin"
+                  />
+                </div>
               </div>
             )}
 
