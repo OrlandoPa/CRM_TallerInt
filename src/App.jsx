@@ -337,10 +337,6 @@ function App() {
     localStorage.setItem('crm_chatwoot_base_url', settings.chatwootBaseUrl);
     localStorage.setItem('crm_chatwoot_access_token', settings.chatwootAccessToken || '');
     
-    // Set custom env variables for runtime
-    import.meta.env.VITE_SUPABASE_URL = settings.supabaseUrl;
-    import.meta.env.VITE_SUPABASE_ANON_KEY = settings.supabaseAnonKey;
-
     showToast('Configuraciones guardadas');
     // Force refresh to reload api instance
     window.location.reload();
