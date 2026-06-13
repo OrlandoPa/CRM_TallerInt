@@ -582,3 +582,60 @@ export const deleteAppointment = async (eventId) => {
   stateAppointments = stateAppointments.filter(app => app.id !== eventId);
   return true;
 };
+
+// 4. SUPABASE CUSTOM CLINIC TABLES
+export const getPacientes = async () => {
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('pacientes')
+        .select('*');
+      if (error) throw error;
+      return data || [];
+    } catch (err) {
+      console.error('Error fetching patients from Supabase:', err);
+      return [];
+    }
+  }
+  // Off-line mock simulation matching the active design
+  return [
+    { telefono_whatsapp: '+51 987 654 321', nombre_paciente: 'Juan Pérez', created_at: new Date().toISOString() },
+    { telefono_whatsapp: '+51 912 345 678', nombre_paciente: 'María Rodríguez', created_at: new Date().toISOString() },
+    { telefono_whatsapp: '+51 955 667 788', nombre_paciente: 'Carlos Mendoza', created_at: new Date().toISOString() }
+  ];
+};
+
+export const getCitasDb = async () => {
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('citas')
+        .select('*, pacientes(nombre_paciente)')
+        .order('fecha_hora_cita', { ascending: true });
+      if (error) throw error;
+      return data || [];
+    } catch (err) {
+      console.error('Error fetching appointments from Supabase:', err);
+      return [];
+    }
+  }
+  // Off-line mock simulation matching the active design
+  return [
+    {
+      id: 101,
+      telefono_paciente: '+51 987 654 321',
+      fecha_hora_cita: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      motivo_consulta: 'Evaluación y limpieza profunda',
+      estado_cita: 'AGENDADA',
+      pacientes: { nombre_paciente: 'Juan Pérez' }
+    },
+    {
+      id: 102,
+      telefono_paciente: '+51 955 667 788',
+      fecha_hora_cita: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
+      motivo_consulta: 'Revisión mensual de Ortodoncia',
+      estado_cita: 'AGENDADA',
+      pacientes: { nombre_paciente: 'Carlos Mendoza' }
+    }
+  ];
+};

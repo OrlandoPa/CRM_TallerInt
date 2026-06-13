@@ -38,6 +38,8 @@ function App() {
   const [theme, setTheme] = useState('dark');
   const [leads, setLeads] = useState([]);
   const [appointments, setAppointments] = useState([]);
+  const [pacientes, setPacientes] = useState([]);
+  const [citasDb, setCitasDb] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -121,6 +123,12 @@ function App() {
       const fetchedAppointments = await api.getAppointments();
       setLeads(fetchedLeads);
       setAppointments(fetchedAppointments);
+
+      // Fetch Supabase pacientes and database appointments
+      const fetchedPacientes = await api.getPacientes();
+      const fetchedCitasDb = await api.getCitasDb();
+      setPacientes(fetchedPacientes);
+      setCitasDb(fetchedCitasDb);
       
       // Auto select first chat if none selected and not embedded
       if (fetchedLeads.length > 0 && !activeChatPhone && !isEmbedded) {
@@ -549,53 +557,143 @@ function App() {
             {/* 1. DASHBOARD VIEW */}
             {activeTab === 'dashboard' && (
               <div className="dashboard-view animate-fade-in" style={{display: 'flex', flexDirection: 'column', gap: '24px'}}>
-                {/* KPI Metrics card */}
-                <div style={{maxWidth: '350px'}}>
+                {/* KPI Metrics row */}
+                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px'}}>
+                  {/* Card 1: Pacientes Registrados */}
                   <div className="glass-card metric-card" style={{display: 'flex', alignItems: 'center', gap: '16px', padding: '20px'}}>
-                    <div className="metric-icon-wrapper" style={{background: 'rgba(245, 158, 11, 0.15)', color: 'var(--warning)', padding: '12px', borderRadius: '10px'}}>
+                    <div className="metric-icon-wrapper" style={{background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', padding: '12px', borderRadius: '10px'}}>
+                      <Users size={28} />
+                    </div>
+                    <div className="metric-info">
+                      <span className="metric-label" style={{fontSize: '0.85rem', color: 'var(--text-secondary)'}}>Pacientes Registrados</span>
+                      <span className="metric-value" style={{fontSize: '2rem', fontWeight: 700, display: 'block', margin: '4px 0'}}>{pacientes.length}</span>
+                      <span style={{fontSize: '0.75rem', color: 'var(--text-muted)'}}>En base de datos</span>
+                    </div>
+                  </div>
+
+                  {/* Card 2: Citas en Base de Datos */}
+                  <div className="glass-card metric-card" style={{display: 'flex', alignItems: 'center', gap: '16px', padding: '20px'}}>
+                    <div className="metric-icon-wrapper" style={{background: 'rgba(139, 92, 246, 0.15)', color: '#8b5cf6', padding: '12px', borderRadius: '10px'}}>
                       <CalendarIcon size={28} />
                     </div>
                     <div className="metric-info">
-                      <span className="metric-label" style={{fontSize: '0.85rem', color: 'var(--text-secondary)'}}>Citas Agendadas</span>
+                      <span className="metric-label" style={{fontSize: '0.85rem', color: 'var(--text-secondary)'}}>Citas Totales (BD)</span>
+                      <span className="metric-value" style={{fontSize: '2rem', fontWeight: 700, display: 'block', margin: '4px 0'}}>{citasDb.length}</span>
+                      <span style={{fontSize: '0.75rem', color: '#10b981', fontWeight: 600}}>● Control Clínico</span>
+                    </div>
+                  </div>
+
+                  {/* Card 3: Google Calendar */}
+                  <div className="glass-card metric-card" style={{display: 'flex', alignItems: 'center', gap: '16px', padding: '20px'}}>
+                    <div className="metric-icon-wrapper" style={{background: 'rgba(245, 158, 11, 0.15)', color: 'var(--warning)', padding: '12px', borderRadius: '10px'}}>
+                      <Clock3 size={28} />
+                    </div>
+                    <div className="metric-info">
+                      <span className="metric-label" style={{fontSize: '0.85rem', color: 'var(--text-secondary)'}}>Eventos Google Cal</span>
                       <span className="metric-value" style={{fontSize: '2rem', fontWeight: 700, display: 'block', margin: '4px 0'}}>{appointments.length}</span>
-                      <span className="metric-change positive" style={{fontSize: '0.75rem', fontWeight: 500}}>
-                        {gcalConnected ? '● Google Calendar Conectado' : '○ Modo Demo (Sin conexión)'}
+                      <span style={{fontSize: '0.75rem', color: gcalConnected ? '#10b981' : 'var(--text-muted)', fontWeight: 500}}>
+                        {gcalConnected ? '● Google Calendar Activo' : '○ Modo Demo (Sin conexión)'}
                       </span>
                     </div>
                   </div>
                 </div>
 
-                {/* Upcoming Appointments */}
-                <div className="glass-card" style={{display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px', maxWidth: '600px'}}>
-                  <h2 style={{fontSize: '1.1rem', fontWeight: 600}}>Próximas Citas (Google Calendar)</h2>
-                  <div style={{display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', maxHeight: '350px'}}>
-                    {appointments.length === 0 ? (
-                      <p style={{fontSize: '0.9rem', color: 'var(--text-muted)', textAlign: 'center', padding: '20px 0'}}>
-                        No hay citas programadas próximamente.
-                      </p>
-                    ) : (
-                      appointments.slice(0, 8).map(app => {
-                        const date = new Date(app.start.dateTime);
-                        return (
-                          <div key={app.id} style={{
-                            display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
-                            padding: '12px', background: 'var(--bg-tertiary)', borderRadius: '10px',
-                            borderLeft: '4px solid var(--primary)', border: '1px solid var(--border-color)',
-                            borderLeftWidth: '4px'
-                          }}>
-                            <div style={{overflow: 'hidden', marginRight: '10px'}}>
-                              <p style={{fontWeight: 600, fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-main)'}}>{app.summary}</p>
-                              <p style={{fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px'}}>
-                                {date.toLocaleDateString('es-ES', {weekday: 'short', day: 'numeric', month: 'short'})} a las {date.toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'})}
-                              </p>
+                {/* Lists Columns */}
+                <div style={{display: 'flex', gap: '20px', flexWrap: 'wrap'}}>
+                  {/* Column 1: Supabase Appointments */}
+                  <div className="glass-card" style={{flex: '1 1 500px', display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px'}}>
+                    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                      <h2 style={{fontSize: '1.1rem', fontWeight: 600}}>Próximas Citas (Supabase DB)</h2>
+                      <span style={{fontSize: '0.75rem', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', padding: '4px 8px', borderRadius: '6px', fontWeight: 600}}>BD ONLINE</span>
+                    </div>
+                    <div style={{display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', maxHeight: '400px'}}>
+                      {citasDb.length === 0 ? (
+                        <p style={{fontSize: '0.9rem', color: 'var(--text-muted)', textAlign: 'center', padding: '30px 0'}}>
+                          No hay citas clínicas programadas en la base de datos de Supabase.
+                        </p>
+                      ) : (
+                        citasDb.map(cita => {
+                          const date = cita.fecha_hora_cita ? new Date(cita.fecha_hora_cita) : null;
+                          const formattedDate = date 
+                            ? date.toLocaleDateString('es-ES', {weekday: 'short', day: 'numeric', month: 'short'}) + ' a las ' + date.toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'})
+                            : 'Fecha no programada';
+                          const patientName = cita.pacientes?.nombre_paciente || 'Paciente sin registrar';
+                          
+                          return (
+                            <div key={cita.id} style={{
+                              display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
+                              padding: '14px', background: 'var(--bg-tertiary)', borderRadius: '10px',
+                              borderLeft: '4px solid var(--primary)', border: '1px solid var(--border-color)',
+                              borderLeftWidth: '4px', gap: '10px'
+                            }}>
+                              <div style={{overflow: 'hidden'}}>
+                                <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px'}}>
+                                  <span style={{fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-main)'}}>{patientName}</span>
+                                  <span style={{fontSize: '0.7rem', color: 'var(--text-secondary)'}}>({cita.telefono_paciente})</span>
+                                </div>
+                                <p style={{fontSize: '0.8rem', color: 'var(--text-secondary)', fontStyle: cita.motivo_consulta ? 'normal' : 'italic', marginBottom: '4px'}}>
+                                  {cita.motivo_consulta || 'Sin motivo especificado'}
+                                </p>
+                                <p style={{fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px'}}>
+                                  <Clock size={12} style={{color: 'var(--primary)'}} /> {formattedDate}
+                                </p>
+                              </div>
+                              <div style={{display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px', flexShrink: 0}}>
+                                <span style={{
+                                  fontSize: '0.7rem', 
+                                  fontWeight: 600, 
+                                  padding: '2px 8px', 
+                                  borderRadius: '4px',
+                                  background: cita.estado_cita === 'CONFIRMADA' || cita.estado_cita === 'COMPLETADA' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                                  color: cita.estado_cita === 'CONFIRMADA' || cita.estado_cita === 'COMPLETADA' ? '#10b981' : '#f59e0b'
+                                }}>
+                                  {cita.estado_cita || 'AGENDADA'}
+                                </span>
+                              </div>
                             </div>
-                            <button onClick={() => handleDeleteAppointment(app.id)} className="btn-icon" style={{width:'30px', height:'30px', borderRadius:'6px', color:'var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', cursor: 'pointer'}} title="Cancelar Cita">
-                              <Trash size={14} />
-                            </button>
-                          </div>
-                        );
-                      })
-                    )}
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Column 2: Google Calendar Events */}
+                  <div className="glass-card" style={{flex: '1 1 400px', display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px'}}>
+                    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                      <h2 style={{fontSize: '1.1rem', fontWeight: 600}}>Agenda (Google Calendar)</h2>
+                      <span style={{fontSize: '0.75rem', background: gcalConnected ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)', color: gcalConnected ? '#10b981' : '#f59e0b', padding: '4px 8px', borderRadius: '6px', fontWeight: 600}}>
+                        {gcalConnected ? 'CONECTADO' : 'OFFLINE'}
+                      </span>
+                    </div>
+                    <div style={{display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', maxHeight: '400px'}}>
+                      {appointments.length === 0 ? (
+                        <p style={{fontSize: '0.9rem', color: 'var(--text-muted)', textAlign: 'center', padding: '30px 0'}}>
+                          No hay eventos programados próximamente.
+                        </p>
+                      ) : (
+                        appointments.slice(0, 8).map(app => {
+                          const date = new Date(app.start.dateTime);
+                          return (
+                            <div key={app.id} style={{
+                              display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
+                              padding: '12px', background: 'var(--bg-tertiary)', borderRadius: '10px',
+                              borderLeft: '4px solid #f59e0b', border: '1px solid var(--border-color)',
+                              borderLeftWidth: '4px'
+                            }}>
+                              <div style={{overflow: 'hidden', marginRight: '10px'}}>
+                                <p style={{fontWeight: 600, fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-main)'}}>{app.summary}</p>
+                                <p style={{fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px'}}>
+                                  {date.toLocaleDateString('es-ES', {weekday: 'short', day: 'numeric', month: 'short'})} a las {date.toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'})}
+                                </p>
+                              </div>
+                              <button onClick={() => handleDeleteAppointment(app.id)} className="btn-icon" style={{width:'30px', height:'30px', borderRadius:'6px', color:'var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', cursor: 'pointer', flexShrink: 0}} title="Cancelar Cita">
+                                <Trash size={14} />
+                              </button>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
