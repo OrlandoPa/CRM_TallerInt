@@ -145,8 +145,7 @@ function App() {
   // Google OAuth Login Flow (Client-side GIS)
   const handleGoogleLogin = () => {
     if (!settings.googleClientId) {
-      showToast('Por favor, configura tu Google Client ID en la pestaña de Configuración', false);
-      setActiveTab('integrations');
+      showToast('Por favor, configura tu Google Client ID en las variables de entorno (.env).', false);
       return;
     }
 
@@ -487,13 +486,6 @@ function App() {
               <CalendarIcon size={20} />
               Calendario
             </button>
-            <button 
-              className={`menu-item ${activeTab === 'integrations' ? 'active' : ''}`}
-              onClick={() => setActiveTab('integrations')}
-            >
-              <Settings size={20} />
-              Configuración
-            </button>
           </nav>
 
           <div className="sidebar-footer">
@@ -512,7 +504,7 @@ function App() {
           <header className="top-bar">
             <div className="page-title">
               <h1 style={{textTransform: 'capitalize'}}>
-                {activeTab === 'chats' ? 'Consola de Chatwoot' : activeTab === 'integrations' ? 'Configuración' : activeTab === 'calendar' ? 'Calendario' : activeTab}
+                {activeTab === 'chats' ? 'Consola de Chatwoot' : activeTab === 'calendar' ? 'Calendario' : activeTab}
               </h1>
             </div>
             <div className="top-bar-actions">
@@ -827,205 +819,7 @@ function App() {
               </div>
             )}
 
-            {/* 5. INTEGRATIONS / CONFIGURATION VIEW */}
-            {activeTab === 'integrations' && (
-              <div className="integrations-view animate-fade-in">
-                {/* Integration status overview */}
-                <div className="glass-card" style={{display: 'flex', flexDirection: 'column', gap: '16px'}}>
-                  <h2 style={{fontSize: '1.25rem'}}>Estado del Backend</h2>
-                  
-                  <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap: '16px'}}>
-                    <div style={{background: 'var(--bg-tertiary)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)'}}>
-                      <div style={{display:'flex', justifyContent:'space-between', marginBottom:'12px'}}>
-                        <span style={{fontWeight:600, fontSize:'0.9rem'}}>Google Calendar API</span>
-                        {gcalConnected ? (
-                          <span style={{color:'#10b981', fontSize:'0.75rem', fontWeight:600}}>CONECTADO</span>
-                        ) : (
-                          <span style={{color:'#f59e0b', fontSize:'0.75rem', fontWeight:600}}>DEMO (OFFLINE)</span>
-                        )}
-                      </div>
-                      <p style={{fontSize:'0.8rem', color:'var(--text-secondary)', marginBottom:'12px'}}>
-                        {gcalConnected 
-                          ? 'El frontend está consultando la API de Google de forma directa y segura con tu sesión activa.' 
-                          : 'Carga tu Client ID de Google abajo y haz clic en el botón de conexión para usar tu cuenta.'}
-                      </p>
-                      {gcalConnected ? (
-                        <button onClick={handleGoogleLogout} className="btn btn-secondary" style={{width:'100%', justifyContent:'center'}}>
-                          Cerrar Sesión Google
-                        </button>
-                      ) : (
-                        <button onClick={handleGoogleLogin} className="btn btn-primary" style={{width:'100%', justifyContent:'center'}}>
-                          Conectar con Google
-                        </button>
-                      )}
-                    </div>
 
-                    <div style={{background: 'var(--bg-tertiary)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)'}}>
-                      <div style={{display:'flex', justifyContent:'space-between', marginBottom:'12px'}}>
-                        <span style={{fontWeight:600, fontSize:'0.9rem'}}>Supabase DB</span>
-                        {api.supabase ? (
-                          <span style={{color:'#10b981', fontSize:'0.75rem', fontWeight:600}}>ONLINE</span>
-                        ) : (
-                          <span style={{color:'#f59e0b', fontSize:'0.75rem', fontWeight:600}}>SIMULADO</span>
-                        )}
-                      </div>
-                      <p style={{fontSize:'0.8rem', color:'var(--text-secondary)', marginBottom:'12px'}}>
-                        {api.supabase 
-                          ? 'La base de datos de Supabase está enlazada. Los mensajes de WhatsApp e información de leads se persisten en tiempo real.' 
-                          : 'Configura la URL de tu proyecto y tu clave anónima para conectarte a las tablas clínicas.'}
-                      </p>
-                      <button onClick={() => {
-                        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-                      }} className="btn btn-secondary" style={{width:'100%', justifyContent:'center'}}>
-                        Configurar Supabase
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="glass-card">
-                  <h2 style={{fontSize: '1.25rem', marginBottom: '8px'}}>Configuración de Integraciones</h2>
-                  <p style={{color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '24px'}}>
-                    Configura tus credenciales. Los datos se almacenan de forma local en tu navegador para máxima seguridad.
-                  </p>
-
-                  <form onSubmit={handleSaveSettings} style={{display: 'flex', flexDirection: 'column', gap: '20px'}}>
-                    <div style={{borderBottom: '1px solid var(--border-color)', paddingBottom: '16px'}}>
-                      <h3 style={{fontSize:'1rem', marginBottom:'12px', color:'var(--primary)'}}>Google Calendar (Conexión Directa)</h3>
-                      <div className="form-group" style={{marginBottom:'12px'}}>
-                        <label>Google Cloud OAuth Client ID</label>
-                        <input 
-                          type="text" 
-                          className="form-control" 
-                          placeholder="xxxxxxxxxx-xxxxxxxxxxxxxxxx.apps.googleusercontent.com"
-                          value={settings.googleClientId}
-                          onChange={(e) => setSettings(prev => ({ ...prev, googleClientId: e.target.value }))}
-                        />
-                        <p style={{fontSize:'0.75rem', color:'var(--text-muted)', marginTop:'4px'}}>
-                          Obtén este Client ID en tu Consola de Google Cloud (debe ser una credencial de tipo "Web Application" con `http://localhost:5173` o tu dominio añadido en los orígenes autorizados).
-                        </p>
-                      </div>
-
-                      <div className="form-group">
-                        <label>Calendar ID (Correo de Agenda)</label>
-                        <input 
-                          type="text" 
-                          className="form-control" 
-                          placeholder="primary o tuemail@gmail.com"
-                          value={settings.calendarId}
-                          onChange={(e) => setSettings(prev => ({ ...prev, calendarId: e.target.value }))}
-                        />
-                        <p style={{fontSize:'0.75rem', color:'var(--text-muted)', marginTop:'4px'}}>
-                          Usa <code style={{color:'var(--primary)'}}>primary</code> para la agenda predeterminada de tu cuenta o introduce un correo si usas un calendario secundario compartido.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div style={{borderBottom: '1px solid var(--border-color)', paddingBottom: '16px'}}>
-                      <h3 style={{fontSize:'1rem', marginBottom:'12px', color:'var(--primary)'}}>Chatwoot (Dashboard Integration)</h3>
-                      <div className="form-group" style={{marginBottom:'12px'}}>
-                        <label>ID de Cuenta o URL de Chatwoot</label>
-                        <input 
-                          type="text" 
-                          className="form-control" 
-                          placeholder="Ej. 164153 o la URL completa de la cuenta"
-                          value={settings.chatwootAccountId}
-                          onChange={(e) => setSettings(prev => ({ ...prev, chatwootAccountId: e.target.value }))}
-                        />
-                        <p style={{fontSize:'0.75rem', color:'var(--text-muted)', marginTop:'4px'}}>
-                          Introduce el número o pega la URL completa de tu panel (ej: <code style={{color:'var(--primary)'}}>https://app.chatwoot.com/app/accounts/164153/</code>). El CRM extraerá el ID automáticamente.
-                        </p>
-                      </div>
-
-                      <div className="form-group" style={{marginBottom:'12px'}}>
-                        <label>Base URL de Chatwoot</label>
-                        <input 
-                          type="text" 
-                          className="form-control" 
-                          placeholder="https://app.chatwoot.com o tu instancia self-hosted"
-                          value={settings.chatwootBaseUrl}
-                          onChange={(e) => setSettings(prev => ({ ...prev, chatwootBaseUrl: e.target.value }))}
-                        />
-                        <p style={{fontSize:'0.75rem', color:'var(--text-muted)', marginTop:'4px'}}>
-                          Esta URL se usa para abrir y embeber Chatwoot desde esta aplicación.
-                        </p>
-                      </div>
-
-                      <div className="form-group">
-                        <label>Token de Acceso de la API (Opcional)</label>
-                        <input 
-                          type="password" 
-                          className="form-control" 
-                          placeholder="Introduce tu API Token de Chatwoot"
-                          value={settings.chatwootAccessToken}
-                          onChange={(e) => setSettings(prev => ({ ...prev, chatwootAccessToken: e.target.value }))}
-                        />
-                        <p style={{fontSize:'0.75rem', color:'var(--text-muted)', marginTop:'4px'}}>
-                          Token de acceso de usuario para sincronizar en tiempo real (consultar historial y contestar mensajes reales). Lo encuentras en Chatwoot &rarr; Ajustes de Perfil &rarr; Token de acceso.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div>
-                      <h3 style={{fontSize:'1rem', marginBottom:'12px', color:'var(--primary)'}}>Base de Datos Supabase</h3>
-                      <div className="form-group" style={{marginBottom:'12px'}}>
-                        <label><Database size={14} style={{verticalAlign:'middle', marginRight:'6px'}}/> Supabase URL</label>
-                        <input 
-                          type="text" 
-                          className="form-control" 
-                          placeholder="https://yourproject.supabase.co"
-                          value={settings.supabaseUrl}
-                          onChange={(e) => setSettings(prev => ({ ...prev, supabaseUrl: e.target.value }))}
-                        />
-                      </div>
-
-                      <div className="form-group">
-                        <label><Database size={14} style={{verticalAlign:'middle', marginRight:'6px'}}/> Supabase Anon Key</label>
-                        <input 
-                          type="password" 
-                          className="form-control" 
-                          placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                          value={settings.supabaseAnonKey}
-                          onChange={(e) => setSettings(prev => ({ ...prev, supabaseAnonKey: e.target.value }))}
-                        />
-                      </div>
-                    </div>
-
-                    <div style={{display:'flex', justifyContent:'flex-end', gap:'12px', marginTop:'10px'}}>
-                      <button type="submit" className="btn btn-primary">
-                        Guardar Configuración
-                      </button>
-                    </div>
-                  </form>
-                </div>
-
-                <div className="glass-card" style={{display:'flex', flexDirection:'column', gap:'16px'}}>
-                  <h2 style={{fontSize:'1.1rem'}}>Configurar tu Base de Datos en Supabase</h2>
-                  
-                  <div style={{fontSize:'0.9rem', lineHeight:'1.6', display:'flex', flexDirection:'column', gap:'16px'}}>
-                    <div>
-                      <p style={{fontWeight:600, color:'var(--primary)'}}>Crear la Tabla de Leads para el CRM</p>
-                      <p>Ejecuta la siguiente consulta SQL en la sección **SQL Editor** de tu consola de Supabase para añadir el soporte de estados del embudo y notas clínicas:</p>
-                      <pre style={{background:'var(--bg-tertiary)', padding:'12px', borderRadius:'8px', fontSize:'0.75rem', overflowX:'auto', marginTop:'8px', border:'1px solid var(--border-color)', color:'#a78bfa'}}>
-{`CREATE TABLE IF NOT EXISTS crm_leads (
-    phone_number VARCHAR PRIMARY KEY, -- Se enlaza con sessionKey de mensajes_whatsapp
-    client_name VARCHAR,
-    client_email VARCHAR,
-    status VARCHAR DEFAULT 'lead' CHECK (status IN ('lead', 'contacted', 'scheduled', 'completed', 'lost')),
-    internal_notes TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW())
-);
-
--- Habilitar actualizaciones en tiempo real
-alter publication supabase_realtime add table crm_leads;
-alter publication supabase_realtime add table mensajes_whatsapp;`}
-                      </pre>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
           </>
         )}
       </main>
