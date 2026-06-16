@@ -172,6 +172,8 @@ function App() {
   const [isNewPatient, setIsNewPatient] = useState(false);
   const [newPatientName, setNewPatientName] = useState('');
   const [newPatientPhone, setNewPatientPhone] = useState('');
+  const [isDatePickerModalOpen, setIsDatePickerModalOpen] = useState(false);
+  const [targetDateInput, setTargetDateInput] = useState('');
   const [newEvent, setNewEvent] = useState({
     summary: '',
     start: '',
@@ -578,6 +580,15 @@ function App() {
   const lostCount = leads.filter(l => l.status === 'lost').length;
   const conversionRate = totalLeads ? Math.round(((scheduledCount + completedCount) / totalLeads) * 100) : 0;
 
+  // Citas BD metrics
+  const totalPacientes = pacientes.length;
+  const totalCitas = citasDb.length;
+  const citasAgendadas = citasDb.filter(c => c.estado_cita === 'AGENDADA' || c.estado_cita === 'CONFIRMADA' || !c.estado_cita).length;
+  const citasAsistio = citasDb.filter(c => c.estado_cita === 'ASISTIO' || c.estado_cita === 'COMPLETADA').length;
+  const citasNoAsistio = citasDb.filter(c => c.estado_cita === 'NO_ASISTIO').length;
+  const totalAsistenciaResuelta = citasAsistio + citasNoAsistio;
+  const tasaAsistencia = totalAsistenciaResuelta ? Math.round((citasAsistio / totalAsistenciaResuelta) * 100) : 0;
+
   // Render helper for icons inside dashboard
   const getStatusBadge = (status) => {
     switch (status) {
@@ -751,7 +762,7 @@ function App() {
             {activeTab === 'dashboard' && (
               <div className="dashboard-view animate-fade-in" style={{display: 'flex', flexDirection: 'column', gap: '24px'}}>
                 {/* KPI Metrics row */}
-                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px'}}>
+                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px'}}>
                   {/* Card 1: Pacientes Registrados */}
                   <div className="glass-card metric-card" style={{display: 'flex', alignItems: 'center', gap: '16px', padding: '20px'}}>
                     <div className="metric-icon-wrapper" style={{background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', padding: '12px', borderRadius: '10px'}}>
@@ -759,7 +770,7 @@ function App() {
                     </div>
                     <div className="metric-info">
                       <span className="metric-label" style={{fontSize: '0.85rem', color: 'var(--text-secondary)'}}>Pacientes Registrados</span>
-                      <span className="metric-value" style={{fontSize: '2rem', fontWeight: 700, display: 'block', margin: '4px 0'}}>{pacientes.length}</span>
+                      <span className="metric-value" style={{fontSize: '2rem', fontWeight: 700, display: 'block', margin: '4px 0'}}>{totalPacientes}</span>
                       <span style={{fontSize: '0.75rem', color: 'var(--text-muted)'}}>En base de datos</span>
                     </div>
                   </div>
@@ -771,22 +782,56 @@ function App() {
                     </div>
                     <div className="metric-info">
                       <span className="metric-label" style={{fontSize: '0.85rem', color: 'var(--text-secondary)'}}>Citas Totales (BD)</span>
-                      <span className="metric-value" style={{fontSize: '2rem', fontWeight: 700, display: 'block', margin: '4px 0'}}>{citasDb.length}</span>
-                      <span style={{fontSize: '0.75rem', color: '#10b981', fontWeight: 600}}>● Control Clínico</span>
+                      <span className="metric-value" style={{fontSize: '2rem', fontWeight: 700, display: 'block', margin: '4px 0'}}>{totalCitas}</span>
+                      <span style={{fontSize: '0.75rem', color: '#10b981', fontWeight: 600}}>Historial clínico</span>
                     </div>
                   </div>
 
-                  {/* Card 3: Google Calendar */}
+                  {/* Card 3: Citas Agendadas */}
                   <div className="glass-card metric-card" style={{display: 'flex', alignItems: 'center', gap: '16px', padding: '20px'}}>
-                    <div className="metric-icon-wrapper" style={{background: 'rgba(245, 158, 11, 0.15)', color: 'var(--warning)', padding: '12px', borderRadius: '10px'}}>
+                    <div className="metric-icon-wrapper" style={{background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', padding: '12px', borderRadius: '10px'}}>
                       <Clock3 size={28} />
                     </div>
                     <div className="metric-info">
-                      <span className="metric-label" style={{fontSize: '0.85rem', color: 'var(--text-secondary)'}}>Eventos Google Cal</span>
-                      <span className="metric-value" style={{fontSize: '2rem', fontWeight: 700, display: 'block', margin: '4px 0'}}>{appointments.length}</span>
-                      <span style={{fontSize: '0.75rem', color: gcalConnected ? '#10b981' : 'var(--text-muted)', fontWeight: 500}}>
-                        {gcalConnected ? '● Google Calendar Activo' : '○ Modo Demo (Sin conexión)'}
-                      </span>
+                      <span className="metric-label" style={{fontSize: '0.85rem', color: 'var(--text-secondary)'}}>Citas Agendadas</span>
+                      <span className="metric-value" style={{fontSize: '2rem', fontWeight: 700, display: 'block', margin: '4px 0'}}>{citasAgendadas}</span>
+                      <span style={{fontSize: '0.75rem', color: '#fbbf24', fontWeight: 500}}>Pendientes de atención</span>
+                    </div>
+                  </div>
+
+                  {/* Card 4: Citas Asistidas */}
+                  <div className="glass-card metric-card" style={{display: 'flex', alignItems: 'center', gap: '16px', padding: '20px'}}>
+                    <div className="metric-icon-wrapper" style={{background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', padding: '12px', borderRadius: '10px'}}>
+                      <Check size={28} />
+                    </div>
+                    <div className="metric-info">
+                      <span className="metric-label" style={{fontSize: '0.85rem', color: 'var(--text-secondary)'}}>Citas Asistidas</span>
+                      <span className="metric-value" style={{fontSize: '2rem', fontWeight: 700, display: 'block', margin: '4px 0'}}>{citasAsistio}</span>
+                      <span style={{fontSize: '0.75rem', color: '#10b981', fontWeight: 500}}>Asistencia confirmada</span>
+                    </div>
+                  </div>
+
+                  {/* Card 5: Inasistencias */}
+                  <div className="glass-card metric-card" style={{display: 'flex', alignItems: 'center', gap: '16px', padding: '20px'}}>
+                    <div className="metric-icon-wrapper" style={{background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', padding: '12px', borderRadius: '10px'}}>
+                      <AlertCircle size={28} />
+                    </div>
+                    <div className="metric-info">
+                      <span className="metric-label" style={{fontSize: '0.85rem', color: 'var(--text-secondary)'}}>Inasistencias</span>
+                      <span className="metric-value" style={{fontSize: '2rem', fontWeight: 700, display: 'block', margin: '4px 0'}}>{citasNoAsistio}</span>
+                      <span style={{fontSize: '0.75rem', color: '#ef4444', fontWeight: 500}}>Pacientes ausentes</span>
+                    </div>
+                  </div>
+
+                  {/* Card 6: Tasa de Asistencia */}
+                  <div className="glass-card metric-card" style={{display: 'flex', alignItems: 'center', gap: '16px', padding: '20px'}}>
+                    <div className="metric-icon-wrapper" style={{background: 'rgba(79, 70, 229, 0.15)', color: '#6366f1', padding: '12px', borderRadius: '10px'}}>
+                      <ArrowUpRight size={28} />
+                    </div>
+                    <div className="metric-info">
+                      <span className="metric-label" style={{fontSize: '0.85rem', color: 'var(--text-secondary)'}}>Tasa de Asistencia</span>
+                      <span className="metric-value" style={{fontSize: '2rem', fontWeight: 700, display: 'block', margin: '4px 0'}}>{tasaAsistencia}%</span>
+                      <span style={{fontSize: '0.75rem', color: '#6366f1', fontWeight: 600}}>Eficiencia de citas</span>
                     </div>
                   </div>
                 </div>
@@ -1066,19 +1111,9 @@ function App() {
                     )}
                     <button 
                       onClick={() => {
-                        setNewEvent({
-                          summary: '',
-                          start: '',
-                          end: '',
-                          description: '',
-                          phone_number: ''
-                        });
-                        setIsTimeLocked(false);
-                        setTreatmentType('evaluacion');
-                        setIsNewPatient(false);
-                        setNewPatientName('');
-                        setNewPatientPhone('');
-                        setIsAppointmentModalOpen(true);
+                        const todayStr = new Date().toLocaleString('sv-SE').slice(0, 10);
+                        setTargetDateInput(todayStr);
+                        setIsDatePickerModalOpen(true);
                       }} 
                       className="btn btn-primary"
                       disabled={!gcalConnected}
@@ -1823,6 +1858,73 @@ function App() {
                 </button>
               </footer>
             </form>
+          </div>
+        </div>
+      )}
+      {/* MODAL DE SELECCIÓN DE FECHA (AGENDAR CITA GENERAL) */}
+      {isDatePickerModalOpen && (
+        <div className="modal-overlay" style={{ zIndex: 130 }}>
+          <div className="modal-content animate-slide-up" style={{ maxWidth: '400px', width: '90%' }}>
+            <header className="modal-header">
+              <span className="modal-title">Seleccionar Fecha de Cita</span>
+              <button 
+                onClick={() => {
+                  setIsDatePickerModalOpen(false);
+                  setTargetDateInput('');
+                }} 
+                className="btn-icon" 
+                style={{width:'32px', height:'32px'}}
+              >
+                ✕
+              </button>
+            </header>
+            <div className="modal-body">
+              <div className="form-group">
+                <label>Elige la fecha para la cita</label>
+                <input 
+                  type="date" 
+                  className="form-control" 
+                  value={targetDateInput}
+                  onChange={(e) => setTargetDateInput(e.target.value)}
+                  min={new Date().toISOString().split('T')[0]}
+                  required
+                />
+              </div>
+            </div>
+            <footer className="modal-footer">
+              <button 
+                type="button" 
+                onClick={() => {
+                  setIsDatePickerModalOpen(false);
+                  setTargetDateInput('');
+                }} 
+                className="btn btn-secondary"
+              >
+                Cancelar
+              </button>
+              <button 
+                type="button" 
+                onClick={() => {
+                  if (!targetDateInput) {
+                    showToast('Por favor, selecciona una fecha.', false);
+                    return;
+                  }
+                  const parts = targetDateInput.split('-');
+                  const year = parseInt(parts[0]);
+                  const month = parseInt(parts[1]) - 1;
+                  const day = parseInt(parts[2]);
+                  const targetDate = new Date(year, month, day);
+
+                  setCurrentDate(targetDate);
+                  setSelectedDayForAgenda(targetDate);
+                  setIsDatePickerModalOpen(false);
+                  setTargetDateInput('');
+                }} 
+                className="btn btn-primary"
+              >
+                Ir a la Agenda de ese Día
+              </button>
+            </footer>
           </div>
         </div>
       )}
