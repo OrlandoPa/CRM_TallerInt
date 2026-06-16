@@ -169,6 +169,9 @@ function App() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isTimeLocked, setIsTimeLocked] = useState(false);
   const [treatmentType, setTreatmentType] = useState('evaluacion');
+  const [isNewPatient, setIsNewPatient] = useState(false);
+  const [newPatientName, setNewPatientName] = useState('');
+  const [newPatientPhone, setNewPatientPhone] = useState('');
   const [newEvent, setNewEvent] = useState({
     summary: '',
     start: '',
@@ -409,9 +412,16 @@ function App() {
       return;
     }
 
+    // Determine phone number to pass
+    const phone = isNewPatient ? newPatientPhone.trim() : newEvent.phone_number;
+    if (isNewPatient && (!newPatientName.trim() || !newPatientPhone.trim())) {
+      showToast('Por favor, ingresa el nombre y celular del paciente nuevo.', false);
+      return;
+    }
+
     try {
-      const desc = newEvent.phone_number 
-        ? `${newEvent.description} | Contacto: ${newEvent.phone_number}`
+      const desc = phone 
+        ? `${newEvent.description} | Contacto: ${phone}`
         : newEvent.description;
 
       await api.createAppointment(
@@ -419,7 +429,7 @@ function App() {
         new Date(newEvent.start).toISOString(),
         new Date(newEvent.end).toISOString(),
         desc,
-        newEvent.phone_number
+        phone
       );
       
       // If client phone was linked, let's update their lead status to 'scheduled'
@@ -435,6 +445,9 @@ function App() {
       setNewEvent({ summary: '', start: '', end: '', description: '', phone_number: '' });
       setIsTimeLocked(false);
       setTreatmentType('evaluacion');
+      setIsNewPatient(false);
+      setNewPatientName('');
+      setNewPatientPhone('');
       showToast('Cita agendada directamente en Google Calendar');
     } catch (err) {
       console.error(err);
@@ -1062,6 +1075,9 @@ function App() {
                         });
                         setIsTimeLocked(false);
                         setTreatmentType('evaluacion');
+                        setIsNewPatient(false);
+                        setNewPatientName('');
+                        setNewPatientPhone('');
                         setIsAppointmentModalOpen(true);
                       }} 
                       className="btn btn-primary"
@@ -1234,6 +1250,9 @@ function App() {
                 setIsAppointmentModalOpen(false);
                 setIsTimeLocked(false);
                 setTreatmentType('evaluacion');
+                setIsNewPatient(false);
+                setNewPatientName('');
+                setNewPatientPhone('');
               }} className="btn-icon" style={{width:'32px', height:'32px'}}>✕</button>
             </header>
             <form onSubmit={handleCreateAppointment}>
@@ -1250,40 +1269,121 @@ function App() {
                   />
                 </div>
                 <div className="form-group">
-                  <label>Vincular a Paciente de WhatsApp (Opcional)</label>
+                  <label>¿Paciente nuevo?</label>
                   <select 
                     className="form-control"
-                    value={newEvent.phone_number}
+                    value={isNewPatient ? 'si' : 'no'}
                     onChange={(e) => {
-                      const num = e.target.value;
-                      const l = leads.find(lead => lead.phone_number === num);
-                      const treatmentLabels = {
-                        evaluacion: 'Evaluación Inicial',
-                        restauracion: 'Restauración',
-                        endodoncia: 'Endodoncia',
-                        ortodoncia: 'Ortodoncia',
-                        blanqueamiento: 'Blanqueamiento Dental',
-                        cirugia: 'Cirugía de Cordales',
-                        rehabilitacion: 'Rehabilitación Oral',
-                        personalizado: 'Consulta'
-                      };
-                      const label = treatmentLabels[treatmentType] || 'Consulta';
-                      const patientName = l ? l.client_name : 'Paciente';
+                      const val = e.target.value === 'si';
+                      setIsNewPatient(val);
+                      // Reset values
+                      setNewPatientName('');
+                      setNewPatientPhone('');
                       setNewEvent(prev => ({ 
                         ...prev, 
-                        phone_number: num,
-                        summary: `${patientName} - ${label}`
+                        phone_number: '',
+                        summary: `Paciente - ${
+                          {
+                            evaluacion: 'Evaluación Inicial',
+                            restauracion: 'Restauración',
+                            endodoncia: 'Endodoncia',
+                            ortodoncia: 'Ortodoncia',
+                            blanqueamiento: 'Blanqueamiento Dental',
+                            cirugia: 'Cirugía de Cordales',
+                            rehabilitacion: 'Rehabilitación Oral',
+                            personalizado: 'Consulta'
+                          }[treatmentType] || 'Consulta'
+                        }`
                       }));
                     }}
                   >
-                    <option value="">-- No vincular --</option>
-                    {leads.map(l => (
-                      <option key={l.phone_number} value={l.phone_number}>
-                        {l.client_name} ({l.phone_number})
-                      </option>
-                    ))}
+                    <option value="no">No</option>
+                    <option value="si">Sí</option>
                   </select>
                 </div>
+
+                {!isNewPatient ? (
+                  <div className="form-group">
+                    <label>Vincular a Paciente de WhatsApp (Opcional)</label>
+                    <select 
+                      className="form-control"
+                      value={newEvent.phone_number}
+                      onChange={(e) => {
+                        const num = e.target.value;
+                        const l = leads.find(lead => lead.phone_number === num);
+                        const treatmentLabels = {
+                          evaluacion: 'Evaluación Inicial',
+                          restauracion: 'Restauración',
+                          endodoncia: 'Endodoncia',
+                          ortodoncia: 'Ortodoncia',
+                          blanqueamiento: 'Blanqueamiento Dental',
+                          cirugia: 'Cirugía de Cordales',
+                          rehabilitacion: 'Rehabilitación Oral',
+                          personalizado: 'Consulta'
+                        };
+                        const label = treatmentLabels[treatmentType] || 'Consulta';
+                        const patientName = l ? l.client_name : 'Paciente';
+                        setNewEvent(prev => ({ 
+                          ...prev, 
+                          phone_number: num,
+                          summary: `${patientName} - ${label}`
+                        }));
+                      }}
+                    >
+                      <option value="">-- No vincular --</option>
+                      {leads.map(l => (
+                        <option key={l.phone_number} value={l.phone_number}>
+                          {l.client_name} ({l.phone_number})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <>
+                    <div className="form-group">
+                      <label>Nombre del Paciente Nuevo</label>
+                      <input 
+                        type="text" 
+                        className="form-control" 
+                        placeholder="Ej. Carlos Prado"
+                        value={newPatientName}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setNewPatientName(val);
+                          
+                          const treatmentLabels = {
+                            evaluacion: 'Evaluación Inicial',
+                            restauracion: 'Restauración',
+                            endodoncia: 'Endodoncia',
+                            ortodoncia: 'Ortodoncia',
+                            blanqueamiento: 'Blanqueamiento Dental',
+                            cirugia: 'Cirugía de Cordales',
+                            rehabilitacion: 'Rehabilitación Oral',
+                            personalizado: 'Consulta'
+                          };
+                          const label = treatmentLabels[treatmentType] || 'Consulta';
+                          const patientName = val.trim() || 'Paciente';
+                          setNewEvent(prev => ({
+                            ...prev,
+                            summary: `${patientName} - ${label}`
+                          }));
+                        }}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Número de Celular</label>
+                      <input 
+                        type="tel" 
+                        className="form-control" 
+                        placeholder="Ej. +51 999 888 777"
+                        value={newPatientPhone}
+                        onChange={(e) => setNewPatientPhone(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </>
+                )}
 
                 <div className="form-group">
                   <label>Tipo de Tratamiento / Motivo</label>
@@ -1379,6 +1479,9 @@ function App() {
                   setIsAppointmentModalOpen(false);
                   setIsTimeLocked(false);
                   setTreatmentType('evaluacion');
+                  setIsNewPatient(false);
+                  setNewPatientName('');
+                  setNewPatientPhone('');
                 }} className="btn btn-secondary">
                   Cancelar
                 </button>
@@ -1509,6 +1612,9 @@ function App() {
                                 });
                                 setIsTimeLocked(true);
                                 setTreatmentType('evaluacion');
+                                setIsNewPatient(false);
+                                setNewPatientName('');
+                                setNewPatientPhone('');
                                 setIsAppointmentModalOpen(true);
                               }}
                                className="btn btn-secondary" 
