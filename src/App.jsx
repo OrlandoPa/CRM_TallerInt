@@ -302,7 +302,8 @@ function App() {
         newEvent.summary,
         new Date(newEvent.start).toISOString(),
         new Date(newEvent.end).toISOString(),
-        desc
+        desc,
+        newEvent.phone_number
       );
       
       // If client phone was linked, let's update their lead status to 'scheduled'
@@ -622,19 +623,32 @@ function App() {
                             <div key={cita.id} style={{
                               display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
                               padding: '14px', background: 'var(--bg-tertiary)', borderRadius: '10px',
-                              borderLeft: '4px solid var(--primary)', border: '1px solid var(--border-color)',
-                              borderLeftWidth: '4px', gap: '10px'
+                              borderLeft: cita.estado_cita === 'CANCELADA' ? '4px solid #ef4444' : '4px solid var(--primary)', 
+                              border: '1px solid var(--border-color)',
+                              borderLeftWidth: '4px', gap: '10px',
+                              opacity: cita.estado_cita === 'CANCELADA' ? 0.7 : 1
                             }}>
                               <div style={{overflow: 'hidden'}}>
                                 <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px'}}>
-                                  <span style={{fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-main)'}}>{patientName}</span>
+                                  <span style={{
+                                    fontWeight: 600, 
+                                    fontSize: '0.9rem', 
+                                    color: 'var(--text-main)',
+                                    textDecoration: cita.estado_cita === 'CANCELADA' ? 'line-through' : 'none'
+                                  }}>{patientName}</span>
                                   <span style={{fontSize: '0.7rem', color: 'var(--text-secondary)'}}>({cita.telefono_paciente})</span>
                                 </div>
-                                <p style={{fontSize: '0.8rem', color: 'var(--text-secondary)', fontStyle: cita.motivo_consulta ? 'normal' : 'italic', marginBottom: '4px'}}>
+                                <p style={{
+                                  fontSize: '0.8rem', 
+                                  color: 'var(--text-secondary)', 
+                                  fontStyle: cita.motivo_consulta ? 'normal' : 'italic', 
+                                  marginBottom: '4px',
+                                  textDecoration: cita.estado_cita === 'CANCELADA' ? 'line-through' : 'none'
+                                }}>
                                   {cita.motivo_consulta || 'Sin motivo especificado'}
                                 </p>
                                 <p style={{fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px'}}>
-                                  <Clock size={12} style={{color: 'var(--primary)'}} /> {formattedDate}
+                                  <Clock size={12} style={{color: cita.estado_cita === 'CANCELADA' ? '#ef4444' : 'var(--primary)'}} /> {formattedDate}
                                 </p>
                               </div>
                               <div style={{display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px', flexShrink: 0}}>
@@ -643,8 +657,8 @@ function App() {
                                   fontWeight: 600, 
                                   padding: '2px 8px', 
                                   borderRadius: '4px',
-                                  background: cita.estado_cita === 'CONFIRMADA' || cita.estado_cita === 'COMPLETADA' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
-                                  color: cita.estado_cita === 'CONFIRMADA' || cita.estado_cita === 'COMPLETADA' ? '#10b981' : '#f59e0b'
+                                  background: cita.estado_cita === 'CANCELADA' ? 'rgba(239, 68, 68, 0.1)' : (cita.estado_cita === 'CONFIRMADA' || cita.estado_cita === 'COMPLETADA' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)'),
+                                  color: cita.estado_cita === 'CANCELADA' ? '#ef4444' : (cita.estado_cita === 'CONFIRMADA' || cita.estado_cita === 'COMPLETADA' ? '#10b981' : '#f59e0b')
                                 }}>
                                   {cita.estado_cita || 'AGENDADA'}
                                 </span>

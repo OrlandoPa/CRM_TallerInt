@@ -221,8 +221,8 @@ let stateAppointments = [...mockAppointments];
 export const getLeads = async () => {
   if (supabase) {
     try {
-      const { data: crmData, error: crmError } = await supabase
-        .from('crm_leads')
+      const { data: pacientesData, error: crmError } = await supabase
+        .from('pacientes')
         .select('*');
         
       if (crmError) throw crmError;
@@ -237,10 +237,18 @@ export const getLeads = async () => {
       const uniquePhones = msgData ? [...new Set(msgData.map(m => m.session_id).filter(Boolean))] : [];
       
       const leadsMap = new Map();
-      if (crmData) {
-        crmData.forEach(l => {
-          if (l.phone_number) {
-            leadsMap.set(l.phone_number.replace(/[\s\-\+]/g, ''), l);
+      if (pacientesData) {
+        pacientesData.forEach(p => {
+          if (p.telefono_whatsapp) {
+            leadsMap.set(p.telefono_whatsapp.replace(/[\s\-\+]/g, ''), {
+              phone_number: p.telefono_whatsapp,
+              client_name: p.nombre_paciente || 'Paciente sin nombre',
+              client_email: '',
+              status: 'contacted',
+              internal_notes: 'Paciente registrado en la base de datos.',
+              created_at: p.created_at || new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            });
           }
         });
       }
@@ -261,7 +269,7 @@ export const getLeads = async () => {
       });
       
       const mergedLeads = Array.from(leadsMap.values());
-      return mergedLeads.length > 0 ? mergedLeads : crmData || [];
+      return mergedLeads;
     } catch (err) {
       console.error('Error fetching leads from Supabase, using mock:', err);
     }
@@ -275,21 +283,27 @@ export const updateLead = async (lead) => {
   if (supabase) {
     try {
       const { data, error } = await supabase
-        .from('crm_leads')
+        .from('pacientes')
         .upsert({
-          phone_number: lead.phone_number,
-          client_name: lead.client_name,
-          client_email: lead.client_email,
-          status: lead.status,
-          internal_notes: lead.internal_notes,
-          updated_at: new Date().toISOString()
+          telefono_whatsapp: lead.phone_number,
+          nombre_paciente: lead.client_name
         })
         .select();
         
       if (error) throw error;
-      return data[0];
+      
+      if (data && data.length > 0) {
+        return {
+          phone_number: data[0].telefono_whatsapp,
+          client_name: data[0].nombre_paciente,
+          client_email: lead.client_email || '',
+          status: lead.status || 'contacted',
+          internal_notes: lead.internal_notes || '',
+          updated_at: new Date().toISOString()
+        };
+      }
     } catch (err) {
-      console.error('Error updating lead in Supabase:', err);
+      console.error('Error updating patient in Supabase:', err);
     }
   }
   
@@ -505,9 +519,11 @@ export const getAppointments = async (timeMin, timeMax) => {
   return stateAppointments;
 };
 
-export const createAppointment = async (summary, start, end, description = '') => {
+export const createAppointment = async (summary, start, end, description = '', phone = '') => {
   const token = getGCalToken();
   const calendarId = getCalendarId();
+  let gcalEventId = null;
+  let gcalStatus = 'confirmed';
 
   if (token) {
     try {
@@ -531,26 +547,44 @@ export const createAppointment = async (summary, start, end, description = '') =
       
       if (!response.ok) throw new Error(`Google Calendar creation error: ${response.statusText}`);
       const data = await response.json();
-      return {
-        id: data.id,
-        summary: data.summary,
-        description: data.description,
-        start: { dateTime: data.start?.dateTime },
-        end: { dateTime: data.end?.dateTime },
-        status: data.status
-      };
+      gcalEventId = data.id;
+      gcalStatus = data.status || 'confirmed';
     } catch (err) {
       console.error('Error creating direct appointment in Google Calendar, using mock:', err);
     }
   }
+
+  if (!gcalEventId) {
+    gcalEventId = `gcal-event-${Date.now()}`;
+  }
+
+  // Sync to Supabase Table 'citas'
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('citas')
+        .insert({
+          telefono_paciente: phone || null,
+          fecha_hora_cita: start,
+          motivo_consulta: summary,
+          estado_cita: 'AGENDADA',
+          google_event_id: gcalEventId
+        })
+        .select();
+        
+      if (error) throw error;
+    } catch (err) {
+      console.error('Error inserting appointment into Supabase citas table:', err);
+    }
+  }
   
   const newAppointment = {
-    id: `gcal-event-${Date.now()}`,
+    id: gcalEventId,
     summary: summary,
     description: description || 'Creada manualmente desde el CRM',
     start: { dateTime: start },
     end: { dateTime: end },
-    status: 'confirmed'
+    status: gcalStatus
   };
   
   stateAppointments.push(newAppointment);
@@ -561,6 +595,7 @@ export const deleteAppointment = async (eventId) => {
   const token = getGCalToken();
   const calendarId = getCalendarId();
 
+  // 1. Delete from Google Calendar
   if (token) {
     try {
       const cal = encodeURIComponent(calendarId);
@@ -572,10 +607,25 @@ export const deleteAppointment = async (eventId) => {
         }
       );
       
-      if (!response.ok) throw new Error(`Google Calendar delete error: ${response.statusText}`);
-      return true;
+      if (!response.ok && response.status !== 404) {
+        throw new Error(`Google Calendar delete error: ${response.statusText}`);
+      }
     } catch (err) {
-      console.error('Error deleting direct appointment in Google Calendar, using mock:', err);
+      console.error('Error deleting direct appointment in Google Calendar:', err);
+    }
+  }
+
+  // 2. Sync status update in Supabase Table 'citas'
+  if (supabase) {
+    try {
+      const { error } = await supabase
+        .from('citas')
+        .update({ estado_cita: 'CANCELADA' })
+        .eq('google_event_id', eventId);
+        
+      if (error) throw error;
+    } catch (err) {
+      console.error('Error updating appointment status to CANCELADA in Supabase:', err);
     }
   }
   
