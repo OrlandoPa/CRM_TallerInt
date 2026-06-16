@@ -1030,17 +1030,19 @@ function App() {
                                   {date.toLocaleDateString('es-ES', {weekday: 'short', day: 'numeric', month: 'short'})} a las {date.toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'})}
                                 </p>
                               </div>
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteAppointment(app.id);
-                                }} 
-                                className="btn-icon" 
-                                style={{width:'30px', height:'30px', borderRadius:'6px', color:'var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', cursor: 'pointer', flexShrink: 0}} 
-                                title="Cancelar Cita"
-                              >
-                                <Trash size={14} />
-                              </button>
+                              {!(citasDb.find(c => c.google_event_id === app.id)?.estado_cita === 'ASISTIO' || citasDb.find(c => c.google_event_id === app.id)?.estado_cita === 'COMPLETADA') && (
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteAppointment(app.id);
+                                  }} 
+                                  className="btn-icon" 
+                                  style={{width:'30px', height:'30px', borderRadius:'6px', color:'var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', cursor: 'pointer', flexShrink: 0}} 
+                                  title="Cancelar Cita"
+                                >
+                                  <Trash size={14} />
+                                </button>
+                              )}
                             </div>
                           );
                         })
@@ -1607,17 +1609,19 @@ function App() {
                             </div>
                             
                             <div style={{display:'flex', gap:'8px', flexShrink:0}}>
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteAppointment(activeEvent.id);
-                                }}
-                                className="btn-icon" 
-                                style={{color:'var(--danger)', width:'32px', height:'32px'}}
-                                title="Cancelar Cita"
-                              >
-                                <Trash size={14} />
-                              </button>
+                              {!(citasDb.find(c => c.google_event_id === activeEvent.id)?.estado_cita === 'ASISTIO' || citasDb.find(c => c.google_event_id === activeEvent.id)?.estado_cita === 'COMPLETADA') && (
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteAppointment(activeEvent.id);
+                                  }}
+                                  className="btn-icon" 
+                                  style={{color:'var(--danger)', width:'32px', height:'32px'}}
+                                  title="Cancelar Cita"
+                                >
+                                  <Trash size={14} />
+                                </button>
+                              )}
                             </div>
                           </>
                         ) : (
@@ -1746,41 +1750,47 @@ function App() {
               </div>
             </div>
             <footer className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <button 
-                type="button" 
-                onClick={() => {
-                  if (confirm('¿Estás seguro de cancelar esta cita? Se marcará como CANCELADA en el sistema.')) {
-                    handleDeleteAppointment(selectedAppointmentDetails.google_event_id);
-                    setIsDetailModalOpen(false);
-                  }
-                }} 
-                className="btn" 
-                style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)' }}
-              >
-                <Trash size={14} /> Cancelar Cita
-              </button>
+              <div>
+                {selectedAppointmentDetails.estado_cita !== 'ASISTIO' && selectedAppointmentDetails.estado_cita !== 'COMPLETADA' && (
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      if (confirm('¿Estás seguro de cancelar esta cita? Se marcará como CANCELADA en el sistema.')) {
+                        handleDeleteAppointment(selectedAppointmentDetails.google_event_id);
+                        setIsDetailModalOpen(false);
+                      }
+                    }} 
+                    className="btn" 
+                    style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)' }}
+                  >
+                    <Trash size={14} /> Cancelar Cita
+                  </button>
+                )}
+              </div>
               
               <div style={{ display: 'flex', gap: '8px' }}>
-                <button 
-                  type="button" 
-                  onClick={() => {
-                    setSelectedCitaForReschedule(selectedAppointmentDetails);
-                    const date = selectedAppointmentDetails.fecha_hora_cita 
-                      ? new Date(selectedAppointmentDetails.fecha_hora_cita) 
-                      : new Date();
-                    
-                    const startStr = date.toLocaleString('sv-SE').replace(' ', 'T').slice(0, 16);
-                    const endStr = new Date(date.getTime() + 60 * 60 * 1000).toLocaleString('sv-SE').replace(' ', 'T').slice(0, 16);
-                    
-                    setRescheduleEvent({ start: startStr, end: endStr });
-                    setIsDetailModalOpen(false);
-                    setIsRescheduleModalOpen(true);
-                  }} 
-                  className="btn btn-secondary"
-                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-                >
-                  <RefreshCw size={14} /> Reprogramar
-                </button>
+                {selectedAppointmentDetails.estado_cita !== 'ASISTIO' && selectedAppointmentDetails.estado_cita !== 'COMPLETADA' && (
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      setSelectedCitaForReschedule(selectedAppointmentDetails);
+                      const date = selectedAppointmentDetails.fecha_hora_cita 
+                        ? new Date(selectedAppointmentDetails.fecha_hora_cita) 
+                        : new Date();
+                      
+                      const startStr = date.toLocaleString('sv-SE').replace(' ', 'T').slice(0, 16);
+                      const endStr = new Date(date.getTime() + 60 * 60 * 1000).toLocaleString('sv-SE').replace(' ', 'T').slice(0, 16);
+                      
+                      setRescheduleEvent({ start: startStr, end: endStr });
+                      setIsDetailModalOpen(false);
+                      setIsRescheduleModalOpen(true);
+                    }} 
+                    className="btn btn-secondary"
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <RefreshCw size={14} /> Reprogramar
+                  </button>
+                )}
                 <button type="button" onClick={() => setIsDetailModalOpen(false)} className="btn btn-primary">
                   Cerrar
                 </button>
