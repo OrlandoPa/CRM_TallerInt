@@ -33,6 +33,104 @@ import {
 } from 'lucide-react';
 import * as api from './api';
 
+const getPeruHolidays = (year) => {
+  return [
+    `${year}-01-01`, // Año Nuevo
+    `${year}-05-01`, // Día del Trabajo
+    `${year}-06-07`, // Batalla de Arica
+    `${year}-06-29`, // San Pedro y San Pablo
+    `${year}-07-23`, // Fuerza Aérea
+    `${year}-07-28`, // Fiestas Patrias
+    `${year}-07-29`, // Fiestas Patrias
+    `${year}-08-06`, // Batalla de Junín
+    `${year}-08-30`, // Santa Rosa de Lima
+    `${year}-10-08`, // Combate de Angamos
+    `${year}-11-01`, // Todos los Santos
+    `${year}-12-08`, // Inmaculada Concepción
+    `${year}-12-09`, // Batalla de Ayacucho
+    `${year}-12-25`  // Navidad
+  ];
+};
+
+const isPeruHoliday = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const dateStr = `${year}-${month}-${day}`;
+  
+  return getPeruHolidays(year).includes(dateStr);
+};
+
+const isValidWorkingHours = (startDate, endDate) => {
+  // Check day of week (Sunday is 0)
+  if (startDate.getDay() === 0 || endDate.getDay() === 0) {
+    return { valid: false, reason: 'No se pueden agendar citas los domingos.' };
+  }
+
+  // Check Peru Holiday
+  if (isPeruHoliday(startDate) || isPeruHoliday(endDate)) {
+    return { valid: false, reason: 'No se pueden agendar citas en feriados nacionales de Perú.' };
+  }
+
+  // Check if start and end are on the same day
+  if (startDate.toDateString() !== endDate.toDateString()) {
+    return { valid: false, reason: 'La cita debe empezar y terminar el mismo día.' };
+  }
+
+  // Check time ranges
+  const startHour = startDate.getHours();
+  const startMin = startDate.getMinutes();
+  const endHour = endDate.getHours();
+  const endMin = endDate.getMinutes();
+
+  const startVal = startHour * 60 + startMin;
+  const endVal = endHour * 60 + endMin;
+
+  const morningStart = 8 * 60;   // 8:00 AM
+  const morningEnd = 12 * 60;   // 12:00 PM
+  const afternoonStart = 16 * 60; // 4:00 PM (16:00)
+  const afternoonEnd = 21 * 60;   // 9:00 PM (21:00)
+
+  const inMorning = startVal >= morningStart && endVal <= morningEnd;
+  const inAfternoon = startVal >= afternoonStart && endVal <= afternoonEnd;
+
+  if (!inMorning && !inAfternoon) {
+    return { 
+      valid: false, 
+      reason: 'El horario debe estar dentro de las jornadas laborales: Mañanas (8:00 AM - 12:00 PM) o Tardes (4:00 PM - 9:00 PM).' 
+    };
+  }
+
+  return { valid: true };
+};
+
+const calculateEndTime = (startStr, treatmentKey) => {
+  if (!startStr) return '';
+  const startDate = new Date(startStr);
+  let durationMinutes = 30; // Default
+
+  switch (treatmentKey) {
+    case 'evaluacion':
+    case 'restauracion':
+    case 'endodoncia':
+    case 'ortodoncia':
+      durationMinutes = 30;
+      break;
+    case 'blanqueamiento':
+      durationMinutes = 45;
+      break;
+    case 'cirugia':
+    case 'rehabilitacion':
+      durationMinutes = 60;
+      break;
+    default:
+      durationMinutes = 30;
+  }
+
+  const endDate = new Date(startDate.getTime() + durationMinutes * 60000);
+  return endDate.toLocaleString('sv-SE').replace(' ', 'T').slice(0, 16);
+};
+
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [theme, setTheme] = useState('dark');
@@ -70,6 +168,7 @@ function App() {
   const [selectedAppointmentDetails, setSelectedAppointmentDetails] = useState(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isTimeLocked, setIsTimeLocked] = useState(false);
+  const [treatmentType, setTreatmentType] = useState('evaluacion');
   const [newEvent, setNewEvent] = useState({
     summary: '',
     start: '',
@@ -303,6 +402,13 @@ function App() {
     e.preventDefault();
     if (!newEvent.summary || !newEvent.start || !newEvent.end) return;
 
+    // Validate working hours & Peru holidays
+    const validation = isValidWorkingHours(new Date(newEvent.start), new Date(newEvent.end));
+    if (!validation.valid) {
+      showToast(validation.reason, false);
+      return;
+    }
+
     try {
       const desc = newEvent.phone_number 
         ? `${newEvent.description} | Contacto: ${newEvent.phone_number}`
@@ -328,6 +434,7 @@ function App() {
       setIsAppointmentModalOpen(false);
       setNewEvent({ summary: '', start: '', end: '', description: '', phone_number: '' });
       setIsTimeLocked(false);
+      setTreatmentType('evaluacion');
       showToast('Cita agendada directamente en Google Calendar');
     } catch (err) {
       console.error(err);
@@ -476,24 +583,22 @@ function App() {
     }
   };
 
-  // Timeline hours generator for Dentist (10:00 - 13:00, 16:00 - 20:00) in 30-min intervals
+  // Timeline hours generator for Dentist: Mañanas (8:00 AM - 12:00 PM) y Tardes (4:00 PM - 9:00 PM) in 30-min intervals
   const getTimeSlots = () => {
     const slots = [];
-    // Morning: 10:00 AM to 1:00 PM
-    for (let hour = 10; hour <= 12; hour++) {
+    // Morning: 8:00 AM to 12:00 PM (booking slots start at 8:00, 8:30, 9:00, 9:30, 10:00, 10:30, 11:00, 11:30)
+    for (let hour = 8; hour <= 11; hour++) {
+      const hStr = String(hour).padStart(2, '0');
+      slots.push(`${hStr}:00`);
+      slots.push(`${hStr}:30`);
+    }
+    // Break indicator
+    slots.push('RECESO');
+    // Afternoon: 4:00 PM to 9:00 PM (16:00 to 21:00) (booking slots start at 16:00, 16:30, 17:00, 17:30, 18:00, 18:30, 19:00, 19:30, 20:00, 20:30)
+    for (let hour = 16; hour <= 20; hour++) {
       slots.push(`${hour}:00`);
       slots.push(`${hour}:30`);
     }
-    slots.push('13:00');
-    // Break indicator
-    slots.push('RECESO');
-    // Afternoon: 4:00 PM to 8:00 PM
-    for (let hour = 16; hour <= 19; hour++) {
-      const displayHour = hour;
-      slots.push(`${displayHour}:00`);
-      slots.push(`${displayHour}:30`);
-    }
-    slots.push('20:00');
     return slots;
   };
 
@@ -956,6 +1061,7 @@ function App() {
                           phone_number: ''
                         });
                         setIsTimeLocked(false);
+                        setTreatmentType('evaluacion');
                         setIsAppointmentModalOpen(true);
                       }} 
                       className="btn btn-primary"
@@ -1127,6 +1233,7 @@ function App() {
               <button onClick={() => {
                 setIsAppointmentModalOpen(false);
                 setIsTimeLocked(false);
+                setTreatmentType('evaluacion');
               }} className="btn-icon" style={{width:'32px', height:'32px'}}>✕</button>
             </header>
             <form onSubmit={handleCreateAppointment}>
@@ -1150,10 +1257,22 @@ function App() {
                     onChange={(e) => {
                       const num = e.target.value;
                       const l = leads.find(lead => lead.phone_number === num);
+                      const treatmentLabels = {
+                        evaluacion: 'Evaluación Inicial',
+                        restauracion: 'Restauración',
+                        endodoncia: 'Endodoncia',
+                        ortodoncia: 'Ortodoncia',
+                        blanqueamiento: 'Blanqueamiento Dental',
+                        cirugia: 'Cirugía de Cordales',
+                        rehabilitacion: 'Rehabilitación Oral',
+                        personalizado: 'Consulta'
+                      };
+                      const label = treatmentLabels[treatmentType] || 'Consulta';
+                      const patientName = l ? l.client_name : 'Paciente';
                       setNewEvent(prev => ({ 
                         ...prev, 
                         phone_number: num,
-                        summary: l ? `${l.client_name} - Consulta` : prev.summary
+                        summary: `${patientName} - ${label}`
                       }));
                     }}
                   >
@@ -1165,13 +1284,68 @@ function App() {
                     ))}
                   </select>
                 </div>
+
+                <div className="form-group">
+                  <label>Tipo de Tratamiento / Motivo</label>
+                  <select 
+                    className="form-control"
+                    value={treatmentType}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setTreatmentType(val);
+                      
+                      const l = leads.find(lead => lead.phone_number === newEvent.phone_number);
+                      const patientName = l ? l.client_name : 'Paciente';
+                      const treatmentLabels = {
+                        evaluacion: 'Evaluación Inicial',
+                        restauracion: 'Restauración',
+                        endodoncia: 'Endodoncia',
+                        ortodoncia: 'Ortodoncia',
+                        blanqueamiento: 'Blanqueamiento Dental',
+                        cirugia: 'Cirugía de Cordales',
+                        rehabilitacion: 'Rehabilitación Oral',
+                        personalizado: 'Consulta'
+                      };
+                      const label = treatmentLabels[val] || 'Consulta';
+                      const newSummary = `${patientName} - ${label}`;
+                      
+                      setNewEvent(prev => {
+                        const newEnd = val !== 'personalizado' ? calculateEndTime(prev.start, val) : prev.end;
+                        return {
+                          ...prev,
+                          summary: newSummary,
+                          end: newEnd
+                        };
+                      });
+                    }}
+                  >
+                    <option value="evaluacion">Evaluación inicial / Revisión general (30 min)</option>
+                    <option value="restauracion">Restauración (30 min)</option>
+                    <option value="endodoncia">Endodoncia (30 min)</option>
+                    <option value="ortodoncia">Ortodoncia (30 min)</option>
+                    <option value="blanqueamiento">Blanqueamiento dental (45 min)</option>
+                    <option value="cirugia">Cirugía (ej. cordales) (60 min)</option>
+                    <option value="rehabilitacion">Rehabilitación oral (60 min)</option>
+                    <option value="personalizado">Otro / Personalizado</option>
+                  </select>
+                </div>
                 <div className="form-group">
                   <label>Fecha y Hora de Inicio</label>
                   <input 
                     type="datetime-local" 
                     className="form-control" 
                     value={newEvent.start}
-                    onChange={(e) => setNewEvent(prev => ({ ...prev, start: e.target.value }))}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setNewEvent(prev => {
+                        const newEnd = treatmentType !== 'personalizado' ? calculateEndTime(val, treatmentType) : prev.end;
+                        return {
+                          ...prev,
+                          start: val,
+                          end: newEnd
+                        };
+                      });
+                    }}
                     required
                     min={minDateTime}
                     disabled={isTimeLocked}
@@ -1204,6 +1378,7 @@ function App() {
                 <button type="button" onClick={() => {
                   setIsAppointmentModalOpen(false);
                   setIsTimeLocked(false);
+                  setTreatmentType('evaluacion');
                 }} className="btn btn-secondary">
                   Cancelar
                 </button>
@@ -1240,7 +1415,7 @@ function App() {
                         fontWeight:600, color:'var(--text-muted)', background:'rgba(255,255,255,0.02)',
                         borderRadius:'6px', letterSpacing:'1.5px', border: '1px dashed var(--border-color)'
                       }}>
-                        - RECESO DEL DOCTOR (1:00 PM a 4:00 PM) -
+                        - RECESO DEL DOCTOR (12:00 PM a 4:00 PM) -
                       </div>
                     );
                   }
@@ -1323,22 +1498,17 @@ function App() {
                                   minutes
                                 ).toLocaleString('sv-SE').replace(' ', 'T').slice(0, 16); // format to yyyy-MM-ddThh:mm for datetime-local
                                 
-                                const endStr = new Date(
-                                  selectedDayForAgenda.getFullYear(), 
-                                  selectedDayForAgenda.getMonth(), 
-                                  selectedDayForAgenda.getDate(), 
-                                  hours + 1, // Default duration 1h
-                                  minutes
-                                ).toLocaleString('sv-SE').replace(' ', 'T').slice(0, 16);
+                                const endStr = calculateEndTime(startStr, 'evaluacion');
                                 
                                 setNewEvent({
-                                  summary: '',
+                                  summary: 'Paciente - Evaluación Inicial',
                                   start: startStr,
                                   end: endStr,
                                   description: '',
                                   phone_number: ''
                                 });
                                 setIsTimeLocked(true);
+                                setTreatmentType('evaluacion');
                                 setIsAppointmentModalOpen(true);
                               }}
                                className="btn btn-secondary" 
