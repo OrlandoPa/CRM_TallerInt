@@ -60,6 +60,15 @@ function App() {
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
   const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
   const [selectedDayForAgenda, setSelectedDayForAgenda] = useState(null);
+  
+  // Rescheduling states
+  const [selectedCitaForReschedule, setSelectedCitaForReschedule] = useState(null);
+  const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false);
+  const [rescheduleEvent, setRescheduleEvent] = useState({ start: '', end: '' });
+
+  // Appointment Detail Card states
+  const [selectedAppointmentDetails, setSelectedAppointmentDetails] = useState(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [newEvent, setNewEvent] = useState({
     summary: '',
     start: '',
@@ -331,10 +340,64 @@ function App() {
       await api.deleteAppointment(eventId);
       setAppointments(prev => prev.filter(app => app.id !== eventId));
       showToast('Cita cancelada correctamente');
+      fetchData();
     } catch (err) {
       console.error(err);
       showToast('Error al cancelar la cita', false);
     }
+  };
+
+  // Update appointment status
+  const handleUpdateAppointmentStatus = async (eventId, status) => {
+    try {
+      await api.updateAppointmentStatus(eventId, status);
+      showToast(`Estado de la cita actualizado a ${status}`);
+      fetchData();
+      setIsDetailModalOpen(false);
+    } catch (err) {
+      console.error(err);
+      showToast('Error al actualizar el estado de la cita', false);
+    }
+  };
+
+  // Submit rescheduling
+  const handleRescheduleSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedCitaForReschedule || !rescheduleEvent.start || !rescheduleEvent.end) return;
+
+    try {
+      await api.rescheduleAppointment(
+        selectedCitaForReschedule.google_event_id,
+        new Date(rescheduleEvent.start).toISOString(),
+        new Date(rescheduleEvent.end).toISOString()
+      );
+      showToast('Cita reprogramada con éxito');
+      setIsRescheduleModalOpen(false);
+      setSelectedCitaForReschedule(null);
+      setRescheduleEvent({ start: '', end: '' });
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      showToast('Error al reprogramar la cita', false);
+    }
+  };
+
+  const handleOpenDetailFromGCal = (app) => {
+    const dbCita = citasDb.find(c => c.google_event_id === app.id);
+    if (dbCita) {
+      setSelectedAppointmentDetails(dbCita);
+    } else {
+      setSelectedAppointmentDetails({
+        id: null,
+        google_event_id: app.id,
+        fecha_hora_cita: app.start.dateTime || app.start.date,
+        motivo_consulta: app.summary,
+        estado_cita: 'AGENDADA',
+        telefono_paciente: '',
+        pacientes: { nombre_paciente: app.summary.split(' - ')[0] || 'Paciente GCal' }
+      });
+    }
+    setIsDetailModalOpen(true);
   };
 
   // Save Settings
@@ -352,6 +415,16 @@ function App() {
     // Force refresh to reload api instance
     window.location.reload();
   };
+
+  const minDateTime = new Date().toLocaleString('sv-SE').replace(' ', 'T').slice(0, 16);
+
+  // Filter past appointments pending attendance review
+  const pastAppointmentsToReview = citasDb.filter(cita => {
+    if (!cita.fecha_hora_cita) return false;
+    const isPast = new Date(cita.fecha_hora_cita) < new Date();
+    const isPendingAttendance = cita.estado_cita === 'AGENDADA' || cita.estado_cita === 'CONFIRMADA' || !cita.estado_cita;
+    return isPast && isPendingAttendance;
+  });
 
   // Search filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -598,6 +671,77 @@ function App() {
                   </div>
                 </div>
 
+                {/* Past Appointments Review Section */}
+                {pastAppointmentsToReview.length > 0 && (
+                  <div className="glass-card" style={{ borderLeft: '4px solid var(--warning)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Clock size={20} style={{ color: 'var(--warning)' }} />
+                        <h2 style={{ fontSize: '1.1rem', fontWeight: 600, margin: 0 }}>Revisión de Asistencia: Citas Pasadas Pendientes</h2>
+                      </div>
+                      <span className="status-badge" style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#fbbf24' }}>
+                        {pastAppointmentsToReview.length} {pastAppointmentsToReview.length === 1 ? 'cita pendiente' : 'citas pendientes'}
+                      </span>
+                    </div>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                      Las siguientes citas ya pasaron su hora programada. Por favor registra si el paciente asistió o reprograma la cita.
+                    </p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '250px', overflowY: 'auto', paddingRight: '4px' }}>
+                      {pastAppointmentsToReview.map(cita => {
+                        const date = cita.fecha_hora_cita ? new Date(cita.fecha_hora_cita) : null;
+                        const formattedDate = date 
+                          ? date.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' }) + ' a las ' + date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+                          : 'Fecha no programada';
+                        const patientName = cita.pacientes?.nombre_paciente || 'Paciente sin registrar';
+
+                        return (
+                          <div key={cita.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--bg-tertiary)', borderRadius: '10px', border: '1px solid var(--border-color)', gap: '12px', flexWrap: 'wrap' }}>
+                            <div style={{ flex: '1 1 250px' }}>
+                              <span style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-main)' }}>{patientName}</span>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginLeft: '8px' }}>({cita.telefono_paciente})</span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                <Clock size={12} /> <span>{formattedDate}</span>
+                                <span style={{ color: 'var(--text-muted)' }}>| Motivo: {cita.motivo_consulta || 'Sin motivo'}</span>
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'nowrap' }}>
+                              <button 
+                                onClick={() => handleUpdateAppointmentStatus(cita.google_event_id, 'ASISTIO')}
+                                className="btn" 
+                                style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.2)', padding: '6px 12px', fontSize: '0.8rem' }}
+                              >
+                                <Check size={14} /> Asistió
+                              </button>
+                              <button 
+                                onClick={() => handleUpdateAppointmentStatus(cita.google_event_id, 'NO_ASISTIO')}
+                                className="btn" 
+                                style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '6px 12px', fontSize: '0.8rem' }}
+                              >
+                                ✕ No Asistió
+                              </button>
+                              <button 
+                                onClick={() => {
+                                  setSelectedCitaForReschedule(cita);
+                                  const tomorrow = new Date();
+                                  tomorrow.setDate(tomorrow.getDate() + 1);
+                                  const tomorrowStr = tomorrow.toLocaleString('sv-SE').replace(' ', 'T').slice(0, 16);
+                                  const tomorrowEndStr = new Date(tomorrow.getTime() + 60 * 60 * 1000).toLocaleString('sv-SE').replace(' ', 'T').slice(0, 16);
+                                  setRescheduleEvent({ start: tomorrowStr, end: tomorrowEndStr });
+                                  setIsRescheduleModalOpen(true);
+                                }}
+                                className="btn" 
+                                style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.2)', padding: '6px 12px', fontSize: '0.8rem' }}
+                              >
+                                <RefreshCw size={14} /> Reprogramar
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* Lists Columns */}
                 <div style={{display: 'flex', gap: '20px', flexWrap: 'wrap'}}>
                   {/* Column 1: Supabase Appointments */}
@@ -620,14 +764,20 @@ function App() {
                           const patientName = cita.pacientes?.nombre_paciente || 'Paciente sin registrar';
                           
                           return (
-                            <div key={cita.id} style={{
-                              display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
-                              padding: '14px', background: 'var(--bg-tertiary)', borderRadius: '10px',
-                              borderLeft: cita.estado_cita === 'CANCELADA' ? '4px solid #ef4444' : '4px solid var(--primary)', 
-                              border: '1px solid var(--border-color)',
-                              borderLeftWidth: '4px', gap: '10px',
-                              opacity: cita.estado_cita === 'CANCELADA' ? 0.7 : 1
-                            }}>
+                            <div key={cita.id} 
+                              onClick={() => {
+                                setSelectedAppointmentDetails(cita);
+                                setIsDetailModalOpen(true);
+                              }}
+                              style={{
+                                display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
+                                padding: '14px', background: 'var(--bg-tertiary)', borderRadius: '10px',
+                                borderLeft: cita.estado_cita === 'CANCELADA' ? '4px solid #ef4444' : '4px solid var(--primary)', 
+                                border: '1px solid var(--border-color)',
+                                borderLeftWidth: '4px', gap: '10px',
+                                opacity: cita.estado_cita === 'CANCELADA' ? 0.7 : 1,
+                                cursor: 'pointer'
+                              }}>
                               <div style={{overflow: 'hidden'}}>
                                 <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px'}}>
                                   <span style={{
@@ -687,19 +837,30 @@ function App() {
                         appointments.slice(0, 8).map(app => {
                           const date = new Date(app.start.dateTime);
                           return (
-                            <div key={app.id} style={{
-                              display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
-                              padding: '12px', background: 'var(--bg-tertiary)', borderRadius: '10px',
-                              borderLeft: '4px solid #f59e0b', border: '1px solid var(--border-color)',
-                              borderLeftWidth: '4px'
-                            }}>
+                            <div key={app.id} 
+                              onClick={() => handleOpenDetailFromGCal(app)}
+                              style={{
+                                display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
+                                padding: '12px', background: 'var(--bg-tertiary)', borderRadius: '10px',
+                                borderLeft: '4px solid #f59e0b', border: '1px solid var(--border-color)',
+                                borderLeftWidth: '4px', cursor: 'pointer'
+                              }}
+                            >
                               <div style={{overflow: 'hidden', marginRight: '10px'}}>
                                 <p style={{fontWeight: 600, fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-main)'}}>{app.summary}</p>
                                 <p style={{fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px'}}>
                                   {date.toLocaleDateString('es-ES', {weekday: 'short', day: 'numeric', month: 'short'})} a las {date.toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'})}
                                 </p>
                               </div>
-                              <button onClick={() => handleDeleteAppointment(app.id)} className="btn-icon" style={{width:'30px', height:'30px', borderRadius:'6px', color:'var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', cursor: 'pointer', flexShrink: 0}} title="Cancelar Cita">
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteAppointment(app.id);
+                                }} 
+                                className="btn-icon" 
+                                style={{width:'30px', height:'30px', borderRadius:'6px', color:'var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', cursor: 'pointer', flexShrink: 0}} 
+                                title="Cancelar Cita"
+                              >
                                 <Trash size={14} />
                               </button>
                             </div>
@@ -832,9 +993,7 @@ function App() {
                                     title={`${evt.summary}: ${evt.description}`}
                                     onClick={(e) => {
                                       e.stopPropagation(); // Avoid opening day details modal when clicking event
-                                      if (confirm(`Cita: ${evt.summary}\nDetalles: ${evt.description}\n\n¿Deseas cancelar esta cita en Google Calendar?`)) {
-                                        handleDeleteAppointment(evt.id);
-                                      }
+                                      handleOpenDetailFromGCal(evt);
                                     }}
                                   >
                                     {evt.summary.split(' - ')[0]}
@@ -986,6 +1145,7 @@ function App() {
                     value={newEvent.start}
                     onChange={(e) => setNewEvent(prev => ({ ...prev, start: e.target.value }))}
                     required
+                    min={minDateTime}
                   />
                 </div>
                 <div className="form-group">
@@ -996,6 +1156,7 @@ function App() {
                     value={newEvent.end}
                     onChange={(e) => setNewEvent(prev => ({ ...prev, end: e.target.value }))}
                     required
+                    min={minDateTime}
                   />
                 </div>
                 <div className="form-group">
@@ -1053,6 +1214,16 @@ function App() {
 
                   const activeEvent = getEventForTimeSlot(slot, selectedDayForAgenda);
                   
+                  const [hours, minutes] = slot.split(':').map(Number);
+                  const slotTime = new Date(
+                    selectedDayForAgenda.getFullYear(),
+                    selectedDayForAgenda.getMonth(),
+                    selectedDayForAgenda.getDate(),
+                    hours,
+                    minutes
+                  );
+                  const isSlotPast = slotTime < new Date();
+                  
                   return (
                     <div key={slot} style={{
                       display:'flex', alignItems:'center', padding:'12px', 
@@ -1072,7 +1243,10 @@ function App() {
                       <div style={{flexGrow:1, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
                         {activeEvent ? (
                           <>
-                            <div style={{overflow:'hidden', paddingRight:'10px'}}>
+                            <div 
+                              onClick={() => handleOpenDetailFromGCal(activeEvent)}
+                              style={{overflow:'hidden', paddingRight:'10px', cursor:'pointer', flexGrow:1}}
+                            >
                               <span style={{
                                 fontWeight:600, fontSize:'0.9rem', color:'var(--text-primary)',
                                 display:'block', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'
@@ -1133,9 +1307,10 @@ function App() {
                                 });
                                 setIsAppointmentModalOpen(true);
                               }}
-                              className="btn btn-secondary" 
-                              style={{padding:'4px 10px', fontSize:'0.75rem', height:'28px'}}
-                              disabled={!gcalConnected}
+                               className="btn btn-secondary" 
+                              style={{padding:'4px 10px', fontSize:'0.75rem', height:'28px', opacity: isSlotPast ? 0.5 : 1}}
+                              disabled={!gcalConnected || isSlotPast}
+                              title={isSlotPast ? 'No se pueden agendar citas en el pasado' : ''}
                             >
                               + Agendar
                             </button>
@@ -1153,6 +1328,184 @@ function App() {
                 Cerrar Agenda
               </button>
             </footer>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE DETALLE DE CITA */}
+      {isDetailModalOpen && selectedAppointmentDetails && (
+        <div className="modal-overlay" style={{ zIndex: 120 }}>
+          <div className="modal-content animate-slide-up" style={{ maxWidth: '500px', width: '90%' }}>
+            <header className="modal-header">
+              <span className="modal-title">Detalles de la Cita</span>
+              <button onClick={() => setIsDetailModalOpen(false)} className="btn-icon" style={{width:'32px', height:'32px'}}>✕</button>
+            </header>
+            <div className="modal-body">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--bg-tertiary)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                  <div className="chat-avatar" style={{ flexShrink: 0 }}>
+                    {(selectedAppointmentDetails.pacientes?.nombre_paciente || 'P')[0].toUpperCase()}
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '1.05rem', fontWeight: 600, margin: 0 }}>
+                      {selectedAppointmentDetails.pacientes?.nombre_paciente || 'Paciente sin nombre'}
+                    </h3>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '4px 0 0 0', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Phone size={12} /> {selectedAppointmentDetails.telefono_paciente || 'Sin teléfono registrado'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Motivo de Consulta</label>
+                  <div style={{ background: 'var(--bg-tertiary)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.9rem', color: 'var(--text-primary)' }}>
+                    {selectedAppointmentDetails.motivo_consulta || 'Sin motivo especificado'}
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Fecha y Hora</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-tertiary)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.9rem', color: 'var(--text-primary)' }}>
+                    <Clock size={16} style={{ color: 'var(--primary)' }} />
+                    <span>
+                      {selectedAppointmentDetails.fecha_hora_cita 
+                        ? new Date(selectedAppointmentDetails.fecha_hora_cita).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) + ' a las ' + new Date(selectedAppointmentDetails.fecha_hora_cita).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+                        : 'No programada'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Estado de la Cita</label>
+                  <select 
+                    className="form-control"
+                    value={selectedAppointmentDetails.estado_cita || 'AGENDADA'}
+                    onChange={(e) => handleUpdateAppointmentStatus(selectedAppointmentDetails.google_event_id, e.target.value)}
+                    style={{ fontWeight: 600 }}
+                  >
+                    <option value="AGENDADA">Agendada</option>
+                    <option value="CONFIRMADA">Confirmada</option>
+                    <option value="COMPLETADA">Completada</option>
+                    <option value="CANCELADA">Cancelada</option>
+                    <option value="ASISTIO">Asistió</option>
+                    <option value="NO_ASISTIO">No Asistió</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <footer className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <button 
+                type="button" 
+                onClick={() => {
+                  if (confirm('¿Estás seguro de cancelar esta cita? Se marcará como CANCELADA en el sistema.')) {
+                    handleDeleteAppointment(selectedAppointmentDetails.google_event_id);
+                    setIsDetailModalOpen(false);
+                  }
+                }} 
+                className="btn" 
+                style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)' }}
+              >
+                <Trash size={14} /> Cancelar Cita
+              </button>
+              
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    setSelectedCitaForReschedule(selectedAppointmentDetails);
+                    const date = selectedAppointmentDetails.fecha_hora_cita 
+                      ? new Date(selectedAppointmentDetails.fecha_hora_cita) 
+                      : new Date();
+                    
+                    const startStr = date.toLocaleString('sv-SE').replace(' ', 'T').slice(0, 16);
+                    const endStr = new Date(date.getTime() + 60 * 60 * 1000).toLocaleString('sv-SE').replace(' ', 'T').slice(0, 16);
+                    
+                    setRescheduleEvent({ start: startStr, end: endStr });
+                    setIsDetailModalOpen(false);
+                    setIsRescheduleModalOpen(true);
+                  }} 
+                  className="btn btn-secondary"
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <RefreshCw size={14} /> Reprogramar
+                </button>
+                <button type="button" onClick={() => setIsDetailModalOpen(false)} className="btn btn-primary">
+                  Cerrar
+                </button>
+              </div>
+            </footer>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE REPROGRAMACIÓN DE CITAS */}
+      {isRescheduleModalOpen && selectedCitaForReschedule && (
+        <div className="modal-overlay" style={{ zIndex: 120 }}>
+          <div className="modal-content animate-slide-up" style={{ maxWidth: '450px', width: '90%' }}>
+            <header className="modal-header">
+              <span className="modal-title">Reprogramar Cita</span>
+              <button 
+                onClick={() => {
+                  setIsRescheduleModalOpen(false);
+                  setSelectedCitaForReschedule(null);
+                }} 
+                className="btn-icon" 
+                style={{width:'32px', height:'32px'}}
+              >
+                ✕
+              </button>
+            </header>
+            <form onSubmit={handleRescheduleSubmit}>
+              <div className="modal-body">
+                <div style={{ marginBottom: '8px' }}>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Reprogramando la cita de:</span>
+                  <div style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--text-primary)', marginTop: '4px' }}>
+                    {selectedCitaForReschedule.pacientes?.nombre_paciente || selectedCitaForReschedule.motivo_consulta?.split(' - ')[0] || 'Paciente'}
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                    Motivo original: {selectedCitaForReschedule.motivo_consulta || 'Sin motivo'}
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Nueva Fecha y Hora de Inicio</label>
+                  <input 
+                    type="datetime-local" 
+                    className="form-control" 
+                    value={rescheduleEvent.start}
+                    onChange={(e) => setRescheduleEvent(prev => ({ ...prev, start: e.target.value }))}
+                    required
+                    min={minDateTime}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Nueva Fecha y Hora de Fin</label>
+                  <input 
+                    type="datetime-local" 
+                    className="form-control" 
+                    value={rescheduleEvent.end}
+                    onChange={(e) => setRescheduleEvent(prev => ({ ...prev, end: e.target.value }))}
+                    required
+                    min={minDateTime}
+                  />
+                </div>
+              </div>
+              <footer className="modal-footer">
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    setIsRescheduleModalOpen(false);
+                    setSelectedCitaForReschedule(null);
+                  }} 
+                  className="btn btn-secondary"
+                >
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  Guardar Cambios
+                </button>
+              </footer>
+            </form>
           </div>
         </div>
       )}

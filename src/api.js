@@ -708,3 +708,93 @@ export const getCitasDb = async () => {
     }
   ];
 };
+
+export const updateAppointmentStatus = async (googleEventId, status) => {
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('citas')
+        .update({ estado_cita: status })
+        .eq('google_event_id', googleEventId)
+        .select();
+        
+      if (error) throw error;
+      return data[0];
+    } catch (err) {
+      console.error('Error updating appointment status in Supabase:', err);
+      throw err;
+    }
+  }
+  
+  // Offline simulation fallback
+  stateAppointments = stateAppointments.map(app => 
+    app.id === googleEventId ? { ...app, status: status.toLowerCase() } : app
+  );
+  return { google_event_id: googleEventId, estado_cita: status };
+};
+
+export const rescheduleAppointment = async (eventId, start, end) => {
+  const token = getGCalToken();
+  const calendarId = getCalendarId();
+
+  // 1. Google Calendar update
+  if (token) {
+    try {
+      const cal = encodeURIComponent(calendarId);
+      const getResponse = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/${cal}/events/${eventId}`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      if (getResponse.ok) {
+        const event = await getResponse.json();
+        event.start = { dateTime: start };
+        event.end = { dateTime: end };
+
+        const putResponse = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/${cal}/events/${eventId}`,
+          {
+            method: 'PUT',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(event)
+          }
+        );
+        if (!putResponse.ok) throw new Error(`Google Calendar PUT error: ${putResponse.statusText}`);
+      } else {
+        throw new Error(`Google Calendar GET error: ${getResponse.statusText}`);
+      }
+    } catch (err) {
+      console.error('Error rescheduling appointment in Google Calendar:', err);
+    }
+  }
+
+  // 2. Supabase DB update
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('citas')
+        .update({ 
+          fecha_hora_cita: start,
+          estado_cita: 'AGENDADA' // Reset status on reschedule
+        })
+        .eq('google_event_id', eventId)
+        .select();
+        
+      if (error) throw error;
+      return data[0];
+    } catch (err) {
+      console.error('Error rescheduling appointment in Supabase:', err);
+      throw err;
+    }
+  }
+
+  // Offline simulation fallback
+  stateAppointments = stateAppointments.map(app => 
+    app.id === eventId ? { ...app, start: { dateTime: start }, end: { dateTime: end } } : app
+  );
+  return { google_event_id: eventId, fecha_hora_cita: start };
+};
