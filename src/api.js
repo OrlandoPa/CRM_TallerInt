@@ -33,14 +33,14 @@ export const getGCalToken = () => {
 
 // Get configured calendar ID from localStorage
 const getCalendarId = () => {
-  return localStorage.getItem('crm_calendar_id') || 'primary';
+  return localStorage.getItem('crm_calendar_id') || import.meta.env.VITE_CALENDAR_ID || 'primary';
 };
 
 // Helper to parse Chatwoot configuration and extract Account ID from full URLs
 export const getChatwootConfig = () => {
-  const accountVal = localStorage.getItem('crm_chatwoot_account_id') || '';
-  const token = localStorage.getItem('crm_chatwoot_access_token') || '';
-  const baseUrl = localStorage.getItem('crm_chatwoot_base_url') || 'https://app.chatwoot.com';
+  const accountVal = localStorage.getItem('crm_chatwoot_account_id') || import.meta.env.VITE_CHATWOOT_ACCOUNT_ID || '';
+  const token = localStorage.getItem('crm_chatwoot_access_token') || import.meta.env.VITE_CHATWOOT_ACCESS_TOKEN || '';
+  const baseUrl = localStorage.getItem('crm_chatwoot_base_url') || import.meta.env.VITE_CHATWOOT_BASE_URL || 'https://app.chatwoot.com';
   
   if (!accountVal) return null;
   

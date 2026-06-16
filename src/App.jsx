@@ -70,13 +70,13 @@ function App() {
 
   // Settings state (Persisted in LocalStorage)
   const [settings, setSettings] = useState({
-    supabaseUrl: localStorage.getItem('crm_supabase_url') || '',
-    supabaseAnonKey: localStorage.getItem('crm_supabase_anon_key') || '',
-    googleClientId: localStorage.getItem('crm_google_client_id') || '',
-    calendarId: localStorage.getItem('crm_calendar_id') || 'primary',
-    chatwootAccountId: localStorage.getItem('crm_chatwoot_account_id') || '1',
-    chatwootBaseUrl: localStorage.getItem('crm_chatwoot_base_url') || 'https://app.chatwoot.com',
-    chatwootAccessToken: localStorage.getItem('crm_chatwoot_access_token') || ''
+    supabaseUrl: localStorage.getItem('crm_supabase_url') || import.meta.env.VITE_SUPABASE_URL || '',
+    supabaseAnonKey: localStorage.getItem('crm_supabase_anon_key') || import.meta.env.VITE_SUPABASE_ANON_KEY || '',
+    googleClientId: localStorage.getItem('crm_google_client_id') || import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
+    calendarId: localStorage.getItem('crm_calendar_id') || import.meta.env.VITE_CALENDAR_ID || 'primary',
+    chatwootAccountId: localStorage.getItem('crm_chatwoot_account_id') || import.meta.env.VITE_CHATWOOT_ACCOUNT_ID || '1',
+    chatwootBaseUrl: localStorage.getItem('crm_chatwoot_base_url') || import.meta.env.VITE_CHATWOOT_BASE_URL || 'https://app.chatwoot.com',
+    chatwootAccessToken: localStorage.getItem('crm_chatwoot_access_token') || import.meta.env.VITE_CHATWOOT_ACCESS_TOKEN || ''
   });
 
   // Calendar month state
