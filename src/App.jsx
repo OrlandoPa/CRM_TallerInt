@@ -69,6 +69,7 @@ function App() {
   // Appointment Detail Card states
   const [selectedAppointmentDetails, setSelectedAppointmentDetails] = useState(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isTimeLocked, setIsTimeLocked] = useState(false);
   const [newEvent, setNewEvent] = useState({
     summary: '',
     start: '',
@@ -326,6 +327,7 @@ function App() {
       fetchData();
       setIsAppointmentModalOpen(false);
       setNewEvent({ summary: '', start: '', end: '', description: '', phone_number: '' });
+      setIsTimeLocked(false);
       showToast('Cita agendada directamente en Google Calendar');
     } catch (err) {
       console.error(err);
@@ -945,7 +947,17 @@ function App() {
                       </div>
                     )}
                     <button 
-                      onClick={() => setIsAppointmentModalOpen(true)} 
+                      onClick={() => {
+                        setNewEvent({
+                          summary: '',
+                          start: '',
+                          end: '',
+                          description: '',
+                          phone_number: ''
+                        });
+                        setIsTimeLocked(false);
+                        setIsAppointmentModalOpen(true);
+                      }} 
                       className="btn btn-primary"
                       disabled={!gcalConnected}
                       title={!gcalConnected ? 'Debes conectar Google Calendar primero' : ''}
@@ -1112,7 +1124,10 @@ function App() {
           <div className="modal-content animate-slide-up">
             <header className="modal-header">
               <span className="modal-title">Agendar Cita en Google Calendar</span>
-              <button onClick={() => setIsAppointmentModalOpen(false)} className="btn-icon" style={{width:'32px', height:'32px'}}>✕</button>
+              <button onClick={() => {
+                setIsAppointmentModalOpen(false);
+                setIsTimeLocked(false);
+              }} className="btn-icon" style={{width:'32px', height:'32px'}}>✕</button>
             </header>
             <form onSubmit={handleCreateAppointment}>
               <div className="modal-body">
@@ -1159,6 +1174,7 @@ function App() {
                     onChange={(e) => setNewEvent(prev => ({ ...prev, start: e.target.value }))}
                     required
                     min={minDateTime}
+                    disabled={isTimeLocked}
                   />
                 </div>
                 <div className="form-group">
@@ -1170,6 +1186,7 @@ function App() {
                     onChange={(e) => setNewEvent(prev => ({ ...prev, end: e.target.value }))}
                     required
                     min={minDateTime}
+                    disabled={isTimeLocked}
                   />
                 </div>
                 <div className="form-group">
@@ -1184,7 +1201,10 @@ function App() {
                 </div>
               </div>
               <footer className="modal-footer">
-                <button type="button" onClick={() => setIsAppointmentModalOpen(false)} className="btn btn-secondary">
+                <button type="button" onClick={() => {
+                  setIsAppointmentModalOpen(false);
+                  setIsTimeLocked(false);
+                }} className="btn btn-secondary">
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn-primary">
@@ -1316,8 +1336,9 @@ function App() {
                                   start: startStr,
                                   end: endStr,
                                   description: '',
-                                  phone_number: activeChatPhone || ''
+                                  phone_number: ''
                                 });
+                                setIsTimeLocked(true);
                                 setIsAppointmentModalOpen(true);
                               }}
                                className="btn btn-secondary" 
@@ -1385,6 +1406,13 @@ function App() {
                         ? new Date(selectedAppointmentDetails.fecha_hora_cita).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) + ' a las ' + new Date(selectedAppointmentDetails.fecha_hora_cita).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
                         : 'No programada'}
                     </span>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Notas de la Cita</label>
+                  <div style={{ background: 'var(--bg-tertiary)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.9rem', color: 'var(--text-primary)', minHeight: '60px' }}>
+                    {selectedAppointmentDetails.detalles_notas_cita || selectedAppointmentDetails.description || 'Sin notas adicionales'}
                   </div>
                 </div>
 

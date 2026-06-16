@@ -586,7 +586,8 @@ export const createAppointment = async (summary, start, end, description = '', p
           fecha_hora_cita: start,
           motivo_consulta: summary,
           estado_cita: 'AGENDADA',
-          google_event_id: gcalEventId
+          google_event_id: gcalEventId,
+          detalles_notas_cita: description || null
         })
         .select();
         
@@ -696,6 +697,7 @@ export const getCitasDb = async () => {
       fecha_hora_cita: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       motivo_consulta: 'Evaluación y limpieza profunda',
       estado_cita: 'AGENDADA',
+      detalles_notas_cita: 'Paciente reporta sangrado leve de encías.',
       pacientes: { nombre_paciente: 'Juan Pérez' }
     },
     {
@@ -704,6 +706,7 @@ export const getCitasDb = async () => {
       fecha_hora_cita: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
       motivo_consulta: 'Revisión mensual de Ortodoncia',
       estado_cita: 'AGENDADA',
+      detalles_notas_cita: 'Ajuste de brackets superior e inferior.',
       pacientes: { nombre_paciente: 'Carlos Mendoza' }
     }
   ];
