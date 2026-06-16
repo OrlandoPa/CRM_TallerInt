@@ -80,7 +80,13 @@ function App() {
   });
 
   // Calendar month state
-  const [currentDate, setCurrentDate] = useState(new Date(2026, 4, 21)); // May 2026
+  const [currentDate, setCurrentDate] = useState(new Date()); // Today's date (June 2026)
+
+  const calendarYear = currentDate.getFullYear();
+  const calendarMonth = currentDate.getMonth();
+  const calendarStartOffset = new Date(calendarYear, calendarMonth, 1).getDay();
+  const calendarDaysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+  const calendarTotalCells = Math.ceil((calendarStartOffset + calendarDaysInMonth) / 7) * 7;
 
   // Detect query parameters on mount to check if embedded in Chatwoot
   useEffect(() => {
@@ -108,19 +114,24 @@ function App() {
   const chatwootDashboardUrl = api.getChatwootDashboardUrl(activeConversationId);
   const chatwootEmbedUrl = chatwootDashboardUrl;
 
-  // Verify Google Token on mount and settings changes
+  // Verify Google Token on mount, settings changes, or month changes
   useEffect(() => {
     const token = api.getGCalToken();
     setGcalConnected(!!token);
     fetchData();
-  }, [settings]);
+  }, [settings, currentDate]);
 
   const fetchData = async () => {
     setLoading(true);
     setErrorMsg('');
     try {
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+      const timeMin = new Date(year, month, 1).toISOString();
+      const timeMax = new Date(year, month + 1, 1).toISOString();
+
       const fetchedLeads = await api.getLeads();
-      const fetchedAppointments = await api.getAppointments();
+      const fetchedAppointments = await api.getAppointments(timeMin, timeMax);
       setLeads(fetchedLeads);
       setAppointments(fetchedAppointments);
 
@@ -728,13 +739,13 @@ function App() {
               <div className="calendar-view animate-fade-in">
                 <div className="calendar-header">
                   <div style={{display:'flex', alignItems:'center', gap:'16px'}}>
-                    <button onClick={() => setCurrentDate(new Date(2026, 4, 1))} className="btn-icon" style={{width:'32px', height:'32px'}}>
+                    <button onClick={() => setCurrentDate(new Date(calendarYear, calendarMonth - 1, 1))} className="btn-icon" style={{width:'32px', height:'32px'}}>
                       <ChevronLeft size={16} />
                     </button>
                     <h2 style={{fontSize: '1.25rem', fontWeight: 600}}>
                       {currentDate.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }).toUpperCase()}
                     </h2>
-                    <button onClick={() => setCurrentDate(new Date(2026, 5, 1))} className="btn-icon" style={{width:'32px', height:'32px'}}>
+                    <button onClick={() => setCurrentDate(new Date(calendarYear, calendarMonth + 1, 1))} className="btn-icon" style={{width:'32px', height:'32px'}}>
                       <ChevronRight size={16} />
                     </button>
                   </div>
@@ -767,25 +778,32 @@ function App() {
                     <span>SÁB</span>
                   </div>
                   <div className="calendar-grid">
-                    {/* May 2026 starts on Friday (5 offset cells) */}
-                    {Array.from({ length: 35 }).map((_, idx) => {
-                      const dayNumber = idx - 4; // Shift offset for Friday May 1st
-                      const isValidDay = dayNumber > 0 && dayNumber <= 31;
+                    {Array.from({ length: calendarTotalCells }).map((_, idx) => {
+                      const dayNumber = idx - calendarStartOffset + 1;
+                      const isValidDay = dayNumber > 0 && dayNumber <= calendarDaysInMonth;
                       
                       // Calculate events for this day
                       const dayEvents = appointments.filter(app => {
                         const appDate = new Date(app.start.dateTime);
-                        return appDate.getDate() === dayNumber && appDate.getMonth() === 4 && appDate.getFullYear() === 2026;
+                        return appDate.getDate() === dayNumber && 
+                               appDate.getMonth() === calendarMonth && 
+                               appDate.getFullYear() === calendarYear;
                       });
+
+                      const today = new Date();
+                      const isToday = isValidDay && 
+                                      today.getDate() === dayNumber && 
+                                      today.getMonth() === calendarMonth && 
+                                      today.getFullYear() === calendarYear;
 
                       return (
                         <div 
                           key={idx} 
-                          className={`calendar-cell ${!isValidDay ? 'other-month' : ''} ${dayNumber === 21 ? 'today' : ''}`}
+                          className={`calendar-cell ${!isValidDay ? 'other-month' : ''} ${isToday ? 'today' : ''}`}
                           style={{cursor: isValidDay ? 'pointer' : 'default'}}
                           onClick={() => {
                             if (isValidDay) {
-                              setSelectedDayForAgenda(new Date(2026, 4, dayNumber));
+                              setSelectedDayForAgenda(new Date(calendarYear, calendarMonth, dayNumber));
                             }
                           }}
                         >
