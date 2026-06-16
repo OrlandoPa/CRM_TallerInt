@@ -936,7 +936,7 @@ function App() {
 
       {/* APPOINTMENT MODAL (GCAL ADD) */}
       {isAppointmentModalOpen && (
-        <div className="modal-overlay">
+        <div className="modal-overlay" style={{ zIndex: 110 }}>
           <div className="modal-content animate-slide-up">
             <header className="modal-header">
               <span className="modal-title">Agendar Cita en Google Calendar</span>

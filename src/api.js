@@ -561,6 +561,24 @@ export const createAppointment = async (summary, start, end, description = '', p
   // Sync to Supabase Table 'citas'
   if (supabase) {
     try {
+      // Ensure patient exists in 'pacientes' table if phone is provided to avoid Foreign Key violations
+      if (phone) {
+        const { data: existingPatient } = await supabase
+          .from('pacientes')
+          .select('telefono_whatsapp')
+          .eq('telefono_whatsapp', phone);
+          
+        if (!existingPatient || existingPatient.length === 0) {
+          const patientName = summary.split(' - ')[0] || 'Paciente WhatsApp';
+          await supabase
+            .from('pacientes')
+            .insert({
+              telefono_whatsapp: phone,
+              nombre_paciente: patientName
+            });
+        }
+      }
+
       const { data, error } = await supabase
         .from('citas')
         .insert({
@@ -574,7 +592,8 @@ export const createAppointment = async (summary, start, end, description = '', p
         
       if (error) throw error;
     } catch (err) {
-      console.error('Error inserting appointment into Supabase citas table:', err);
+      console.error('Error inserting appointment into Supabase:', err);
+      throw new Error(`Cita en Google Calendar OK, pero falló guardar en Base de Datos: ${err.message || JSON.stringify(err)}`);
     }
   }
   
