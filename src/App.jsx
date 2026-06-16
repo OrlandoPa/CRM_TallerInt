@@ -671,21 +671,34 @@ function App() {
                   </div>
                 </div>
 
-                {/* Past Appointments Review Section */}
-                {pastAppointmentsToReview.length > 0 && (
-                  <div className="glass-card" style={{ borderLeft: '4px solid var(--warning)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Clock size={20} style={{ color: 'var(--warning)' }} />
-                        <h2 style={{ fontSize: '1.1rem', fontWeight: 600, margin: 0 }}>Revisión de Asistencia: Citas Pasadas Pendientes</h2>
-                      </div>
-                      <span className="status-badge" style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#fbbf24' }}>
-                        {pastAppointmentsToReview.length} {pastAppointmentsToReview.length === 1 ? 'cita pendiente' : 'citas pendientes'}
-                      </span>
+                {/* Marcar asistencia Card */}
+                <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Clock size={20} style={{ color: 'var(--primary)' }} />
+                      <h2 style={{ fontSize: '1.1rem', fontWeight: 600, margin: 0 }}>Marcar asistencia</h2>
                     </div>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-                      Las siguientes citas ya pasaron su hora programada. Por favor registra si el paciente asistió o reprograma la cita.
-                    </p>
+                    <span className="status-badge" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' }}>
+                      {pastAppointmentsToReview.length} {pastAppointmentsToReview.length === 1 ? 'cita pendiente' : 'citas pendientes'}
+                    </span>
+                  </div>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: 0 }}>
+                    Las siguientes citas ya pasaron su tiempo establecido. Registra si el paciente asistió o no asistió.
+                  </p>
+                  
+                  {pastAppointmentsToReview.length === 0 ? (
+                    <div style={{ 
+                      textAlign: 'center', 
+                      padding: '24px', 
+                      color: 'var(--text-muted)', 
+                      fontSize: '0.9rem', 
+                      border: '1px dashed var(--border-color)', 
+                      borderRadius: '10px',
+                      background: 'rgba(255, 255, 255, 0.01)'
+                    }}>
+                      No hay citas pasadas pendientes de marcar asistencia. ¡Todo al día!
+                    </div>
+                  ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '250px', overflowY: 'auto', paddingRight: '4px' }}>
                       {pastAppointmentsToReview.map(cita => {
                         const date = cita.fecha_hora_cita ? new Date(cita.fecha_hora_cita) : null;
@@ -739,8 +752,8 @@ function App() {
                         );
                       })}
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
 
                 {/* Lists Columns */}
                 <div style={{display: 'flex', gap: '20px', flexWrap: 'wrap'}}>
@@ -1377,19 +1390,19 @@ function App() {
 
                 <div className="form-group">
                   <label>Estado de la Cita</label>
-                  <select 
-                    className="form-control"
-                    value={selectedAppointmentDetails.estado_cita || 'AGENDADA'}
-                    onChange={(e) => handleUpdateAppointmentStatus(selectedAppointmentDetails.google_event_id, e.target.value)}
-                    style={{ fontWeight: 600 }}
-                  >
-                    <option value="AGENDADA">Agendada</option>
-                    <option value="CONFIRMADA">Confirmada</option>
-                    <option value="COMPLETADA">Completada</option>
-                    <option value="CANCELADA">Cancelada</option>
-                    <option value="ASISTIO">Asistió</option>
-                    <option value="NO_ASISTIO">No Asistió</option>
-                  </select>
+                  <div style={{ marginTop: '4px' }}>
+                    <span style={{
+                      fontSize: '0.85rem', 
+                      fontWeight: 600, 
+                      padding: '6px 12px', 
+                      borderRadius: '6px',
+                      display: 'inline-block',
+                      background: selectedAppointmentDetails.estado_cita === 'CANCELADA' || selectedAppointmentDetails.estado_cita === 'NO_ASISTIO' ? 'rgba(239, 68, 68, 0.1)' : (selectedAppointmentDetails.estado_cita === 'CONFIRMADA' || selectedAppointmentDetails.estado_cita === 'COMPLETADA' || selectedAppointmentDetails.estado_cita === 'ASISTIO' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)'),
+                      color: selectedAppointmentDetails.estado_cita === 'CANCELADA' || selectedAppointmentDetails.estado_cita === 'NO_ASISTIO' ? '#ef4444' : (selectedAppointmentDetails.estado_cita === 'CONFIRMADA' || selectedAppointmentDetails.estado_cita === 'COMPLETADA' || selectedAppointmentDetails.estado_cita === 'ASISTIO' ? '#10b981' : '#f59e0b')
+                    }}>
+                      {selectedAppointmentDetails.estado_cita || 'AGENDADA'}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
