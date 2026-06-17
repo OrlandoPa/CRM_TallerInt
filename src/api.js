@@ -508,7 +508,8 @@ export const getAppointments = async (timeMin, timeMax) => {
         description: item.description || '',
         start: { dateTime: item.start?.dateTime || item.start?.date },
         end: { dateTime: item.end?.dateTime || item.end?.date },
-        status: item.status || 'confirmed'
+        status: item.status || 'confirmed',
+        correo_electronico: item.attendees?.[0]?.email || ''
       }));
     } catch (err) {
       console.error('Error fetching direct appointments from Google Calendar, using mock:', err);
@@ -519,7 +520,7 @@ export const getAppointments = async (timeMin, timeMax) => {
   return stateAppointments;
 };
 
-export const createAppointment = async (summary, start, end, description = '', phone = '') => {
+export const createAppointment = async (summary, start, end, description = '', phone = '', email = '') => {
   const token = getGCalToken();
   const calendarId = getCalendarId();
   let gcalEventId = null;
@@ -528,20 +529,28 @@ export const createAppointment = async (summary, start, end, description = '', p
   if (token) {
     try {
       const cal = encodeURIComponent(calendarId);
+      const url = `https://www.googleapis.com/calendar/v3/calendars/${cal}/events${email ? '?sendUpdates=all' : ''}`;
+      
+      const eventBody = {
+        summary: summary,
+        description: description,
+        start: { dateTime: start },
+        end: { dateTime: end }
+      };
+
+      if (email) {
+        eventBody.attendees = [{ email: email }];
+      }
+
       const response = await fetch(
-        `https://www.googleapis.com/calendar/v3/calendars/${cal}/events`, 
+        url, 
         {
           method: 'POST',
           headers: { 
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({
-            summary: summary,
-            description: description,
-            start: { dateTime: start },
-            end: { dateTime: end }
-          })
+          body: JSON.stringify(eventBody)
         }
       );
       
@@ -587,7 +596,8 @@ export const createAppointment = async (summary, start, end, description = '', p
           motivo_consulta: summary,
           estado_cita: 'AGENDADA',
           google_event_id: gcalEventId,
-          detalles_notas_cita: description || null
+          detalles_notas_cita: description || null,
+          correo_electronico: email || null
         })
         .select();
         
@@ -604,7 +614,8 @@ export const createAppointment = async (summary, start, end, description = '', p
     description: description || 'Creada manualmente desde el CRM',
     start: { dateTime: start },
     end: { dateTime: end },
-    status: gcalStatus
+    status: gcalStatus,
+    correo_electronico: email || null
   };
   
   stateAppointments.push(newAppointment);

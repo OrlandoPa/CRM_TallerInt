@@ -174,12 +174,14 @@ function App() {
   const [newPatientPhone, setNewPatientPhone] = useState('');
   const [isDatePickerModalOpen, setIsDatePickerModalOpen] = useState(false);
   const [targetDateInput, setTargetDateInput] = useState('');
+  const [sendEmailReminder, setSendEmailReminder] = useState(false);
   const [newEvent, setNewEvent] = useState({
     summary: '',
     start: '',
     end: '',
     description: '',
-    phone_number: ''
+    phone_number: '',
+    email: ''
   });
 
   // Settings state (Persisted in LocalStorage)
@@ -431,7 +433,8 @@ function App() {
         new Date(newEvent.start).toISOString(),
         new Date(newEvent.end).toISOString(),
         desc,
-        phone
+        phone,
+        sendEmailReminder ? newEvent.email : ''
       );
       
       // If client phone was linked, let's update their lead status to 'scheduled'
@@ -443,18 +446,23 @@ function App() {
       }
 
       fetchData();
-      setIsAppointmentModalOpen(false);
-      setNewEvent({ summary: '', start: '', end: '', description: '', phone_number: '' });
-      setIsTimeLocked(false);
-      setTreatmentType('evaluacion');
-      setIsNewPatient(false);
-      setNewPatientName('');
-      setNewPatientPhone('');
+      closeAppointmentModal();
       showToast('Cita agendada directamente en Google Calendar');
     } catch (err) {
       console.error(err);
       showToast('Error al agendar cita en Google Calendar', false);
     }
+  };
+
+  const closeAppointmentModal = () => {
+    setIsAppointmentModalOpen(false);
+    setIsTimeLocked(false);
+    setTreatmentType('evaluacion');
+    setIsNewPatient(false);
+    setNewPatientName('');
+    setNewPatientPhone('');
+    setSendEmailReminder(false);
+    setNewEvent({ summary: '', start: '', end: '', description: '', phone_number: '', email: '' });
   };
 
   // Delete appointment
@@ -518,6 +526,7 @@ function App() {
         motivo_consulta: app.summary,
         estado_cita: 'AGENDADA',
         telefono_paciente: '',
+        correo_electronico: app.correo_electronico || '',
         pacientes: { nombre_paciente: app.summary.split(' - ')[0] || 'Paciente GCal' }
       });
     }
@@ -1283,14 +1292,7 @@ function App() {
           <div className="modal-content animate-slide-up">
             <header className="modal-header">
               <span className="modal-title">Agendar Cita en Google Calendar</span>
-              <button onClick={() => {
-                setIsAppointmentModalOpen(false);
-                setIsTimeLocked(false);
-                setTreatmentType('evaluacion');
-                setIsNewPatient(false);
-                setNewPatientName('');
-                setNewPatientPhone('');
-              }} className="btn-icon" style={{width:'32px', height:'32px'}}>✕</button>
+              <button onClick={closeAppointmentModal} className="btn-icon" style={{width:'32px', height:'32px'}}>✕</button>
             </header>
             <form onSubmit={handleCreateAppointment}>
               <div className="modal-body">
@@ -1360,11 +1362,14 @@ function App() {
                         };
                         const label = treatmentLabels[treatmentType] || 'Consulta';
                         const patientName = l ? l.client_name : 'Paciente';
+                        const patientEmail = l ? l.client_email || '' : '';
                         setNewEvent(prev => ({ 
                           ...prev, 
                           phone_number: num,
+                          email: patientEmail,
                           summary: `${patientName} - ${label}`
                         }));
+                        setSendEmailReminder(!!patientEmail);
                       }}
                     >
                       <option value="">-- No vincular --</option>
@@ -1500,6 +1505,40 @@ function App() {
                     disabled={isTimeLocked}
                   />
                 </div>
+
+                <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
+                  <input 
+                    type="checkbox" 
+                    id="sendEmailReminder" 
+                    checked={sendEmailReminder}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setSendEmailReminder(checked);
+                      if (!checked) {
+                        setNewEvent(prev => ({ ...prev, email: '' }));
+                      }
+                    }}
+                    style={{ width: '18px', height: '18px', accentColor: 'var(--primary)', cursor: 'pointer' }}
+                  />
+                  <label htmlFor="sendEmailReminder" style={{ cursor: 'pointer', margin: 0 }}>
+                    ¿Enviar recordatorio por correo electrónico?
+                  </label>
+                </div>
+
+                {sendEmailReminder && (
+                  <div className="form-group animate-slide-up">
+                    <label>Correo Electrónico para Recordatorio</label>
+                    <input 
+                      type="email" 
+                      className="form-control" 
+                      placeholder="Ej. paciente@correo.com"
+                      value={newEvent.email || ''}
+                      onChange={(e) => setNewEvent(prev => ({ ...prev, email: e.target.value }))}
+                      required={sendEmailReminder}
+                    />
+                  </div>
+                )}
+
                 <div className="form-group">
                   <label>Detalles / Notas de la Cita</label>
                   <textarea 
@@ -1512,14 +1551,7 @@ function App() {
                 </div>
               </div>
               <footer className="modal-footer">
-                <button type="button" onClick={() => {
-                  setIsAppointmentModalOpen(false);
-                  setIsTimeLocked(false);
-                  setTreatmentType('evaluacion');
-                  setIsNewPatient(false);
-                  setNewPatientName('');
-                  setNewPatientPhone('');
-                }} className="btn btn-secondary">
+                <button type="button" onClick={closeAppointmentModal} className="btn btn-secondary">
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn-primary">
@@ -1731,6 +1763,16 @@ function App() {
                   </div>
                 </div>
 
+                {selectedAppointmentDetails.correo_electronico && (
+                  <div className="form-group">
+                    <label>Correo Electrónico (Recordatorio)</label>
+                    <div style={{ background: 'var(--bg-tertiary)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.9rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ color: 'var(--primary)' }}>✉</span>
+                      <span>{selectedAppointmentDetails.correo_electronico}</span>
+                    </div>
+                  </div>
+                )}
+
                 <div className="form-group">
                   <label>Estado de la Cita</label>
                   <div style={{ marginTop: '4px' }}>
@@ -1876,7 +1918,10 @@ function App() {
         <div className="modal-overlay" style={{ zIndex: 130 }}>
           <div className="modal-content animate-slide-up" style={{ maxWidth: '400px', width: '90%' }}>
             <header className="modal-header">
-              <span className="modal-title">Seleccionar Fecha de Cita</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <CalendarIcon size={20} style={{ color: 'var(--primary)' }} />
+                <span className="modal-title">Seleccionar Fecha de Cita</span>
+              </div>
               <button 
                 onClick={() => {
                   setIsDatePickerModalOpen(false);
