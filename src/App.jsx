@@ -923,7 +923,7 @@ function App() {
                     </div>
                   </div>
 
-                  {/* Card 6: Tasa de Asistencia */}
+                  {/* Card 6: Tasa de Asistencia (Comentada por redundancia con el gráfico)
                   <div className="glass-card metric-card" style={{display: 'flex', alignItems: 'center', gap: '16px', padding: '20px'}}>
                     <div className="metric-icon-wrapper" style={{background: 'rgba(79, 70, 229, 0.15)', color: '#6366f1', padding: '12px', borderRadius: '10px'}}>
                       <ArrowUpRight size={28} />
@@ -934,13 +934,14 @@ function App() {
                       <span style={{fontSize: '0.75rem', color: '#6366f1', fontWeight: 600}}>Eficiencia de citas</span>
                     </div>
                   </div>
+                  */}
                 </div>
 
                 {/* Seccion de Graficos del Dashboard */}
                 <div className="charts-grid-container" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
                   {/* Dona de asistencia */}
                   <div className="glass-card chart-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px', alignItems: 'center', justifyContent: 'center', minHeight: '320px', padding: '30px' }}>
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: 600, width: '100%', textAlign: 'left', margin: 0 }}>Desempeño de Asistencia</h3>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 600, width: '100%', textAlign: 'left', margin: 0 }}>Tasa de Asistencia</h3>
                     <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '160px', height: '160px' }}>
                       <svg width="160" height="160" viewBox="0 0 120 120">
                         <circle cx="60" cy="60" r="50" fill="transparent" stroke="var(--bg-tertiary)" strokeWidth="10" />
