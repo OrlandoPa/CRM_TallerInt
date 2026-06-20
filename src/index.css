@@ -1084,3 +1084,39 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
   filter: invert(0.3) sepia(1) saturate(5) hue-rotate(220deg) brightness(0.8);
 }
 
+/* Custom styles for Dashboard Charts & Daily Agenda */
+.charts-grid-container {
+  margin-top: 12px;
+}
+
+.chart-card {
+  transition: transform var(--transition-fast), border-color var(--transition-fast);
+}
+
+.chart-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(var(--primary-rgb), 0.2);
+}
+
+.agenda-time-slot {
+  transition: all var(--transition-fast);
+}
+
+.agenda-time-slot:hover {
+  transform: translateY(-1px);
+  border-color: rgba(var(--primary-rgb), 0.3) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Animations for SVG Donut */
+@keyframes stroke-draw {
+  from {
+    stroke-dashoffset: 314.16;
+  }
+}
+
+circle[stroke-dasharray="314.16"] {
+  animation: stroke-draw 1s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+

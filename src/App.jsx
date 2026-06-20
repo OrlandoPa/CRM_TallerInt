@@ -197,6 +197,7 @@ function App() {
 
   // Calendar month state
   const [currentDate, setCurrentDate] = useState(new Date()); // Today's date (June 2026)
+  const [selectedAgendaDate, setSelectedAgendaDate] = useState(new Date());
 
   const calendarYear = currentDate.getFullYear();
   const calendarMonth = currentDate.getMonth();
@@ -597,6 +598,60 @@ function App() {
   const citasNoAsistio = citasDb.filter(c => c.estado_cita === 'NO_ASISTIO').length;
   const totalAsistenciaResuelta = citasAsistio + citasNoAsistio;
   const tasaAsistencia = totalAsistenciaResuelta ? Math.round((citasAsistio / totalAsistenciaResuelta) * 100) : 0;
+  const getTreatmentDistribution = () => {
+    const counts = {
+      'Evaluación': 0,
+      'Restauración': 0,
+      'Endodoncia': 0,
+      'Ortodoncia': 0,
+      'Blanqueamiento': 0,
+      'Cirugía': 0,
+      'Rehabilitación': 0,
+      'Otros': 0
+    };
+
+    citasDb.forEach(cita => {
+      if (!cita.motivo_consulta) {
+        counts['Otros']++;
+        return;
+      }
+      const motivo = cita.motivo_consulta.toLowerCase();
+      if (motivo.includes('evalua') || motivo.includes('revis')) {
+        counts['Evaluación']++;
+      } else if (motivo.includes('restaura') || motivo.includes('curac')) {
+        counts['Restauración']++;
+      } else if (motivo.includes('endodoncia')) {
+        counts['Endodoncia']++;
+      } else if (motivo.includes('ortodoncia') || motivo.includes('bracket')) {
+        counts['Ortodoncia']++;
+      } else if (motivo.includes('blanquea')) {
+        counts['Blanqueamiento']++;
+      } else if (motivo.includes('cirug') || motivo.includes('extrac') || motivo.includes('cordal')) {
+        counts['Cirugía']++;
+      } else if (motivo.includes('rehab') || motivo.includes('prote') || motivo.includes('corona')) {
+        counts['Rehabilitación']++;
+      } else {
+        counts['Otros']++;
+      }
+    });
+
+    return Object.entries(counts)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+  };
+
+  const getBarColor = (name) => {
+    switch (name) {
+      case 'Evaluación': return '#3b82f6';
+      case 'Restauración': return '#10b981';
+      case 'Endodoncia': return '#8b5cf6';
+      case 'Ortodoncia': return '#fbbf24';
+      case 'Blanqueamiento': return '#06b6d4';
+      case 'Cirugía': return '#ef4444';
+      case 'Rehabilitación': return '#ec4899';
+      default: return '#6b7280';
+    }
+  };
 
   // Render helper for icons inside dashboard
   const getStatusBadge = (status) => {
@@ -698,6 +753,38 @@ function App() {
             </button>
 
             <button 
+              className={`menu-item ${activeTab === 'agenda' ? 'active' : ''}`}
+              onClick={() => {
+                setActiveTab('agenda');
+                setSelectedAgendaDate(new Date());
+              }}
+            >
+              <Clock3 size={20} />
+              Agenda del Día
+            </button>
+
+            <button 
+              className={`menu-item ${activeTab === 'attendance' ? 'active' : ''}`}
+              onClick={() => setActiveTab('attendance')}
+            >
+              <Check size={20} style={{ color: pastAppointmentsToReview.length > 0 ? '#fbbf24' : 'inherit' }} />
+              Tomar Asistencia
+              {pastAppointmentsToReview.length > 0 && (
+                <span style={{
+                  marginLeft: 'auto',
+                  background: 'rgba(245, 158, 11, 0.2)',
+                  color: '#fbbf24',
+                  fontSize: '0.7rem',
+                  padding: '2px 6px',
+                  borderRadius: '10px',
+                  fontWeight: 'bold'
+                }}>
+                  {pastAppointmentsToReview.length}
+                </span>
+              )}
+            </button>
+
+            <button 
               className={`menu-item ${activeTab === 'chats' ? 'active' : ''}`}
               onClick={() => setActiveTab('chats')}
             >
@@ -729,7 +816,11 @@ function App() {
           <header className="top-bar">
             <div className="page-title">
               <h1 style={{textTransform: 'capitalize'}}>
-                {activeTab === 'chats' ? 'Consola de Chatwoot' : activeTab === 'calendar' ? 'Calendario' : activeTab}
+                {activeTab === 'chats' ? 'Consola de Chatwoot' : 
+                 activeTab === 'calendar' ? 'Calendario' : 
+                 activeTab === 'agenda' ? 'Agenda del Día' : 
+                 activeTab === 'attendance' ? 'Tomar Asistencia' : 
+                 activeTab}
               </h1>
             </div>
             <div className="top-bar-actions">
@@ -845,88 +936,73 @@ function App() {
                   </div>
                 </div>
 
-                {/* Marcar asistencia Card */}
-                <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <Clock size={20} style={{ color: 'var(--primary)' }} />
-                      <h2 style={{ fontSize: '1.1rem', fontWeight: 600, margin: 0 }}>Marcar asistencia</h2>
+                {/* Seccion de Graficos del Dashboard */}
+                <div className="charts-grid-container" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
+                  {/* Dona de asistencia */}
+                  <div className="glass-card chart-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px', alignItems: 'center', justifyContent: 'center', minHeight: '320px', padding: '30px' }}>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 600, width: '100%', textAlign: 'left', margin: 0 }}>Desempeño de Asistencia</h3>
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '160px', height: '160px' }}>
+                      <svg width="160" height="160" viewBox="0 0 120 120">
+                        <circle cx="60" cy="60" r="50" fill="transparent" stroke="var(--bg-tertiary)" strokeWidth="10" />
+                        {totalAsistenciaResuelta > 0 ? (
+                          <circle cx="60" cy="60" r="50" fill="transparent" stroke="url(#donutGradient)" strokeWidth="10"
+                                  strokeDasharray="314.16" strokeDashoffset={314.16 - (tasaAsistencia * 314.16) / 100}
+                                  strokeLinecap="round" transform="rotate(-90 60 60)" style={{ transition: 'stroke-dashoffset 0.8s ease-out' }} />
+                        ) : null}
+                        <defs>
+                          <linearGradient id="donutGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stopColor="#10b981" />
+                            <stop offset="100%" stopColor="#6366f1" />
+                          </linearGradient>
+                        </defs>
+                      </svg>
+                      <div style={{ position: 'absolute', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                        <span style={{ fontSize: '1.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>{tasaAsistencia}%</span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Asistencia</span>
+                      </div>
                     </div>
-                    <span className="status-badge" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' }}>
-                      {pastAppointmentsToReview.length} {pastAppointmentsToReview.length === 1 ? 'cita pendiente' : 'citas pendientes'}
-                    </span>
+                    
+                    <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', width: '100%', fontSize: '0.85rem', marginTop: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#10b981' }}></div>
+                        <span style={{ color: 'var(--text-secondary)' }}>Asistieron: <strong>{citasAsistio}</strong></span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#ef4444' }}></div>
+                        <span style={{ color: 'var(--text-secondary)' }}>Ausentes: <strong>{citasNoAsistio}</strong></span>
+                      </div>
+                    </div>
                   </div>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: 0 }}>
-                    Las siguientes citas ya pasaron su tiempo establecido. Registra si el paciente asistió o no asistió.
-                  </p>
-                  
-                  {pastAppointmentsToReview.length === 0 ? (
-                    <div style={{ 
-                      textAlign: 'center', 
-                      padding: '24px', 
-                      color: 'var(--text-muted)', 
-                      fontSize: '0.9rem', 
-                      border: '1px dashed var(--border-color)', 
-                      borderRadius: '10px',
-                      background: 'rgba(255, 255, 255, 0.01)'
-                    }}>
-                      No hay citas pasadas pendientes de marcar asistencia. ¡Todo al día!
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '250px', overflowY: 'auto', paddingRight: '4px' }}>
-                      {pastAppointmentsToReview.map(cita => {
-                        const date = cita.fecha_hora_cita ? new Date(cita.fecha_hora_cita) : null;
-                        const formattedDate = date 
-                          ? date.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' }) + ' a las ' + date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
-                          : 'Fecha no programada';
-                        const patientName = cita.pacientes?.nombre_paciente || 'Paciente sin registrar';
 
+                  {/* Distribucion de tratamientos */}
+                  <div className="glass-card chart-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', minHeight: '320px', padding: '24px' }}>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 600, margin: 0 }}>Distribución de Tratamientos</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flexGrow: 1, justifyContent: 'center' }}>
+                      {getTreatmentDistribution().slice(0, 6).map((treatment) => {
+                        const pct = totalCitas > 0 ? Math.round((treatment.count / totalCitas) * 100) : 0;
+                        const barColor = getBarColor(treatment.name);
+                        const maxCount = Math.max(...getTreatmentDistribution().map(d => d.count), 1);
                         return (
-                          <div key={cita.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--bg-tertiary)', borderRadius: '10px', border: '1px solid var(--border-color)', gap: '12px', flexWrap: 'wrap' }}>
-                            <div style={{ flex: '1 1 250px' }}>
-                              <span style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-main)' }}>{patientName}</span>
-                              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginLeft: '8px' }}>({cita.telefono_paciente})</span>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                                <Clock size={12} /> <span>{formattedDate}</span>
-                                <span style={{ color: 'var(--text-muted)' }}>| Motivo: {cita.motivo_consulta || 'Sin motivo'}</span>
-                              </div>
+                          <div key={treatment.name} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 500 }}>
+                              <span style={{ color: 'var(--text-primary)' }}>{treatment.name}</span>
+                              <span style={{ color: 'var(--text-secondary)' }}>{treatment.count} cita{treatment.count === 1 ? '' : 's'} ({pct}%)</span>
                             </div>
-                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'nowrap' }}>
-                              <button 
-                                onClick={() => handleUpdateAppointmentStatus(cita.google_event_id, 'ASISTIO')}
-                                className="btn" 
-                                style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.2)', padding: '6px 12px', fontSize: '0.8rem' }}
-                              >
-                                <Check size={14} /> Asistió
-                              </button>
-                              <button 
-                                onClick={() => handleUpdateAppointmentStatus(cita.google_event_id, 'NO_ASISTIO')}
-                                className="btn" 
-                                style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '6px 12px', fontSize: '0.8rem' }}
-                              >
-                                ✕ No Asistió
-                              </button>
-                              <button 
-                                onClick={() => {
-                                  setSelectedCitaForReschedule(cita);
-                                  const tomorrow = new Date();
-                                  tomorrow.setDate(tomorrow.getDate() + 1);
-                                  const tomorrowStr = tomorrow.toLocaleString('sv-SE').replace(' ', 'T').slice(0, 16);
-                                  const tomorrowEndStr = new Date(tomorrow.getTime() + 60 * 60 * 1000).toLocaleString('sv-SE').replace(' ', 'T').slice(0, 16);
-                                  setRescheduleEvent({ start: tomorrowStr, end: tomorrowEndStr });
-                                  setIsRescheduleModalOpen(true);
-                                }}
-                                className="btn" 
-                                style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.2)', padding: '6px 12px', fontSize: '0.8rem' }}
-                              >
-                                <RefreshCw size={14} /> Reprogramar
-                              </button>
+                            <div style={{ width: '100%', height: '8px', background: 'var(--bg-tertiary)', borderRadius: '4px', overflow: 'hidden' }}>
+                              <div style={{ 
+                                width: `${(treatment.count / maxCount) * 100}%`, 
+                                height: '100%', 
+                                background: barColor, 
+                                borderRadius: '4px',
+                                transition: 'width 0.8s ease-out',
+                                boxShadow: `0 0 8px ${barColor}`
+                              }}></div>
                             </div>
                           </div>
                         );
                       })}
                     </div>
-                  )}
+                  </div>
                 </div>
 
                 {/* Lists Columns */}
@@ -1058,6 +1134,321 @@ function App() {
                       )}
                     </div>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* 2. AGENDA DEL DIA VIEW */}
+            {activeTab === 'agenda' && (
+              <div className="agenda-view animate-fade-in" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <button 
+                      onClick={() => {
+                        const newD = new Date(selectedAgendaDate);
+                        newD.setDate(newD.getDate() - 1);
+                        setSelectedAgendaDate(newD);
+                      }} 
+                      className="btn-icon" 
+                      style={{ width: '32px', height: '32px' }}
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+                    <h2 style={{ fontSize: '1.25rem', fontWeight: 600, margin: 0 }}>
+                      {selectedAgendaDate.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase()}
+                    </h2>
+                    <button 
+                      onClick={() => {
+                        const newD = new Date(selectedAgendaDate);
+                        newD.setDate(newD.getDate() + 1);
+                        setSelectedAgendaDate(newD);
+                      }} 
+                      className="btn-icon" 
+                      style={{ width: '32px', height: '32px' }}
+                    >
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Seleccionar Fecha:</span>
+                    <input 
+                      type="date" 
+                      className="form-control" 
+                      style={{ width: 'auto', padding: '6px 12px', margin: 0 }}
+                      value={selectedAgendaDate.toLocaleString('sv-SE').slice(0, 10)}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          const parts = e.target.value.split('-');
+                          setSelectedAgendaDate(new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2])));
+                        }
+                      }}
+                    />
+                    <button 
+                      onClick={() => setSelectedAgendaDate(new Date())} 
+                      className="btn btn-secondary"
+                      style={{ padding: '6px 12px', fontSize: '0.85rem' }}
+                    >
+                      Hoy
+                    </button>
+                  </div>
+                </div>
+
+                <div className="glass-card" style={{ padding: '24px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {getTimeSlots().map((slot, idx) => {
+                      if (slot === 'RECESO') {
+                        return (
+                          <div key={`receso-${idx}`} style={{
+                            textAlign: 'center', padding: '10px', 
+                            background: 'rgba(255, 255, 255, 0.02)', 
+                            borderRadius: '8px', border: '1px dashed var(--border-color)',
+                            color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600,
+                            letterSpacing: '1px'
+                          }}>
+                            ☕ RECESO DE ALMUERZO (12:00 PM - 4:00 PM)
+                          </div>
+                        );
+                      }
+
+                      const activeEvent = getEventForTimeSlot(slot, selectedAgendaDate);
+                      const [hours, minutes] = slot.split(':').map(Number);
+                      const slotTime = new Date(
+                        selectedAgendaDate.getFullYear(),
+                        selectedAgendaDate.getMonth(),
+                        selectedAgendaDate.getDate(),
+                        hours,
+                        minutes
+                      );
+                      const isSlotPast = slotTime < new Date();
+                      const dbCitaResolved = activeEvent ? citasDb.find(c => c.google_event_id === activeEvent.id) : null;
+                      
+                      return (
+                        <div key={slot} className="agenda-time-slot" style={{
+                          display: 'flex', alignItems: 'center', padding: '14px 20px', 
+                          background: activeEvent ? 'rgba(var(--primary-rgb), 0.03)' : 'var(--bg-tertiary)', 
+                          borderRadius: '10px', 
+                          border: activeEvent ? '1px solid rgba(var(--primary-rgb), 0.15)' : '1px solid var(--border-color)', 
+                          minHeight: '64px',
+                          transition: 'all var(--transition-fast)'
+                        }}>
+                          {/* Hour Indicator */}
+                          <div style={{
+                            width: '80px', fontWeight: 600, fontSize: '0.9rem', 
+                            color: activeEvent ? 'var(--primary)' : 'var(--text-secondary)', 
+                            borderRight: '1px solid var(--border-color)',
+                            marginRight: '20px',
+                            display: 'flex',
+                            alignItems: 'center'
+                          }}>
+                            {slot}
+                          </div>
+
+                          {/* Overlapping Event Card or Empty slot */}
+                          <div style={{ flexGrow: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            {activeEvent ? (
+                              <>
+                                <div 
+                                  onClick={() => handleOpenDetailFromGCal(activeEvent)}
+                                  style={{ overflow: 'hidden', paddingRight: '10px', cursor: 'pointer', flexGrow: 1 }}
+                                >
+                                  <span style={{
+                                    fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-primary)',
+                                    display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+                                  }}>
+                                    {activeEvent.summary}
+                                  </span>
+                                  {activeEvent.description && (
+                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      {activeEvent.description}
+                                    </span>
+                                  )}
+                                </div>
+                                
+                                <div style={{ display: 'flex', gap: '8px', flexShrink: 0, alignItems: 'center' }}>
+                                  {dbCitaResolved?.estado_cita && (
+                                    <span style={{
+                                      fontSize: '0.7rem',
+                                      fontWeight: 600,
+                                      padding: '2px 8px',
+                                      borderRadius: '4px',
+                                      background: ['ASISTIO', 'COMPLETADA'].includes(dbCitaResolved.estado_cita) ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                                      color: ['ASISTIO', 'COMPLETADA'].includes(dbCitaResolved.estado_cita) ? '#10b981' : '#ef4444'
+                                    }}>
+                                      {dbCitaResolved.estado_cita}
+                                    </span>
+                                  )}
+                                  
+                                  {!(dbCitaResolved?.estado_cita === 'ASISTIO' || dbCitaResolved?.estado_cita === 'COMPLETADA') && (
+                                    <button 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteAppointment(activeEvent.id);
+                                      }}
+                                      className="btn-icon" 
+                                      style={{ color: 'var(--danger)', width: '32px', height: '32px' }}
+                                      title="Cancelar Cita"
+                                    >
+                                      <Trash size={14} />
+                                    </button>
+                                  )}
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontStyle: 'italic' }}>
+                                  Disponible
+                                </span>
+                                <button 
+                                  onClick={() => {
+                                    const [hours, minutes] = slot.split(':').map(Number);
+                                    const startStr = new Date(
+                                      selectedAgendaDate.getFullYear(), 
+                                      selectedAgendaDate.getMonth(), 
+                                      selectedAgendaDate.getDate(), 
+                                      hours, 
+                                      minutes
+                                    ).toLocaleString('sv-SE').replace(' ', 'T').slice(0, 16);
+                                    
+                                    const endStr = calculateEndTime(startStr, 'evaluacion');
+                                    
+                                    setNewEvent({
+                                      summary: 'Paciente - Evaluación Inicial',
+                                      start: startStr,
+                                      end: endStr,
+                                      description: '',
+                                      phone_number: ''
+                                    });
+                                    setIsTimeLocked(true);
+                                    setTreatmentType('evaluacion');
+                                    setIsNewPatient(false);
+                                    setNewPatientName('');
+                                    setNewPatientPhone('');
+                                    setIsAppointmentModalOpen(true);
+                                  }}
+                                  className="btn btn-secondary" 
+                                  style={{ padding: '6px 12px', fontSize: '0.75rem', height: '32px', opacity: isSlotPast ? 0.5 : 1 }}
+                                  disabled={!gcalConnected || isSlotPast}
+                                  title={isSlotPast ? 'No se pueden agendar citas en el pasado' : ''}
+                                >
+                                  + Agendar Cita
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 3. TOMAR ASISTENCIA VIEW */}
+            {activeTab === 'attendance' && (
+              <div className="attendance-view animate-fade-in" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Clock size={20} style={{ color: 'var(--primary)' }} />
+                      <h2 style={{ fontSize: '1.25rem', fontWeight: 600, margin: 0 }}>Citas Pasadas Pendientes de Asistencia</h2>
+                    </div>
+                    <span className="status-badge" style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', fontWeight: 600, padding: '4px 10px', borderRadius: '8px' }}>
+                      {pastAppointmentsToReview.length} {pastAppointmentsToReview.length === 1 ? 'pendiente' : 'pendientes'}
+                    </span>
+                  </div>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', margin: 0 }}>
+                    A continuación se listan las citas de fechas u horas pasadas que aún no han sido resueltas en el sistema. Por favor marca si el paciente asistió a su cita, no asistió, o si necesitas reprogramarla.
+                  </p>
+                  
+                  {pastAppointmentsToReview.length === 0 ? (
+                    <div style={{ 
+                      textAlign: 'center', 
+                      padding: '48px 24px', 
+                      color: 'var(--text-muted)', 
+                      fontSize: '0.95rem', 
+                      border: '1px dashed var(--border-color)', 
+                      borderRadius: '12px',
+                      background: 'rgba(255, 255, 255, 0.01)',
+                      marginTop: '12px'
+                    }}>
+                      🎉 ¡Todo al día! No hay citas pasadas pendientes de registrar asistencia.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
+                      {pastAppointmentsToReview.map(cita => {
+                        const date = cita.fecha_hora_cita ? new Date(cita.fecha_hora_cita) : null;
+                        const formattedDate = date 
+                          ? date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) + ' a las ' + date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+                          : 'Fecha no programada';
+                        const patientName = cita.pacientes?.nombre_paciente || 'Paciente sin registrar';
+
+                        return (
+                          <div key={cita.id} style={{ 
+                            display: 'flex', 
+                            justifyContent: 'space-between', 
+                            alignItems: 'center', 
+                            padding: '16px 20px', 
+                            background: 'var(--bg-tertiary)', 
+                            borderRadius: '12px', 
+                            border: '1px solid var(--border-color)', 
+                            gap: '16px', 
+                            flexWrap: 'wrap',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+                          }}>
+                            <div style={{ flex: '1 1 300px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--text-primary)' }}>{patientName}</span>
+                                {cita.telefono_paciente && (
+                                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>({cita.telefono_paciente})</span>
+                                )}
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                                <Clock size={14} style={{ color: 'var(--primary)' }} />
+                                <span>{formattedDate}</span>
+                              </div>
+                              {cita.motivo_consulta && (
+                                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '4px', marginBlockEnd: 0 }}>
+                                  Motivo: {cita.motivo_consulta}
+                                </p>
+                              )}
+                            </div>
+                            <div style={{ display: 'flex', gap: '10px', flexWrap: 'nowrap' }}>
+                              <button 
+                                onClick={() => handleUpdateAppointmentStatus(cita.google_event_id, 'ASISTIO')}
+                                className="btn" 
+                                style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.2)', padding: '8px 16px', fontSize: '0.85rem' }}
+                              >
+                                <Check size={16} /> Asistió
+                              </button>
+                              <button 
+                                onClick={() => handleUpdateAppointmentStatus(cita.google_event_id, 'NO_ASISTIO')}
+                                className="btn" 
+                                style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '8px 16px', fontSize: '0.85rem' }}
+                              >
+                                ✕ No Asistió
+                              </button>
+                              <button 
+                                onClick={() => {
+                                  setSelectedCitaForReschedule(cita);
+                                  const tomorrow = new Date();
+                                  tomorrow.setDate(tomorrow.getDate() + 1);
+                                  const tomorrowStr = tomorrow.toLocaleString('sv-SE').replace(' ', 'T').slice(0, 16);
+                                  const tomorrowEndStr = new Date(tomorrow.getTime() + 60 * 60 * 1000).toLocaleString('sv-SE').replace(' ', 'T').slice(0, 16);
+                                  setRescheduleEvent({ start: tomorrowStr, end: tomorrowEndStr });
+                                  setIsRescheduleModalOpen(true);
+                                }}
+                                className="btn btn-secondary" 
+                                style={{ padding: '8px 16px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                              >
+                                <RefreshCw size={14} /> Reprogramar
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
