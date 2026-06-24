@@ -131,6 +131,43 @@ const calculateEndTime = (startStr, treatmentKey) => {
   return endDate.toLocaleString('sv-SE').replace(' ', 'T').slice(0, 16);
 };
 
+const getLimaDate = (dateOrStr) => {
+  if (!dateOrStr) return null;
+  const date = new Date(dateOrStr);
+  if (isNaN(date.getTime())) return null;
+
+  try {
+    // Force conversion of date to America/Lima timezone fields
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Lima',
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      second: 'numeric',
+      hour12: false
+    });
+    const parts = formatter.formatToParts(date);
+    const partValues = {};
+    parts.forEach(p => {
+      partValues[p.type] = p.value;
+    });
+
+    return new Date(
+      parseInt(partValues.year),
+      parseInt(partValues.month) - 1,
+      parseInt(partValues.day),
+      parseInt(partValues.hour),
+      parseInt(partValues.minute),
+      parseInt(partValues.second)
+    );
+  } catch (e) {
+    console.error('Error formatting Lima date:', e);
+    return date; // fallback to original date object if Intl fails
+  }
+};
+
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [theme, setTheme] = useState('dark');
@@ -698,8 +735,10 @@ function App() {
     const slotTime = new Date(dayDate.getFullYear(), dayDate.getMonth(), dayDate.getDate(), hours, minutes);
 
     return appointments.find(app => {
-      const appStart = new Date(app.start.dateTime);
-      const appEnd = new Date(app.end.dateTime);
+      const appStart = getLimaDate(app.start?.dateTime || app.start?.date);
+      if (!appStart) return false;
+      
+      const appEnd = getLimaDate(app.end?.dateTime || app.end?.date) || new Date(appStart.getTime() + 30 * 60000);
       
       // Event matches the day
       const sameDay = appStart.getDate() === dayDate.getDate() && 
@@ -1021,7 +1060,7 @@ function App() {
                         </p>
                       ) : (
                         citasDb.map(cita => {
-                          const date = cita.fecha_hora_cita ? new Date(cita.fecha_hora_cita) : null;
+                          const date = cita.fecha_hora_cita ? getLimaDate(cita.fecha_hora_cita) : null;
                           const formattedDate = date 
                             ? date.toLocaleDateString('es-ES', {weekday: 'short', day: 'numeric', month: 'short'}) + ' a las ' + date.toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'})
                             : 'Fecha no programada';
@@ -1099,7 +1138,7 @@ function App() {
                         </p>
                       ) : (
                         appointments.slice(0, 8).map(app => {
-                          const date = new Date(app.start.dateTime);
+                          const date = getLimaDate(app.start?.dateTime || app.start?.date);
                           return (
                             <div key={app.id} 
                               onClick={() => handleOpenDetailFromGCal(app)}
@@ -1378,7 +1417,7 @@ function App() {
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
                       {pastAppointmentsToReview.map(cita => {
-                        const date = cita.fecha_hora_cita ? new Date(cita.fecha_hora_cita) : null;
+                        const date = cita.fecha_hora_cita ? getLimaDate(cita.fecha_hora_cita) : null;
                         const formattedDate = date 
                           ? date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) + ' a las ' + date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
                           : 'Fecha no programada';
@@ -1544,7 +1583,8 @@ function App() {
                       
                       // Calculate events for this day
                       const dayEvents = appointments.filter(app => {
-                        const appDate = new Date(app.start.dateTime);
+                        const appDate = getLimaDate(app.start?.dateTime || app.start?.date);
+                        if (!appDate) return false;
                         return appDate.getDate() === dayNumber && 
                                appDate.getMonth() === calendarMonth && 
                                appDate.getFullYear() === calendarYear;
@@ -2027,8 +2067,11 @@ function App() {
                               </span>
                               <span style={{fontSize:'0.75rem', color:'var(--text-secondary)', display:'flex', alignItems:'center', gap:'4px'}}>
                                 <Clock size={12} />
-                                {new Date(activeEvent.start.dateTime).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} - {new Date(activeEvent.end.dateTime).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} 
-                                {` (${Math.round((new Date(activeEvent.end.dateTime) - new Date(activeEvent.start.dateTime)) / 60000)} mins)`}
+                                {(() => {
+                                  const start = getLimaDate(activeEvent.start?.dateTime || activeEvent.start?.date);
+                                  const end = getLimaDate(activeEvent.end?.dateTime || activeEvent.end?.date) || new Date(start.getTime() + 30 * 60000);
+                                  return `${start.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} - ${end.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} (${Math.round((end - start) / 60000)} mins)`;
+                                })()}
                               </span>
                             </div>
                             
@@ -2142,7 +2185,10 @@ function App() {
                     <Clock size={16} style={{ color: 'var(--primary)' }} />
                     <span>
                       {selectedAppointmentDetails.fecha_hora_cita 
-                        ? new Date(selectedAppointmentDetails.fecha_hora_cita).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) + ' a las ' + new Date(selectedAppointmentDetails.fecha_hora_cita).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+                        ? (() => {
+                            const date = getLimaDate(selectedAppointmentDetails.fecha_hora_cita);
+                            return date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) + ' a las ' + date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                          })()
                         : 'No programada'}
                     </span>
                   </div>
