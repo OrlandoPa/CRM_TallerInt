@@ -735,10 +735,27 @@ function App() {
     const slotTime = new Date(dayDate.getFullYear(), dayDate.getMonth(), dayDate.getDate(), hours, minutes);
 
     return appointments.find(app => {
-      const appStart = getLimaDate(app.start?.dateTime || app.start?.date);
+      // Find database counterpart
+      const dbCita = citasDb.find(c => c.google_event_id === app.id);
+      
+      // Prioritize database date/time if it exists
+      let appStart = null;
+      if (dbCita && dbCita.fecha_hora_cita) {
+        appStart = getLimaDate(dbCita.fecha_hora_cita);
+      }
+      if (!appStart) {
+        appStart = getLimaDate(app.start?.dateTime || app.start?.date);
+      }
       if (!appStart) return false;
       
-      const appEnd = getLimaDate(app.end?.dateTime || app.end?.date) || new Date(appStart.getTime() + 30 * 60000);
+      let durationMs = 30 * 60000; // default 30 mins
+      if (app.end?.dateTime && app.start?.dateTime) {
+        durationMs = new Date(app.end.dateTime).getTime() - new Date(app.start.dateTime).getTime();
+      } else if (app.end?.date && app.start?.date) {
+        durationMs = new Date(app.end.date).getTime() - new Date(app.start.date).getTime();
+      }
+      
+      const appEndResolved = new Date(appStart.getTime() + durationMs);
       
       // Event matches the day
       const sameDay = appStart.getDate() === dayDate.getDate() && 
@@ -748,7 +765,7 @@ function App() {
       if (!sameDay) return false;
       
       // Slot falls within the event duration [start, end)
-      return slotTime >= appStart && slotTime < appEnd;
+      return slotTime >= appStart && slotTime < appEndResolved;
     });
   };
 
@@ -756,8 +773,16 @@ function App() {
     if (!dayDate) return [];
     
     const dayEvents = appointments.filter(app => {
-      const appStart = getLimaDate(app.start?.dateTime || app.start?.date);
+      const dbCita = citasDb.find(c => c.google_event_id === app.id);
+      let appStart = null;
+      if (dbCita && dbCita.fecha_hora_cita) {
+        appStart = getLimaDate(dbCita.fecha_hora_cita);
+      }
+      if (!appStart) {
+        appStart = getLimaDate(app.start?.dateTime || app.start?.date);
+      }
       if (!appStart) return false;
+      
       return appStart.getDate() === dayDate.getDate() && 
              appStart.getMonth() === dayDate.getMonth() && 
              appStart.getFullYear() === dayDate.getFullYear();
@@ -766,15 +791,29 @@ function App() {
     const slots = getTimeSlots();
     
     return dayEvents.filter(app => {
-      const appStart = getLimaDate(app.start?.dateTime || app.start?.date);
+      const dbCita = citasDb.find(c => c.google_event_id === app.id);
+      let appStart = null;
+      if (dbCita && dbCita.fecha_hora_cita) {
+        appStart = getLimaDate(dbCita.fecha_hora_cita);
+      }
+      if (!appStart) {
+        appStart = getLimaDate(app.start?.dateTime || app.start?.date);
+      }
       if (!appStart) return false;
-      const appEnd = getLimaDate(app.end?.dateTime || app.end?.date) || new Date(appStart.getTime() + 30 * 60000);
+      
+      let durationMs = 30 * 60000;
+      if (app.end?.dateTime && app.start?.dateTime) {
+        durationMs = new Date(app.end.dateTime).getTime() - new Date(app.start.dateTime).getTime();
+      } else if (app.end?.date && app.start?.date) {
+        durationMs = new Date(app.end.date).getTime() - new Date(app.start.date).getTime();
+      }
+      const appEndResolved = new Date(appStart.getTime() + durationMs);
       
       const matchedByASlot = slots.some(slot => {
         if (slot === 'RECESO') return false;
         const [hours, minutes] = slot.split(':').map(Number);
         const slotTime = new Date(dayDate.getFullYear(), dayDate.getMonth(), dayDate.getDate(), hours, minutes);
-        return slotTime >= appStart && slotTime < appEnd;
+        return slotTime >= appStart && slotTime < appEndResolved;
       });
       
       return !matchedByASlot;
@@ -1275,12 +1314,26 @@ function App() {
                           </h4>
                           <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
                             {unmatched.map(evt => {
-                              const start = getLimaDate(evt.start?.dateTime || evt.start?.date);
-                              const end = getLimaDate(evt.end?.dateTime || evt.end?.date) || new Date(start.getTime() + 30 * 60000);
+                              const dbCita = citasDb.find(c => c.google_event_id === evt.id);
+                              let start = null;
+                              if (dbCita && dbCita.fecha_hora_cita) {
+                                start = getLimaDate(dbCita.fecha_hora_cita);
+                              }
+                              if (!start) {
+                                start = getLimaDate(evt.start?.dateTime || evt.start?.date);
+                              }
+                              let durationMs = 30 * 60000;
+                              if (evt.end?.dateTime && evt.start?.dateTime) {
+                                durationMs = new Date(evt.end.dateTime).getTime() - new Date(evt.start.dateTime).getTime();
+                              } else if (evt.end?.date && evt.start?.date) {
+                                durationMs = new Date(evt.end.date).getTime() - new Date(evt.start.date).getTime();
+                              }
+                              const end = new Date(start.getTime() + durationMs);
+                              const displayName = dbCita ? `${dbCita.pacientes?.nombre_paciente || 'Paciente'} - ${dbCita.motivo_consulta || 'Cita'}` : evt.summary;
                               return (
                                 <div key={evt.id} onClick={() => handleOpenDetailFromGCal(evt)} style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--bg-tertiary)', borderRadius: '8px', borderLeft: '4px solid #fbbf24', cursor: 'pointer'}}>
                                   <div>
-                                    <span style={{fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-primary)'}}>{evt.summary}</span>
+                                    <span style={{fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-primary)'}}>{displayName}</span>
                                     <span style={{fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block'}}>
                                       Hora: {start?.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})} - {end?.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
                                     </span>
@@ -1353,9 +1406,13 @@ function App() {
                                     fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-primary)',
                                     display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
                                   }}>
-                                    {activeEvent.summary}
+                                    {dbCitaResolved ? `${dbCitaResolved.pacientes?.nombre_paciente || 'Paciente'} - ${dbCitaResolved.motivo_consulta || 'Cita'}` : activeEvent.summary}
                                   </span>
-                                  {activeEvent.description && (
+                                  {dbCitaResolved ? (
+                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      Contacto: {dbCitaResolved.telefono_paciente || 'Sin teléfono'} | {dbCitaResolved.detalles_notas_cita || 'Sin notas'}
+                                    </span>
+                                  ) : activeEvent.description && (
                                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                       {activeEvent.description}
                                     </span>
@@ -1640,7 +1697,14 @@ function App() {
                       
                       // Calculate events for this day
                       const dayEvents = appointments.filter(app => {
-                        const appDate = getLimaDate(app.start?.dateTime || app.start?.date);
+                        const dbCita = citasDb.find(c => c.google_event_id === app.id);
+                        let appDate = null;
+                        if (dbCita && dbCita.fecha_hora_cita) {
+                          appDate = getLimaDate(dbCita.fecha_hora_cita);
+                        }
+                        if (!appDate) {
+                          appDate = getLimaDate(app.start?.dateTime || app.start?.date);
+                        }
                         if (!appDate) return false;
                         return appDate.getDate() === dayNumber && 
                                appDate.getMonth() === calendarMonth && 
@@ -1668,20 +1732,24 @@ function App() {
                             <>
                               <div className="calendar-cell-number">{dayNumber}</div>
                               <div className="calendar-events">
-                                {dayEvents.map(evt => (
-                                  <div 
-                                    key={evt.id} 
-                                    className="calendar-event confirmed" 
-                                    title={`${evt.summary}: ${evt.description}`}
-                                    onClick={(e) => {
-                                      e.stopPropagation(); // Avoid opening day details modal when clicking event
-                                      handleOpenDetailFromGCal(evt);
-                                    }}
-                                  >
-                                    {evt.summary.split(' - ')[0]}
-                                  </div>
-                                ))}
-                              </div>
+                                 {dayEvents.map(evt => {
+                                   const dbCita = citasDb.find(c => c.google_event_id === evt.id);
+                                   const displayName = dbCita?.pacientes?.nombre_paciente || evt.summary.split(' - ')[0];
+                                   return (
+                                     <div 
+                                       key={evt.id} 
+                                       className="calendar-event confirmed" 
+                                       title={`${dbCita ? dbCita.pacientes?.nombre_paciente + " - " + dbCita.motivo_consulta : evt.summary}: ${evt.description}`}
+                                       onClick={(e) => {
+                                         e.stopPropagation(); // Avoid opening day details modal when clicking event
+                                         handleOpenDetailFromGCal(evt);
+                                       }}
+                                     >
+                                       {displayName}
+                                     </div>
+                                   );
+                                 })}
+                               </div>
                             </>
                           )}
                         </div>
@@ -2077,12 +2145,26 @@ function App() {
                     </h4>
                     <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
                       {unmatched.map(evt => {
-                        const start = getLimaDate(evt.start?.dateTime || evt.start?.date);
-                        const end = getLimaDate(evt.end?.dateTime || evt.end?.date) || new Date(start.getTime() + 30 * 60000);
+                        const dbCita = citasDb.find(c => c.google_event_id === evt.id);
+                        let start = null;
+                        if (dbCita && dbCita.fecha_hora_cita) {
+                          start = getLimaDate(dbCita.fecha_hora_cita);
+                        }
+                        if (!start) {
+                          start = getLimaDate(evt.start?.dateTime || evt.start?.date);
+                        }
+                        let durationMs = 30 * 60000;
+                        if (evt.end?.dateTime && evt.start?.dateTime) {
+                          durationMs = new Date(evt.end.dateTime).getTime() - new Date(evt.start.dateTime).getTime();
+                        } else if (evt.end?.date && evt.start?.date) {
+                          durationMs = new Date(evt.end.date).getTime() - new Date(evt.start.date).getTime();
+                        }
+                        const end = new Date(start.getTime() + durationMs);
+                        const displayName = dbCita ? `${dbCita.pacientes?.nombre_paciente || 'Paciente'} - ${dbCita.motivo_consulta || 'Cita'}` : evt.summary;
                         return (
                           <div key={evt.id} onClick={() => handleOpenDetailFromGCal(evt)} style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--bg-tertiary)', borderRadius: '8px', borderLeft: '4px solid #fbbf24', cursor: 'pointer'}}>
                             <div>
-                              <span style={{fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-primary)'}}>{evt.summary}</span>
+                              <span style={{fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-primary)'}}>{displayName}</span>
                               <span style={{fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block'}}>
                                 Hora: {start?.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})} - {end?.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
                               </span>
@@ -2111,6 +2193,7 @@ function App() {
                   }
 
                   const activeEvent = getEventForTimeSlot(slot, selectedDayForAgenda);
+                  const dbCitaResolved = activeEvent ? citasDb.find(c => c.google_event_id === activeEvent.id) : null;
                   
                   const [hours, minutes] = slot.split(':').map(Number);
                   const slotTime = new Date(
@@ -2149,14 +2232,26 @@ function App() {
                                 fontWeight:600, fontSize:'0.9rem', color:'var(--text-primary)',
                                 display:'block', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'
                               }}>
-                                {activeEvent.summary}
+                                {dbCitaResolved ? `${dbCitaResolved.pacientes?.nombre_paciente || 'Paciente'} - ${dbCitaResolved.motivo_consulta || 'Cita'}` : activeEvent.summary}
                               </span>
                               <span style={{fontSize:'0.75rem', color:'var(--text-secondary)', display:'flex', alignItems:'center', gap:'4px'}}>
                                 <Clock size={12} />
                                 {(() => {
-                                  const start = getLimaDate(activeEvent.start?.dateTime || activeEvent.start?.date);
-                                  const end = getLimaDate(activeEvent.end?.dateTime || activeEvent.end?.date) || new Date(start.getTime() + 30 * 60000);
-                                  return `${start.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} - ${end.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} (${Math.round((end - start) / 60000)} mins)`;
+                                  let start = null;
+                                  if (dbCitaResolved && dbCitaResolved.fecha_hora_cita) {
+                                    start = getLimaDate(dbCitaResolved.fecha_hora_cita);
+                                  }
+                                  if (!start) {
+                                    start = getLimaDate(activeEvent.start?.dateTime || activeEvent.start?.date);
+                                  }
+                                  let durationMs = 30 * 60000;
+                                  if (activeEvent.end?.dateTime && activeEvent.start?.dateTime) {
+                                    durationMs = new Date(activeEvent.end.dateTime).getTime() - new Date(activeEvent.start.dateTime).getTime();
+                                  } else if (activeEvent.end?.date && activeEvent.start?.date) {
+                                    durationMs = new Date(activeEvent.end.date).getTime() - new Date(activeEvent.start.date).getTime();
+                                  }
+                                  const end = new Date(start.getTime() + durationMs);
+                                  return `${start.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} - ${end.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} (${Math.round(durationMs / 60000)} mins)`;
                                 })()}
                               </span>
                             </div>
