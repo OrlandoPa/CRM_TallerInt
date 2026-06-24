@@ -752,6 +752,35 @@ function App() {
     });
   };
 
+  const getUnmatchedEvents = (dayDate) => {
+    if (!dayDate) return [];
+    
+    const dayEvents = appointments.filter(app => {
+      const appStart = getLimaDate(app.start?.dateTime || app.start?.date);
+      if (!appStart) return false;
+      return appStart.getDate() === dayDate.getDate() && 
+             appStart.getMonth() === dayDate.getMonth() && 
+             appStart.getFullYear() === dayDate.getFullYear();
+    });
+
+    const slots = getTimeSlots();
+    
+    return dayEvents.filter(app => {
+      const appStart = getLimaDate(app.start?.dateTime || app.start?.date);
+      if (!appStart) return false;
+      const appEnd = getLimaDate(app.end?.dateTime || app.end?.date) || new Date(appStart.getTime() + 30 * 60000);
+      
+      const matchedByASlot = slots.some(slot => {
+        if (slot === 'RECESO') return false;
+        const [hours, minutes] = slot.split(':').map(Number);
+        const slotTime = new Date(dayDate.getFullYear(), dayDate.getMonth(), dayDate.getDate(), hours, minutes);
+        return slotTime >= appStart && slotTime < appEnd;
+      });
+      
+      return !matchedByASlot;
+    });
+  };
+
   return (
     <div className={`app-container ${isEmbedded ? 'embedded-mode' : ''}`}>
       {/* Toast Notifications */}
@@ -1236,6 +1265,34 @@ function App() {
 
                 <div className="glass-card" style={{ padding: '24px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {(() => {
+                      const unmatched = getUnmatchedEvents(selectedAgendaDate);
+                      if (unmatched.length === 0) return null;
+                      return (
+                        <div style={{background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.2)', padding: '14px', borderRadius: '10px', marginBottom: '16px'}}>
+                          <h4 style={{margin: '0 0 8px 0', color: '#fbbf24', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px'}}>
+                            ⚠️ Citas Fuera de Horario Laboral o en Receso ({unmatched.length})
+                          </h4>
+                          <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
+                            {unmatched.map(evt => {
+                              const start = getLimaDate(evt.start?.dateTime || evt.start?.date);
+                              const end = getLimaDate(evt.end?.dateTime || evt.end?.date) || new Date(start.getTime() + 30 * 60000);
+                              return (
+                                <div key={evt.id} onClick={() => handleOpenDetailFromGCal(evt)} style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--bg-tertiary)', borderRadius: '8px', borderLeft: '4px solid #fbbf24', cursor: 'pointer'}}>
+                                  <div>
+                                    <span style={{fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-primary)'}}>{evt.summary}</span>
+                                    <span style={{fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block'}}>
+                                      Hora: {start?.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})} - {end?.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
+                                    </span>
+                                  </div>
+                                  <span style={{fontSize: '0.75rem', color: '#fbbf24', background: 'rgba(245, 158, 11, 0.1)', padding: '2px 8px', borderRadius: '4px', fontWeight: 600}}>Revisar Horario</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
                     {getTimeSlots().map((slot, idx) => {
                       if (slot === 'RECESO') {
                         return (
@@ -1532,18 +1589,6 @@ function App() {
             {/* 4. CALENDAR VIEW */}
             {activeTab === 'calendar' && (
               <div className="calendar-view animate-fade-in">
-                <div style={{background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '16px', borderRadius: '10px', margin: '0 20px 20px 20px', fontSize: '0.85rem', color: 'var(--text-primary)'}}>
-                  <h3 style={{marginTop: 0, color: '#ef4444'}}>Debug - Citas Cargadas</h3>
-                  <p>Google Calendar Conectado: <strong>{gcalConnected ? 'SÍ' : 'NO'}</strong></p>
-                  <div style={{display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '150px', overflowY: 'auto'}}>
-                    {appointments.map(app => (
-                      <div key={app.id} style={{padding: '6px', background: 'var(--bg-tertiary)', borderRadius: '4px'}}>
-                        <strong>{app.summary}</strong> | Start: {JSON.stringify(app.start)} | End: {JSON.stringify(app.end)}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
                 <div className="calendar-header">
                   <div style={{display:'flex', alignItems:'center', gap:'16px'}}>
                     <button onClick={() => setCurrentDate(new Date(calendarYear, calendarMonth - 1, 1))} className="btn-icon" style={{width:'32px', height:'32px'}}>
@@ -2022,34 +2067,34 @@ function App() {
             </header>
             
             <div className="modal-body" style={{maxHeight:'70vh', overflowY:'auto', padding:'20px'}}>
-              <div style={{background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '12px', borderRadius: '8px', marginBottom: '16px', fontSize: '0.8rem', color: 'var(--text-primary)'}}>
-                <strong style={{color: '#ef4444'}}>Debug - Citas del Día:</strong>
-                <div style={{marginTop: '4px'}}>Día seleccionado: {selectedDayForAgenda.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
-                <div style={{marginTop: '8px'}}><strong>Citas en GCal (appointments):</strong></div>
-                {appointments.filter(app => {
-                  const start = getLimaDate(app.start?.dateTime || app.start?.date);
-                  return start && start.getDate() === selectedDayForAgenda.getDate() && start.getMonth() === selectedDayForAgenda.getMonth() && start.getFullYear() === selectedDayForAgenda.getFullYear();
-                }).map(app => {
-                  const start = getLimaDate(app.start?.dateTime || app.start?.date);
-                  return (
-                    <div key={app.id} style={{padding: '4px', background: 'var(--bg-tertiary)', borderRadius: '4px', marginTop: '2px'}}>
-                      - {app.summary} | Start: {app.start?.dateTime} | LocalParsed: {start?.toLocaleString('sv-SE')}
+              {(() => {
+                const unmatched = getUnmatchedEvents(selectedDayForAgenda);
+                if (unmatched.length === 0) return null;
+                return (
+                  <div style={{background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.2)', padding: '14px', borderRadius: '10px', marginBottom: '16px'}}>
+                    <h4 style={{margin: '0 0 8px 0', color: '#fbbf24', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px'}}>
+                      ⚠️ Citas Fuera de Horario Laboral o en Receso ({unmatched.length})
+                    </h4>
+                    <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
+                      {unmatched.map(evt => {
+                        const start = getLimaDate(evt.start?.dateTime || evt.start?.date);
+                        const end = getLimaDate(evt.end?.dateTime || evt.end?.date) || new Date(start.getTime() + 30 * 60000);
+                        return (
+                          <div key={evt.id} onClick={() => handleOpenDetailFromGCal(evt)} style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--bg-tertiary)', borderRadius: '8px', borderLeft: '4px solid #fbbf24', cursor: 'pointer'}}>
+                            <div>
+                              <span style={{fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-primary)'}}>{evt.summary}</span>
+                              <span style={{fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block'}}>
+                                Hora: {start?.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})} - {end?.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
+                              </span>
+                            </div>
+                            <span style={{fontSize: '0.75rem', color: '#fbbf24', background: 'rgba(245, 158, 11, 0.1)', padding: '2px 8px', borderRadius: '4px', fontWeight: 600}}>Revisar Horario</span>
+                          </div>
+                        );
+                      })}
                     </div>
-                  );
-                })}
-                <div style={{marginTop: '8px'}}><strong>Citas en DB (citasDb):</strong></div>
-                {citasDb.filter(cita => {
-                  const start = getLimaDate(cita.fecha_hora_cita);
-                  return start && start.getDate() === selectedDayForAgenda.getDate() && start.getMonth() === selectedDayForAgenda.getMonth() && start.getFullYear() === selectedDayForAgenda.getFullYear();
-                }).map(cita => {
-                  const start = getLimaDate(cita.fecha_hora_cita);
-                  return (
-                    <div key={cita.id} style={{padding: '4px', background: 'var(--bg-tertiary)', borderRadius: '4px', marginTop: '2px'}}>
-                      - {cita.pacientes?.nombre_paciente || 'Sin nombre'} - {cita.motivo_consulta} | Start: {cita.fecha_hora_cita} | LocalParsed: {start?.toLocaleString('sv-SE')}
-                    </div>
-                  );
-                })}
-              </div>
+                  </div>
+                );
+              })()}
 
               <div style={{display:'flex', flexDirection:'column', gap:'8px'}}>
                 {getTimeSlots().map((slot, index) => {
