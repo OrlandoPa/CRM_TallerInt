@@ -1532,6 +1532,18 @@ function App() {
             {/* 4. CALENDAR VIEW */}
             {activeTab === 'calendar' && (
               <div className="calendar-view animate-fade-in">
+                <div style={{background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '16px', borderRadius: '10px', margin: '0 20px 20px 20px', fontSize: '0.85rem', color: 'var(--text-primary)'}}>
+                  <h3 style={{marginTop: 0, color: '#ef4444'}}>Debug - Citas Cargadas</h3>
+                  <p>Google Calendar Conectado: <strong>{gcalConnected ? 'SÍ' : 'NO'}</strong></p>
+                  <div style={{display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '150px', overflowY: 'auto'}}>
+                    {appointments.map(app => (
+                      <div key={app.id} style={{padding: '6px', background: 'var(--bg-tertiary)', borderRadius: '4px'}}>
+                        <strong>{app.summary}</strong> | Start: {JSON.stringify(app.start)} | End: {JSON.stringify(app.end)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="calendar-header">
                   <div style={{display:'flex', alignItems:'center', gap:'16px'}}>
                     <button onClick={() => setCurrentDate(new Date(calendarYear, calendarMonth - 1, 1))} className="btn-icon" style={{width:'32px', height:'32px'}}>
@@ -2010,6 +2022,35 @@ function App() {
             </header>
             
             <div className="modal-body" style={{maxHeight:'70vh', overflowY:'auto', padding:'20px'}}>
+              <div style={{background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '12px', borderRadius: '8px', marginBottom: '16px', fontSize: '0.8rem', color: 'var(--text-primary)'}}>
+                <strong style={{color: '#ef4444'}}>Debug - Citas del Día:</strong>
+                <div style={{marginTop: '4px'}}>Día seleccionado: {selectedDayForAgenda.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
+                <div style={{marginTop: '8px'}}><strong>Citas en GCal (appointments):</strong></div>
+                {appointments.filter(app => {
+                  const start = getLimaDate(app.start?.dateTime || app.start?.date);
+                  return start && start.getDate() === selectedDayForAgenda.getDate() && start.getMonth() === selectedDayForAgenda.getMonth() && start.getFullYear() === selectedDayForAgenda.getFullYear();
+                }).map(app => {
+                  const start = getLimaDate(app.start?.dateTime || app.start?.date);
+                  return (
+                    <div key={app.id} style={{padding: '4px', background: 'var(--bg-tertiary)', borderRadius: '4px', marginTop: '2px'}}>
+                      - {app.summary} | Start: {app.start?.dateTime} | LocalParsed: {start?.toLocaleString('sv-SE')}
+                    </div>
+                  );
+                })}
+                <div style={{marginTop: '8px'}}><strong>Citas en DB (citasDb):</strong></div>
+                {citasDb.filter(cita => {
+                  const start = getLimaDate(cita.fecha_hora_cita);
+                  return start && start.getDate() === selectedDayForAgenda.getDate() && start.getMonth() === selectedDayForAgenda.getMonth() && start.getFullYear() === selectedDayForAgenda.getFullYear();
+                }).map(cita => {
+                  const start = getLimaDate(cita.fecha_hora_cita);
+                  return (
+                    <div key={cita.id} style={{padding: '4px', background: 'var(--bg-tertiary)', borderRadius: '4px', marginTop: '2px'}}>
+                      - {cita.pacientes?.nombre_paciente || 'Sin nombre'} - {cita.motivo_consulta} | Start: {cita.fecha_hora_cita} | LocalParsed: {start?.toLocaleString('sv-SE')}
+                    </div>
+                  );
+                })}
+              </div>
+
               <div style={{display:'flex', flexDirection:'column', gap:'8px'}}>
                 {getTimeSlots().map((slot, index) => {
                   if (slot === 'RECESO') {
