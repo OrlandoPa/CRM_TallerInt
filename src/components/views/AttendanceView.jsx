@@ -1,0 +1,110 @@
+import { Clock, Check, RefreshCw } from 'lucide-react';
+import { getLimaDate } from '../../utils/dateHelpers';
+
+function AttendanceView({ 
+  pastAppointmentsToReview, 
+  onMarkAttendance, 
+  onOpenReschedule 
+}) {
+  return (
+    <div className="attendance-view animate-fade-in" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Clock size={20} style={{ color: 'var(--primary)' }} />
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 600, margin: 0 }}>Citas Pasadas Pendientes de Asistencia</h2>
+          </div>
+          <span className="status-badge" style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', fontWeight: 600, padding: '4px 10px', borderRadius: '8px' }}>
+            {pastAppointmentsToReview.length} {pastAppointmentsToReview.length === 1 ? 'pendiente' : 'pendientes'}
+          </span>
+        </div>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', margin: 0 }}>
+          A continuación se listan las citas de fechas u horas pasadas que aún no han sido resueltas en el sistema. Por favor marca si el paciente asistió a su cita, no asistió, o si necesitas reprogramarla.
+        </p>
+        
+        {pastAppointmentsToReview.length === 0 ? (
+          <div style={{ 
+            textAlign: 'center', 
+            padding: '48px 24px', 
+            color: 'var(--text-muted)', 
+            fontSize: '0.95rem', 
+            border: '1px dashed var(--border-color)', 
+            borderRadius: '12px',
+            background: 'rgba(255, 255, 255, 0.01)',
+            marginTop: '12px'
+          }}>
+            🎉 ¡Todo al día! No hay citas pasadas pendientes de registrar asistencia.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
+            {pastAppointmentsToReview.map(cita => {
+              const date = cita.fecha_hora_cita ? getLimaDate(cita.fecha_hora_cita) : null;
+              const formattedDate = date 
+                ? date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) + ' a las ' + date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+                : 'Fecha no programada';
+              const patientName = cita.pacientes?.nombre_paciente || 'Paciente sin registrar';
+
+              return (
+                <div key={cita.id} style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center', 
+                  padding: '16px 20px', 
+                  background: 'var(--bg-tertiary)', 
+                  borderRadius: '12px', 
+                  border: '1px solid var(--border-color)', 
+                  gap: '16px', 
+                  flexWrap: 'wrap',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+                }}>
+                  <div style={{ flex: '1 1 300px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--text-primary)' }}>{patientName}</span>
+                      {cita.telefono_paciente && (
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>({cita.telefono_paciente})</span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                      <Clock size={14} style={{ color: 'var(--primary)' }} />
+                      <span>{formattedDate}</span>
+                    </div>
+                    {cita.motivo_consulta && (
+                      <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '4px', marginBlockEnd: 0 }}>
+                        Motivo: {cita.motivo_consulta}
+                      </p>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'nowrap' }}>
+                    <button 
+                      onClick={() => onMarkAttendance(cita.google_event_id, 'ASISTIO')}
+                      className="btn" 
+                      style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.2)', padding: '8px 16px', fontSize: '0.85rem' }}
+                    >
+                      <Check size={16} /> Asistió
+                    </button>
+                    <button 
+                      onClick={() => onMarkAttendance(cita.google_event_id, 'NO_ASISTIO')}
+                      className="btn" 
+                      style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '8px 16px', fontSize: '0.85rem' }}
+                    >
+                      ✕ No Asistió
+                    </button>
+                    <button 
+                      onClick={() => onOpenReschedule(cita)}
+                      className="btn btn-secondary" 
+                      style={{ padding: '8px 16px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      <RefreshCw size={14} /> Reprogramar
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default AttendanceView;
