@@ -28,13 +28,13 @@ function AgendaView({
     return slots;
   };
 
-  const getEventForTimeSlot = (slotString, dayDate) => {
-    if (slotString === 'RECESO') return null;
+  const getEventsForTimeSlot = (slotString, dayDate) => {
+    if (slotString === 'RECESO') return [];
     
     const [hours, minutes] = slotString.split(':').map(Number);
     const slotTime = new Date(dayDate.getFullYear(), dayDate.getMonth(), dayDate.getDate(), hours, minutes);
 
-    return appointments.find(app => {
+    return appointments.filter(app => {
       const dbCita = citasDb.find(c => c.google_event_id === app.id);
       
       let appStart = null;
@@ -228,7 +228,8 @@ function AgendaView({
               );
             }
 
-            const activeEvent = getEventForTimeSlot(slot, selectedAgendaDate);
+            const slotEvents = getEventsForTimeSlot(slot, selectedAgendaDate);
+            const hasEvents = slotEvents.length > 0;
             const [hours, minutes] = slot.split(':').map(Number);
             const slotTime = new Date(
               selectedAgendaDate.getFullYear(),
@@ -238,21 +239,20 @@ function AgendaView({
               minutes
             );
             const isSlotPast = slotTime < new Date();
-            const dbCitaResolved = activeEvent ? citasDb.find(c => c.google_event_id === activeEvent.id) : null;
             
             return (
               <div key={slot} className="agenda-time-slot" style={{
                 display: 'flex', alignItems: 'center', padding: '14px 20px', 
-                background: activeEvent ? 'rgba(var(--primary-rgb), 0.03)' : 'var(--bg-tertiary)', 
+                background: hasEvents ? 'rgba(var(--primary-rgb), 0.03)' : 'var(--bg-tertiary)', 
                 borderRadius: '10px', 
-                border: activeEvent ? '1px solid rgba(var(--primary-rgb), 0.15)' : '1px solid var(--border-color)', 
+                border: hasEvents ? '1px solid rgba(var(--primary-rgb), 0.15)' : '1px solid var(--border-color)', 
                 minHeight: '64px',
                 transition: 'all var(--transition-fast)'
               }}>
                 {/* Hour Indicator */}
                 <div style={{
                   width: '80px', fontWeight: 600, fontSize: '0.9rem', 
-                  color: activeEvent ? 'var(--primary)' : 'var(--text-secondary)', 
+                  color: hasEvents ? 'var(--primary)' : 'var(--text-secondary)', 
                   borderRight: '1px solid var(--border-color)',
                   marginRight: '20px',
                   display: 'flex',
@@ -262,76 +262,93 @@ function AgendaView({
                 </div>
 
                 {/* Overlapping Event Card or Empty slot */}
-                <div style={{ flexGrow: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  {activeEvent ? (
-                    <>
-                      <div 
-                        onClick={() => {
-                          if (dbCitaResolved) {
-                            onOpenDetail(dbCitaResolved);
-                          } else {
-                            onOpenDetail({
-                              id: null,
-                              google_event_id: activeEvent.id,
-                              fecha_hora_cita: activeEvent.start.dateTime || activeEvent.start.date,
-                              motivo_consulta: activeEvent.summary,
-                              estado_cita: 'AGENDADA',
-                              telefono_paciente: '',
-                              correo_electronico: activeEvent.correo_electronico || '',
-                              pacientes: { nombre_paciente: activeEvent.summary.split(' - ')[0] || 'Paciente GCal' }
-                            });
-                          }
-                        }}
-                        style={{ overflow: 'hidden', paddingRight: '10px', cursor: 'pointer', flexGrow: 1 }}
-                      >
-                        <span style={{
-                          fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-primary)',
-                          display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
-                        }}>
-                          {dbCitaResolved ? `${dbCitaResolved.pacientes?.nombre_paciente || 'Paciente'} - ${dbCitaResolved.motivo_consulta || 'Cita'}` : activeEvent.summary}
-                        </span>
-                        {dbCitaResolved ? (
-                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            Contacto: {dbCitaResolved.telefono_paciente || 'Sin teléfono'} | {dbCitaResolved.detalles_notas_cita || 'Sin notas'}
-                          </span>
-                        ) : activeEvent.description && (
-                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {activeEvent.description}
-                          </span>
-                        )}
-                      </div>
-                      
-                      <div style={{ display: 'flex', gap: '8px', flexShrink: 0, alignItems: 'center' }}>
-                        {dbCitaResolved?.estado_cita && (
-                          <span style={{
-                            fontSize: '0.7rem',
-                            fontWeight: 600,
-                            padding: '2px 8px',
-                            borderRadius: '4px',
-                            background: ['ASISTIO', 'COMPLETADA'].includes(dbCitaResolved.estado_cita) ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                            color: ['ASISTIO', 'COMPLETADA'].includes(dbCitaResolved.estado_cita) ? '#10b981' : '#ef4444'
-                          }}>
-                            {dbCitaResolved.estado_cita}
-                          </span>
-                        )}
-                        
-                        {!(dbCitaResolved?.estado_cita === 'ASISTIO' || dbCitaResolved?.estado_cita === 'COMPLETADA') && (
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onDeleteAppointment(activeEvent.id);
+                <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {hasEvents ? (
+                    slotEvents.map(activeEvent => {
+                      const dbCitaResolved = citasDb.find(c => c.google_event_id === activeEvent.id);
+                      return (
+                        <div 
+                          key={activeEvent.id} 
+                          style={{
+                            display: 'flex', 
+                            justifyContent: 'space-between', 
+                            alignItems: 'center', 
+                            width: '100%',
+                            background: slotEvents.length > 1 ? 'rgba(245, 158, 11, 0.05)' : 'transparent',
+                            borderLeft: slotEvents.length > 1 ? '3px solid #fbbf24' : 'none',
+                            padding: slotEvents.length > 1 ? '6px 8px' : '0px',
+                            borderRadius: slotEvents.length > 1 ? '6px' : '0px'
+                          }}
+                        >
+                          <div 
+                            onClick={() => {
+                              if (dbCitaResolved) {
+                                onOpenDetail(dbCitaResolved);
+                              } else {
+                                onOpenDetail({
+                                  id: null,
+                                  google_event_id: activeEvent.id,
+                                  fecha_hora_cita: activeEvent.start.dateTime || activeEvent.start.date,
+                                  motivo_consulta: activeEvent.summary,
+                                  estado_cita: 'AGENDADA',
+                                  telefono_paciente: '',
+                                  correo_electronico: activeEvent.correo_electronico || '',
+                                  pacientes: { nombre_paciente: activeEvent.summary.split(' - ')[0] || 'Paciente GCal' }
+                                });
+                              }
                             }}
-                            className="btn-icon" 
-                            style={{ color: 'var(--danger)', width: '32px', height: '32px', border:'none', background:'none', cursor:'pointer' }}
-                            title="Cancelar Cita"
+                            style={{ overflow: 'hidden', paddingRight: '10px', cursor: 'pointer', flexGrow: 1 }}
                           >
-                            <Trash size={14} />
-                          </button>
-                        )}
-                      </div>
-                    </>
+                            <span style={{
+                              fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-primary)',
+                              display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+                            }}>
+                              {dbCitaResolved ? `${dbCitaResolved.pacientes?.nombre_paciente || 'Paciente'} - ${dbCitaResolved.motivo_consulta || 'Cita'}` : activeEvent.summary}
+                            </span>
+                            {dbCitaResolved ? (
+                              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                Contacto: {dbCitaResolved.telefono_paciente || 'Sin teléfono'} | {dbCitaResolved.detalles_notas_cita || 'Sin notas'}
+                              </span>
+                            ) : activeEvent.description && (
+                              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {activeEvent.description}
+                              </span>
+                            )}
+                          </div>
+                          
+                          <div style={{ display: 'flex', gap: '8px', flexShrink: 0, alignItems: 'center' }}>
+                            {dbCitaResolved?.estado_cita && (
+                              <span style={{
+                                fontSize: '0.7rem',
+                                fontWeight: 600,
+                                padding: '2px 8px',
+                                borderRadius: '4px',
+                                background: ['ASISTIO', 'COMPLETADA'].includes(dbCitaResolved.estado_cita) ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                                color: ['ASISTIO', 'COMPLETADA'].includes(dbCitaResolved.estado_cita) ? '#10b981' : '#ef4444'
+                              }}>
+                                {dbCitaResolved.estado_cita}
+                              </span>
+                            )}
+                            
+                            {!(dbCitaResolved?.estado_cita === 'ASISTIO' || dbCitaResolved?.estado_cita === 'COMPLETADA') && (
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onDeleteAppointment(activeEvent.id);
+                                }}
+                                className="btn-icon" 
+                                style={{ color: 'var(--danger)', width: '32px', height: '32px', border:'none', background:'none', cursor:'pointer' }}
+                                title="Cancelar Cita"
+                              >
+                                <Trash size={14} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
                   ) : (
-                    <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
                       <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontStyle: 'italic' }}>
                         Disponible
                       </span>
@@ -344,7 +361,7 @@ function AgendaView({
                       >
                         + Agendar Cita
                       </button>
-                    </>
+                    </div>
                   )}
                 </div>
               </div>

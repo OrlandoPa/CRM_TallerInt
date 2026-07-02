@@ -30,13 +30,13 @@ function DayAgendaModal({
     return slots;
   };
 
-  const getEventForTimeSlot = (slotString, dayDate) => {
-    if (slotString === 'RECESO') return null;
+  const getEventsForTimeSlot = (slotString, dayDate) => {
+    if (slotString === 'RECESO') return [];
     
     const [hours, minutes] = slotString.split(':').map(Number);
     const slotTime = new Date(dayDate.getFullYear(), dayDate.getMonth(), dayDate.getDate(), hours, minutes);
 
-    return appointments.find(app => {
+    return appointments.filter(app => {
       const dbCita = citasDb.find(c => c.google_event_id === app.id);
       
       let appStart = null;
@@ -187,8 +187,7 @@ function DayAgendaModal({
                 );
               }
 
-              const activeEvent = getEventForTimeSlot(slot, selectedDay);
-              const dbCitaResolved = activeEvent ? citasDb.find(c => c.google_event_id === activeEvent.id) : null;
+              const slotEvents = getEventsForTimeSlot(slot, selectedDay);
               
               const [hours, minutes] = slot.split(':').map(Number);
               const slotTime = new Date(
@@ -216,59 +215,76 @@ function DayAgendaModal({
                   </div>
 
                   {/* Overlapping Event Card or Empty slot */}
-                  <div style={{flexGrow:1, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                    {activeEvent ? (
-                      <>
-                        <div 
-                          onClick={() => onOpenDetail(activeEvent)}
-                          style={{overflow:'hidden', paddingRight:'10px', cursor:'pointer', flexGrow:1}}
-                        >
-                          <span style={{
-                            fontWeight:600, fontSize:'0.9rem', color:'var(--text-primary)',
-                            display:'block', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'
-                          }}>
-                            {dbCitaResolved ? `${dbCitaResolved.pacientes?.nombre_paciente || 'Paciente'} - ${dbCitaResolved.motivo_consulta || 'Cita'}` : activeEvent.summary}
-                          </span>
-                          <span style={{fontSize:'0.75rem', color:'var(--text-secondary)', display:'flex', alignItems:'center', gap:'4px'}}>
-                            <Clock size={12} />
-                            {(() => {
-                              let start = null;
-                              if (dbCitaResolved && dbCitaResolved.fecha_hora_cita) {
-                                start = getLimaDate(dbCitaResolved.fecha_hora_cita);
-                              }
-                              if (!start) {
-                                start = getLimaDate(activeEvent.start?.dateTime || activeEvent.start?.date);
-                              }
-                              let durationMs = 30 * 60000;
-                              if (activeEvent.end?.dateTime && activeEvent.start?.dateTime) {
-                                durationMs = new Date(activeEvent.end.dateTime).getTime() - new Date(activeEvent.start.dateTime).getTime();
-                              } else if (activeEvent.end?.date && activeEvent.start?.date) {
-                                durationMs = new Date(activeEvent.end.date).getTime() - new Date(activeEvent.start.date).getTime();
-                              }
-                              const end = new Date(start.getTime() + durationMs);
-                              return `${start.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} - ${end.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} (${Math.round(durationMs / 60000)} mins)`;
-                            })()}
-                          </span>
-                        </div>
-                        
-                        <div style={{display:'flex', gap:'8px', flexShrink:0}}>
-                          {!(dbCitaResolved?.estado_cita === 'ASISTIO' || dbCitaResolved?.estado_cita === 'COMPLETADA') && (
-                            <button 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onDeleteAppointment(activeEvent.id);
-                              }}
-                              className="btn-icon" 
-                              style={{color:'var(--danger)', width:'32px', height:'32px', border:'none', background:'none', cursor:'pointer'}}
-                              title="Cancelar Cita"
+                  <div style={{flexGrow:1, display:'flex', flexDirection:'column', gap:'8px'}}>
+                    {slotEvents.length > 0 ? (
+                      slotEvents.map(activeEvent => {
+                        const dbCitaResolved = citasDb.find(c => c.google_event_id === activeEvent.id);
+                        return (
+                          <div 
+                            key={activeEvent.id} 
+                            style={{
+                              display:'flex', 
+                              justifyContent:'space-between', 
+                              alignItems:'center', 
+                              width:'100%',
+                              background: slotEvents.length > 1 ? 'rgba(245, 158, 11, 0.05)' : 'transparent',
+                              borderLeft: slotEvents.length > 1 ? '3px solid #fbbf24' : 'none',
+                              padding: slotEvents.length > 1 ? '6px 8px' : '0px',
+                              borderRadius: slotEvents.length > 1 ? '6px' : '0px'
+                            }}
+                          >
+                            <div 
+                              onClick={() => onOpenDetail(activeEvent)}
+                              style={{overflow:'hidden', paddingRight:'10px', cursor:'pointer', flexGrow:1}}
                             >
-                              <Trash size={14} />
-                            </button>
-                          )}
-                        </div>
-                      </>
+                              <span style={{
+                                fontWeight:600, fontSize:'0.9rem', color:'var(--text-primary)',
+                                display:'block', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'
+                              }}>
+                                {dbCitaResolved ? `${dbCitaResolved.pacientes?.nombre_paciente || 'Paciente'} - ${dbCitaResolved.motivo_consulta || 'Cita'}` : activeEvent.summary}
+                              </span>
+                              <span style={{fontSize:'0.75rem', color:'var(--text-secondary)', display:'flex', alignItems:'center', gap:'4px'}}>
+                                <Clock size={12} />
+                                {(() => {
+                                  let start = null;
+                                  if (dbCitaResolved && dbCitaResolved.fecha_hora_cita) {
+                                    start = getLimaDate(dbCitaResolved.fecha_hora_cita);
+                                  }
+                                  if (!start) {
+                                    start = getLimaDate(activeEvent.start?.dateTime || activeEvent.start?.date);
+                                  }
+                                  let durationMs = 30 * 60000;
+                                  if (activeEvent.end?.dateTime && activeEvent.start?.dateTime) {
+                                    durationMs = new Date(activeEvent.end.dateTime).getTime() - new Date(activeEvent.start.dateTime).getTime();
+                                  } else if (activeEvent.end?.date && activeEvent.start?.date) {
+                                    durationMs = new Date(activeEvent.end.date).getTime() - new Date(activeEvent.start.date).getTime();
+                                  }
+                                  const end = new Date(start.getTime() + durationMs);
+                                  return `${start.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} - ${end.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} (${Math.round(durationMs / 60000)} mins)`;
+                                })()}
+                              </span>
+                            </div>
+                            
+                            <div style={{display:'flex', gap:'8px', flexShrink:0}}>
+                              {!(dbCitaResolved?.estado_cita === 'ASISTIO' || dbCitaResolved?.estado_cita === 'COMPLETADA') && (
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onDeleteAppointment(activeEvent.id);
+                                  }}
+                                  className="btn-icon" 
+                                  style={{color:'var(--danger)', width:'32px', height:'32px', border:'none', background:'none', cursor:'pointer'}}
+                                  title="Cancelar Cita"
+                                >
+                                  <Trash size={14} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
                     ) : (
-                      <>
+                      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', width:'100%'}}>
                         <span style={{color:'var(--text-muted)', fontSize:'0.85rem', fontStyle:'italic'}}>
                           Disponible
                         </span>
@@ -281,7 +297,7 @@ function DayAgendaModal({
                         >
                           + Agendar
                         </button>
-                      </>
+                      </div>
                     )}
                   </div>
                 </div>
