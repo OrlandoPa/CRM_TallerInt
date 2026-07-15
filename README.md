@@ -14,3 +14,87 @@ The React Compiler is not enabled on this template because of its impact on dev 
 ## Expanding the ESLint configuration
 
 If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+
+---
+
+## Guía de Despliegue en Vercel
+
+Este proyecto está construido con **React** y **Vite**. A continuación se detallan las instrucciones para desplegar la aplicación en [Vercel](https://vercel.com).
+
+### Requisitos Previos
+
+Asegúrate de tener a la mano las variables de entorno necesarias para el correcto funcionamiento del proyecto.
+
+### Opción 1: Despliegue desde GitHub (Recomendado)
+
+Esta es la forma más rápida y recomendada de desplegar el proyecto, ya que habilita despliegues automáticos (CI/CD) cada vez que subes cambios a la rama principal en tu repositorio remoto.
+
+1. **Crear una cuenta en Vercel**: Ve a [vercel.com](https://vercel.com) e inicia sesión o regístrate asociando tu cuenta de GitHub.
+2. **Importar el Repositorio**:
+   - En el panel de control (Dashboard) de Vercel, haz clic en el botón **"Add New..."** y selecciona **"Project"**.
+   - Busca e importa el repositorio de este proyecto (`FrontTallerInt`).
+3. **Configurar el Proyecto**:
+   - **Framework Preset**: Vercel detectará de manera automática que estás usando **Vite**.
+   - **Root Directory**: Deja el valor por defecto `./`.
+   - **Build and Development Settings**: Puedes dejarlos por defecto, ya que Vite compila con `npm run build` y genera la salida en el directorio `dist`.
+4. **Configurar Variables de Entorno**:
+   Despliega la sección **"Environment Variables"** y añade las siguientes variables con sus respectivos valores (puedes guiarte de tu archivo `.env` local):
+   * `VITE_SUPABASE_URL`
+   * `VITE_SUPABASE_ANON_KEY`
+   * `VITE_GOOGLE_CLIENT_ID`
+   * `VITE_CALENDAR_ID`
+   * `VITE_CHATWOOT_ACCOUNT_ID`
+   * `VITE_CHATWOOT_BASE_URL`
+   * `VITE_CHATWOOT_ACCESS_TOKEN`
+5. **Desplegar**: Haz clic en el botón **"Deploy"**. Vercel compilará la aplicación y te proporcionará una URL pública de producción.
+
+---
+
+### Opción 2: Despliegue usando Vercel CLI (Línea de Comandos)
+
+Si deseas realizar el despliegue de forma local desde tu terminal:
+
+1. **Instalar el CLI de Vercel globalmente**:
+   ```bash
+   npm install -g vercel
+   ```
+2. **Iniciar sesión en Vercel**:
+   ```bash
+   vercel login
+   ```
+3. **Inicializar y configurar el proyecto**:
+   Ejecuta el siguiente comando en la raíz del proyecto y sigue las instrucciones interactivas:
+   ```bash
+   vercel
+   ```
+   * *Set up and deploy ...?* `yes`
+   * *Which scope ...?* Tu cuenta o equipo personal.
+   * *Link to existing project?* `no`
+   * *What's your project's name?* Deja el predeterminado (`fronttallerint`) o asigna uno nuevo.
+   * *In which directory is your code located?* `./`
+   * *Want to modify settings?* `no` (los preajustes detectados para Vite son correctos).
+4. **Agregar las Variables de Entorno en Vercel**:
+   Puedes agregarlas desde el panel de control de Vercel en la web, o por consola usando:
+   ```bash
+   vercel env add NOMBRE_DE_VARIABLE valor
+   ```
+5. **Despliegue final en producción**:
+   Una vez configurado todo y agregadas las variables, ejecuta:
+   ```bash
+   vercel --prod
+   ```
+
+---
+
+### Manejo de Rutas (Single Page Application)
+
+Si utilizas enrutamiento del lado del cliente (por ejemplo, con `react-router-dom`), es necesario configurar un redireccionamiento para evitar que Vercel devuelva un error `404` al recargar páginas internas. Para solucionar esto, crea un archivo `vercel.json` en la raíz del proyecto con la siguiente estructura:
+
+```json
+{
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
+```
+
