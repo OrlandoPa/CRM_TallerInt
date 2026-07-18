@@ -1,3 +1,5 @@
+import { isPeruHoliday } from '../../utils/dateHelpers';
+
 function RescheduleModal({ 
   isOpen, 
   onClose, 
@@ -8,6 +10,8 @@ function RescheduleModal({
   onSubmit 
 }) {
   if (!isOpen || !selectedCitaForReschedule) return null;
+
+  const isHoliday = rescheduleEvent.start ? isPeruHoliday(new Date(rescheduleEvent.start)) : false;
 
   return (
     <div className="modal-overlay" style={{ zIndex: 120 }}>
@@ -57,6 +61,23 @@ function RescheduleModal({
                 min={minDateTime}
               />
             </div>
+
+            {isHoliday && (
+              <div className="alert alert-danger" style={{ 
+                background: 'rgba(var(--danger-rgb, 239, 68, 68), 0.1)', 
+                color: 'var(--danger, #ef4444)', 
+                border: '1px solid rgba(var(--danger-rgb, 239, 68, 68), 0.2)',
+                padding: '10px', 
+                borderRadius: '8px', 
+                fontSize: '0.85rem', 
+                marginTop: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <span>⚠️ No se puede reprogramar en feriados nacionales de Perú.</span>
+              </div>
+            )}
           </div>
           <footer className="modal-footer">
             <button 
@@ -66,7 +87,7 @@ function RescheduleModal({
             >
               Cancelar
             </button>
-            <button type="submit" className="btn btn-primary">
+            <button type="submit" className="btn btn-primary" disabled={isHoliday}>
               Guardar Cambios
             </button>
           </footer>

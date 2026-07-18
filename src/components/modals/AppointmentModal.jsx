@@ -1,4 +1,4 @@
-import { calculateEndTime } from '../../utils/dateHelpers';
+import { calculateEndTime, isPeruHoliday } from '../../utils/dateHelpers';
 
 function AppointmentModal({ 
   isOpen, 
@@ -252,12 +252,33 @@ function AppointmentModal({
                 onChange={(e) => setNewEvent(prev => ({ ...prev, description: e.target.value }))}
               />
             </div>
+
+            {newEvent.start && isPeruHoliday(new Date(newEvent.start)) && (
+              <div className="alert alert-danger" style={{ 
+                background: 'rgba(var(--danger-rgb, 239, 68, 68), 0.1)', 
+                color: 'var(--danger, #ef4444)', 
+                border: '1px solid rgba(var(--danger-rgb, 239, 68, 68), 0.2)',
+                padding: '10px', 
+                borderRadius: '8px', 
+                fontSize: '0.85rem', 
+                marginTop: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <span>⚠️ No se pueden agendar citas en feriados nacionales de Perú.</span>
+              </div>
+            )}
           </div>
           <footer className="modal-footer">
             <button type="button" onClick={onClose} className="btn btn-secondary">
               Cancelar
             </button>
-            <button type="submit" className="btn btn-primary" disabled={!gcalConnected}>
+            <button 
+              type="submit" 
+              className="btn btn-primary" 
+              disabled={!gcalConnected || (newEvent.start && isPeruHoliday(new Date(newEvent.start)))}
+            >
               Agendar Cita
             </button>
           </footer>
