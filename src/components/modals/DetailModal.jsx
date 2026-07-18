@@ -6,7 +6,8 @@ function DetailModal({
   onClose, 
   selectedAppointmentDetails, 
   onDelete, 
-  onReschedule 
+  onReschedule,
+  hasRequiredGCalGmail
 }) {
   if (!isOpen || !selectedAppointmentDetails) return null;
 
@@ -159,9 +160,22 @@ function DetailModal({
             {!isCompleted && selectedAppointmentDetails.estado_cita !== 'CANCELADA' && (
               <button 
                 type="button" 
-                onClick={() => onDelete(selectedAppointmentDetails.google_event_id)} 
+                onClick={() => {
+                  if (!hasRequiredGCalGmail) {
+                    alert('Para acceder a estas funcionalidades por favor ingrese su cuenta de gmail valida para el google calendar');
+                    return;
+                  }
+                  onDelete(selectedAppointmentDetails.google_event_id);
+                }} 
                 className="btn" 
-                style={{ background: 'rgba(var(--danger-rgb), 0.1)', color: 'var(--danger)', border: '1px solid rgba(var(--danger-rgb), 0.2)' }}
+                disabled={!hasRequiredGCalGmail}
+                style={{ 
+                  background: 'rgba(var(--danger-rgb), 0.1)', 
+                  color: 'var(--danger)', 
+                  border: '1px solid rgba(var(--danger-rgb), 0.2)',
+                  opacity: hasRequiredGCalGmail ? 1 : 0.5,
+                  cursor: hasRequiredGCalGmail ? 'pointer' : 'not-allowed'
+                }}
               >
                 <Trash size={14} /> Cancelar Cita
               </button>
@@ -172,9 +186,22 @@ function DetailModal({
             {!isCompleted && selectedAppointmentDetails.estado_cita !== 'CANCELADA' && (
               <button 
                 type="button" 
-                onClick={() => onReschedule(selectedAppointmentDetails)} 
+                onClick={() => {
+                  if (!hasRequiredGCalGmail) {
+                    alert('Para acceder a estas funcionalidades por favor ingrese su cuenta de gmail valida para el google calendar');
+                    return;
+                  }
+                  onReschedule(selectedAppointmentDetails);
+                }} 
                 className="btn btn-secondary"
-                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                disabled={!hasRequiredGCalGmail}
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '6px',
+                  opacity: hasRequiredGCalGmail ? 1 : 0.5,
+                  cursor: hasRequiredGCalGmail ? 'pointer' : 'not-allowed'
+                }}
               >
                 <RefreshCw size={14} /> Reprogramar
               </button>

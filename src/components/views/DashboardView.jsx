@@ -7,7 +7,8 @@ function DashboardView({
   pacientes, 
   gcalConnected, 
   onOpenDetail, 
-  onDeleteAppointment 
+  onDeleteAppointment,
+  hasRequiredGCalGmail
 }) {
   // Metrics calculations
   const totalPacientes = pacientes.length;
@@ -79,6 +80,23 @@ function DashboardView({
 
   return (
     <div className="dashboard-view animate-fade-in" style={{display: 'flex', flexDirection: 'column', gap: '24px'}}>
+      {!hasRequiredGCalGmail && (
+        <div className="glass-card animate-pulse" style={{
+          background: 'rgba(239, 68, 68, 0.1)',
+          border: '1px solid rgba(239, 68, 68, 0.2)',
+          borderRadius: '12px',
+          padding: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          boxShadow: '0 4px 12px rgba(239, 68, 68, 0.05)'
+        }}>
+          <AlertCircle size={24} style={{ color: 'var(--danger)', flexShrink: 0 }} />
+          <span style={{ color: 'var(--text-primary)', fontSize: '0.95rem', fontWeight: 500 }}>
+            Para acceder a estas funcionalidades por favor ingrese su cuenta de gmail valida para el google calendar
+          </span>
+        </div>
+      )}
       {/* KPI Metrics row */}
       <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px'}}>
         {/* Card 1: Pacientes Registrados */}

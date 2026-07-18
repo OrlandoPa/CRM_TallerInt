@@ -129,8 +129,11 @@ function App() {
     calendarId: localStorage.getItem('crm_calendar_id') || import.meta.env.VITE_CALENDAR_ID || 'primary',
     chatwootAccountId: localStorage.getItem('crm_chatwoot_account_id') || import.meta.env.VITE_CHATWOOT_ACCOUNT_ID || '1',
     chatwootBaseUrl: localStorage.getItem('crm_chatwoot_base_url') || import.meta.env.VITE_CHATWOOT_BASE_URL || 'https://app.chatwoot.com',
-    chatwootAccessToken: localStorage.getItem('crm_chatwoot_access_token') || import.meta.env.VITE_CHATWOOT_ACCESS_TOKEN || ''
+    chatwootAccessToken: localStorage.getItem('crm_chatwoot_access_token') || import.meta.env.VITE_CHATWOOT_ACCESS_TOKEN || '',
+    requiredGCalGmail: localStorage.getItem('crm_required_gcal_gmail') || import.meta.env.VITE_REQUIRED_GCAL_GMAIL || ''
   });
+
+  const [gcalEmail, setGcalEmail] = useState(() => localStorage.getItem('gcal_user_email') || '');
 
   // Calendar month state
   const [currentDate, setCurrentDate] = useState(new Date()); // Today's date (June 2026)
@@ -178,6 +181,37 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings, currentDate]);
 
+  // Fetch Google User Email if authenticated
+  useEffect(() => {
+    const fetchUserEmail = async () => {
+      const token = api.getGCalToken();
+      if (token && !localStorage.getItem('gcal_user_email')) {
+        try {
+          const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const info = await res.json();
+            if (info.email) {
+              localStorage.setItem('gcal_user_email', info.email);
+              setGcalEmail(info.email);
+            }
+          }
+        } catch (err) {
+          console.error('Error fetching user email on mount:', err);
+        }
+      } else if (token) {
+        setGcalEmail(localStorage.getItem('gcal_user_email') || '');
+      } else {
+        setGcalEmail('');
+      }
+    };
+    fetchUserEmail();
+  }, [gcalConnected]);
+
+  const requiredGmail = settings.requiredGCalGmail || import.meta.env.VITE_REQUIRED_GCAL_GMAIL || '';
+  const hasRequiredGCalGmail = !!(gcalConnected && gcalEmail && requiredGmail && gcalEmail.toLowerCase() === requiredGmail.toLowerCase());
+
   // Google OAuth Login Flow (Client-side GIS)
   const handleGoogleLogin = () => {
     if (!settings.googleClientId) {
@@ -193,11 +227,28 @@ function App() {
     try {
       const client = window.google.accounts.oauth2.initTokenClient({
         client_id: settings.googleClientId,
-        scope: 'https://www.googleapis.com/auth/calendar.events',
-        callback: (tokenResponse) => {
+        scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.email',
+        callback: async (tokenResponse) => {
           if (tokenResponse.access_token) {
             localStorage.setItem('gcal_access_token', tokenResponse.access_token);
             localStorage.setItem('gcal_token_expiry', (Date.now() + tokenResponse.expires_in * 1000).toString());
+            
+            // Fetch email immediately on login
+            try {
+              const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
+              });
+              if (res.ok) {
+                const info = await res.json();
+                if (info.email) {
+                  localStorage.setItem('gcal_user_email', info.email);
+                  setGcalEmail(info.email);
+                }
+              }
+            } catch (err) {
+              console.error('Error fetching user email on login callback:', err);
+            }
+
             setGcalConnected(true);
             showToast('Conexión con Google Calendar exitosa');
             fetchData();
@@ -215,7 +266,9 @@ function App() {
   const handleGoogleLogout = () => {
     localStorage.removeItem('gcal_access_token');
     localStorage.removeItem('gcal_token_expiry');
+    localStorage.removeItem('gcal_user_email');
     setGcalConnected(false);
+    setGcalEmail('');
     showToast('Desconectado de Google Calendar');
     fetchData();
   };
@@ -556,6 +609,7 @@ function App() {
                 gcalConnected={gcalConnected}
                 onOpenDetail={handleOpenDetailFromGCal}
                 onDeleteAppointment={handleDeleteAppointment}
+                hasRequiredGCalGmail={hasRequiredGCalGmail}
               />
             )}
 
@@ -610,6 +664,7 @@ function App() {
                   setRescheduleEvent({ start: tomorrowStr, end: tomorrowEndStr });
                   setIsRescheduleModalOpen(true);
                 }}
+                hasRequiredGCalGmail={hasRequiredGCalGmail}
               />
             )}
 
@@ -727,6 +782,7 @@ function App() {
           setIsDetailModalOpen(false);
           setIsRescheduleModalOpen(true);
         }}
+        hasRequiredGCalGmail={hasRequiredGCalGmail}
       />
 
       <RescheduleModal 

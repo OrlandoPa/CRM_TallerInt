@@ -1,13 +1,32 @@
-import { Clock, Check, RefreshCw } from 'lucide-react';
+import { Clock, Check, RefreshCw, AlertCircle } from 'lucide-react';
 import { getLimaDate } from '../../utils/dateHelpers';
 
 function AttendanceView({ 
   pastAppointmentsToReview, 
   onMarkAttendance, 
-  onOpenReschedule 
+  onOpenReschedule,
+  hasRequiredGCalGmail
 }) {
   return (
     <div className="attendance-view animate-fade-in">
+      {!hasRequiredGCalGmail && (
+        <div className="glass-card animate-pulse" style={{
+          background: 'rgba(239, 68, 68, 0.1)',
+          border: '1px solid rgba(239, 68, 68, 0.2)',
+          borderRadius: '12px',
+          padding: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          marginBottom: '20px',
+          boxShadow: '0 4px 12px rgba(239, 68, 68, 0.05)'
+        }}>
+          <AlertCircle size={24} style={{ color: 'var(--danger)', flexShrink: 0 }} />
+          <span style={{ color: 'var(--text-primary)', fontSize: '0.95rem', fontWeight: 500 }}>
+            Para acceder a estas funcionalidades por favor ingrese su cuenta de gmail valida para el google calendar
+          </span>
+        </div>
+      )}
       <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -76,23 +95,68 @@ function AttendanceView({
                   </div>
                   <div style={{ display: 'flex', gap: '10px', flexWrap: 'nowrap' }}>
                     <button 
-                      onClick={() => onMarkAttendance(cita.google_event_id, 'ASISTIO')}
+                      onClick={() => {
+                        if (!hasRequiredGCalGmail) {
+                          alert('Para acceder a estas funcionalidades por favor ingrese su cuenta de gmail valida para el google calendar');
+                          return;
+                        }
+                        onMarkAttendance(cita.google_event_id, 'ASISTIO');
+                      }}
                       className="btn" 
-                      style={{ background: 'rgba(var(--success-rgb), 0.15)', color: 'var(--success)', border: '1px solid rgba(var(--success-rgb), 0.2)', padding: '8px 16px', fontSize: '0.85rem' }}
+                      disabled={!hasRequiredGCalGmail}
+                      style={{ 
+                        background: 'rgba(var(--success-rgb), 0.15)', 
+                        color: 'var(--success)', 
+                        border: '1px solid rgba(var(--success-rgb), 0.2)', 
+                        padding: '8px 16px', 
+                        fontSize: '0.85rem',
+                        opacity: hasRequiredGCalGmail ? 1 : 0.5,
+                        cursor: hasRequiredGCalGmail ? 'pointer' : 'not-allowed'
+                      }}
                     >
                       <Check size={16} /> Asistió
                     </button>
                     <button 
-                      onClick={() => onMarkAttendance(cita.google_event_id, 'NO_ASISTIO')}
+                      onClick={() => {
+                        if (!hasRequiredGCalGmail) {
+                          alert('Para acceder a estas funcionalidades por favor ingrese su cuenta de gmail valida para el google calendar');
+                          return;
+                        }
+                        onMarkAttendance(cita.google_event_id, 'NO_ASISTIO');
+                      }}
                       className="btn" 
-                      style={{ background: 'rgba(var(--danger-rgb), 0.15)', color: 'var(--danger)', border: '1px solid rgba(var(--danger-rgb), 0.2)', padding: '8px 16px', fontSize: '0.85rem' }}
+                      disabled={!hasRequiredGCalGmail}
+                      style={{ 
+                        background: 'rgba(var(--danger-rgb), 0.15)', 
+                        color: 'var(--danger)', 
+                        border: '1px solid rgba(var(--danger-rgb), 0.2)', 
+                        padding: '8px 16px', 
+                        fontSize: '0.85rem',
+                        opacity: hasRequiredGCalGmail ? 1 : 0.5,
+                        cursor: hasRequiredGCalGmail ? 'pointer' : 'not-allowed'
+                      }}
                     >
                       ✕ No Asistió
                     </button>
                     <button 
-                      onClick={() => onOpenReschedule(cita)}
+                      onClick={() => {
+                        if (!hasRequiredGCalGmail) {
+                          alert('Para acceder a estas funcionalidades por favor ingrese su cuenta de gmail valida para el google calendar');
+                          return;
+                        }
+                        onOpenReschedule(cita);
+                      }}
                       className="btn btn-secondary" 
-                      style={{ padding: '8px 16px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                      disabled={!hasRequiredGCalGmail}
+                      style={{ 
+                        padding: '8px 16px', 
+                        fontSize: '0.85rem', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '6px',
+                        opacity: hasRequiredGCalGmail ? 1 : 0.5,
+                        cursor: hasRequiredGCalGmail ? 'pointer' : 'not-allowed'
+                      }}
                     >
                       <RefreshCw size={14} /> Reprogramar
                     </button>
