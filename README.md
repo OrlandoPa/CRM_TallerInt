@@ -98,3 +98,16 @@ Si utilizas enrutamiento del lado del cliente (por ejemplo, con `react-router-do
 }
 ```
 
+---
+
+## 🧪 Documentación de Pruebas
+
+Para garantizar y certificar el correcto funcionamiento de este frontend y de los flujos de n8n, se han elaborado tres documentos detallados de control de calidad:
+
+1.  **Pruebas de Caja Negra:** [CASOS_DE_PRUEBA.md](file:///c:/Users/lalop/Desktop/FrontTallerInt/CASOS_DE_PRUEBA.md)
+    *   Casos de prueba funcionales de cara al usuario final (7 casos para el CRM Web y 12 casos para el bot conversacional y recordatorios automáticos).
+2.  **Pruebas Unitarias:** [PRUEBAS_UNITARIAS.md](file:///c:/Users/lalop/Desktop/FrontTallerInt/PRUEBAS_UNITARIAS.md)
+    *   Verificación en aislamiento de utilidades de fecha (`dateHelpers.js`), renderizado de componentes y filtros de seguridad en nodos de código de n8n.
+3.  **Pruebas de Integración:** [PRUEBAS_INTEGRACION.md](file:///c:/Users/lalop/Desktop/FrontTallerInt/PRUEBAS_INTEGRACION.md)
+    *   Validación de la comunicación bidireccional entre el CRM Web, Supabase, Google Calendar, n8n, Chatwoot y Gmail.
+

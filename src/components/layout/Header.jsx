@@ -30,9 +30,9 @@ function Header({ activeTab, gcalConnected, handleGoogleLogin, handleGoogleLogou
             onClick={handleGoogleLogout} 
             className="btn" 
             style={{
-              background: 'rgba(16, 185, 129, 0.1)', 
-              color: '#10b981', 
-              border: '1px solid rgba(16, 185, 129, 0.2)', 
+              background: 'rgba(var(--success-rgb), 0.1)', 
+              color: 'var(--success)', 
+              border: '1px solid rgba(var(--success-rgb), 0.2)', 
               fontSize: '0.8rem', 
               padding: '6px 12px', 
               display: 'flex', 
@@ -40,7 +40,7 @@ function Header({ activeTab, gcalConnected, handleGoogleLogin, handleGoogleLogou
               gap: '6px'
             }}
           >
-            <span className="pulse-dot" style={{background: '#10b981', boxShadow: '0 0 6px #10b981'}}></span>
+            <span className="pulse-dot" style={{background: 'var(--success)', boxShadow: '0 0 6px var(--success)'}}></span>
             GCal Conectado (Salir)
           </button>
         ) : (
@@ -48,9 +48,9 @@ function Header({ activeTab, gcalConnected, handleGoogleLogin, handleGoogleLogou
             onClick={handleGoogleLogin} 
             className="btn" 
             style={{
-              background: 'rgba(245, 158, 11, 0.1)', 
-              color: '#f59e0b', 
-              border: '1px solid rgba(245, 158, 11, 0.2)', 
+              background: 'rgba(var(--warning-rgb), 0.1)', 
+              color: 'var(--warning)', 
+              border: '1px solid rgba(var(--warning-rgb), 0.2)', 
               fontSize: '0.8rem', 
               padding: '6px 12px', 
               display: 'flex', 
@@ -79,8 +79,8 @@ function Header({ activeTab, gcalConnected, handleGoogleLogin, handleGoogleLogou
             width:'8px', 
             height:'8px', 
             borderRadius:'50%', 
-            background: supabaseOnline ? '#10b981' : '#f59e0b', 
-            boxShadow: supabaseOnline ? '0 0 8px #10b981' : '0 0 8px #f59e0b'
+            background: supabaseOnline ? 'var(--success)' : 'var(--warning)', 
+            boxShadow: supabaseOnline ? '0 0 8px var(--success)' : '0 0 8px var(--warning)'
           }}></div>
           <span style={{fontSize:'0.8rem', fontWeight:600, color:'var(--text-secondary)'}}>
             {supabaseOnline ? 'Supabase ONLINE' : 'Modo Simulador'}

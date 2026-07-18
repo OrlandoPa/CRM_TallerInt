@@ -18,6 +18,10 @@ function DashboardView({
   const totalAsistenciaResuelta = citasAsistio + citasNoAsistio;
   const tasaAsistencia = totalAsistenciaResuelta ? Math.round((citasAsistio / totalAsistenciaResuelta) * 100) : 0;
 
+  const upcomingCitas = citasDb
+    .filter(cita => cita.fecha_hora_cita && new Date(cita.fecha_hora_cita) >= new Date())
+    .sort((a, b) => new Date(a.fecha_hora_cita) - new Date(b.fecha_hora_cita));
+
   const getTreatmentDistribution = () => {
     const counts = {
       'Evaluación': 0,
@@ -62,14 +66,14 @@ function DashboardView({
 
   const getBarColor = (name) => {
     switch (name) {
-      case 'Evaluación': return '#3b82f6';
-      case 'Restauración': return '#10b981';
-      case 'Endodoncia': return '#8b5cf6';
-      case 'Ortodoncia': return '#fbbf24';
-      case 'Blanqueamiento': return '#06b6d4';
-      case 'Cirugía': return '#ef4444';
+      case 'Evaluación': return 'var(--primary)';
+      case 'Restauración': return 'var(--success)';
+      case 'Endodoncia': return 'var(--secondary)';
+      case 'Ortodoncia': return 'var(--warning)';
+      case 'Blanqueamiento': return 'var(--info)';
+      case 'Cirugía': return 'var(--danger)';
       case 'Rehabilitación': return '#ec4899';
-      default: return '#6b7280';
+      default: return 'var(--text-muted)';
     }
   };
 
@@ -91,49 +95,49 @@ function DashboardView({
 
         {/* Card 2: Citas en Base de Datos */}
         <div className="glass-card metric-card" style={{display: 'flex', alignItems: 'center', gap: '16px', padding: '20px'}}>
-          <div className="metric-icon-wrapper" style={{background: 'rgba(139, 92, 246, 0.15)', color: '#8b5cf6', padding: '12px', borderRadius: '10px'}}>
+          <div className="metric-icon-wrapper" style={{background: 'rgba(var(--primary-rgb), 0.15)', color: 'var(--primary)', padding: '12px', borderRadius: '10px'}}>
             <CalendarIcon size={28} />
           </div>
           <div className="metric-info">
             <span className="metric-label" style={{fontSize: '0.85rem', color: 'var(--text-secondary)'}}>Citas Totales (BD)</span>
             <span className="metric-value" style={{fontSize: '2rem', fontWeight: 700, display: 'block', margin: '4px 0'}}>{totalCitas}</span>
-            <span style={{fontSize: '0.75rem', color: '#10b981', fontWeight: 600}}>Historial clínico</span>
+            <span style={{fontSize: '0.75rem', color: 'var(--success)', fontWeight: 600}}>Historial clínico</span>
           </div>
         </div>
 
         {/* Card 3: Citas Agendadas */}
         <div className="glass-card metric-card" style={{display: 'flex', alignItems: 'center', gap: '16px', padding: '20px'}}>
-          <div className="metric-icon-wrapper" style={{background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', padding: '12px', borderRadius: '10px'}}>
+          <div className="metric-icon-wrapper" style={{background: 'rgba(var(--warning-rgb), 0.15)', color: 'var(--warning)', padding: '12px', borderRadius: '10px'}}>
             <Clock3 size={28} />
           </div>
           <div className="metric-info">
             <span className="metric-label" style={{fontSize: '0.85rem', color: 'var(--text-secondary)'}}>Citas Agendadas</span>
             <span className="metric-value" style={{fontSize: '2rem', fontWeight: 700, display: 'block', margin: '4px 0'}}>{citasAgendadas}</span>
-            <span style={{fontSize: '0.75rem', color: '#fbbf24', fontWeight: 500}}>Pendientes de atención</span>
+            <span style={{fontSize: '0.75rem', color: 'var(--warning)', fontWeight: 500}}>Pendientes de atención</span>
           </div>
         </div>
 
         {/* Card 4: Citas Asistidas */}
         <div className="glass-card metric-card" style={{display: 'flex', alignItems: 'center', gap: '16px', padding: '20px'}}>
-          <div className="metric-icon-wrapper" style={{background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', padding: '12px', borderRadius: '10px'}}>
+          <div className="metric-icon-wrapper" style={{background: 'rgba(var(--success-rgb), 0.15)', color: 'var(--success)', padding: '12px', borderRadius: '10px'}}>
             <Check size={28} />
           </div>
           <div className="metric-info">
             <span className="metric-label" style={{fontSize: '0.85rem', color: 'var(--text-secondary)'}}>Citas Asistidas</span>
             <span className="metric-value" style={{fontSize: '2rem', fontWeight: 700, display: 'block', margin: '4px 0'}}>{citasAsistio}</span>
-            <span style={{fontSize: '0.75rem', color: '#10b981', fontWeight: 500}}>Asistencia confirmada</span>
+            <span style={{fontSize: '0.75rem', color: 'var(--success)', fontWeight: 500}}>Asistencia confirmada</span>
           </div>
         </div>
 
         {/* Card 5: Inasistencias */}
         <div className="glass-card metric-card" style={{display: 'flex', alignItems: 'center', gap: '16px', padding: '20px'}}>
-          <div className="metric-icon-wrapper" style={{background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', padding: '12px', borderRadius: '10px'}}>
+          <div className="metric-icon-wrapper" style={{background: 'rgba(var(--danger-rgb), 0.15)', color: 'var(--danger)', padding: '12px', borderRadius: '10px'}}>
             <AlertCircle size={28} />
           </div>
           <div className="metric-info">
             <span className="metric-label" style={{fontSize: '0.85rem', color: 'var(--text-secondary)'}}>Inasistencias</span>
             <span className="metric-value" style={{fontSize: '2rem', fontWeight: 700, display: 'block', margin: '4px 0'}}>{citasNoAsistio}</span>
-            <span style={{fontSize: '0.75rem', color: '#ef4444', fontWeight: 500}}>Pacientes ausentes</span>
+            <span style={{fontSize: '0.75rem', color: 'var(--danger)', fontWeight: 500}}>Pacientes ausentes</span>
           </div>
         </div>
       </div>
@@ -153,8 +157,8 @@ function DashboardView({
               ) : null}
               <defs>
                 <linearGradient id="donutGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#10b981" />
-                  <stop offset="100%" stopColor="#6366f1" />
+                  <stop offset="0%" stopColor="var(--success)" />
+                  <stop offset="100%" stopColor="var(--primary)" />
                 </linearGradient>
               </defs>
             </svg>
@@ -166,11 +170,11 @@ function DashboardView({
           
           <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', width: '100%', fontSize: '0.85rem', marginTop: '10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#10b981' }}></div>
+              <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--success)' }}></div>
               <span style={{ color: 'var(--text-secondary)' }}>Asistieron: <strong>{citasAsistio}</strong></span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#ef4444' }}></div>
+              <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--danger)' }}></div>
               <span style={{ color: 'var(--text-secondary)' }}>Ausentes: <strong>{citasNoAsistio}</strong></span>
             </div>
           </div>
@@ -210,18 +214,18 @@ function DashboardView({
       {/* Lists Columns */}
       <div style={{display: 'flex', gap: '20px', flexWrap: 'wrap'}}>
         {/* Column 1: Supabase Appointments */}
-        <div className="glass-card" style={{flex: '1 1 500px', display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px'}}>
+        <div className="glass-card" style={{flex: '1 1 100%', display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px'}}>
           <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
             <h2 style={{fontSize: '1.1rem', fontWeight: 600}}>Próximas Citas (Supabase DB)</h2>
-            <span style={{fontSize: '0.75rem', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', padding: '4px 8px', borderRadius: '6px', fontWeight: 600}}>BD ONLINE</span>
+            <span style={{fontSize: '0.75rem', background: 'rgba(var(--success-rgb), 0.1)', color: 'var(--success)', padding: '4px 8px', borderRadius: '6px', fontWeight: 600}}>BD ONLINE</span>
           </div>
           <div style={{display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', maxHeight: '400px'}}>
-            {citasDb.length === 0 ? (
+            {upcomingCitas.length === 0 ? (
               <p style={{fontSize: '0.9rem', color: 'var(--text-muted)', textAlign: 'center', padding: '30px 0'}}>
-                No hay citas clínicas programadas en la base de datos de Supabase.
+                No hay próximas citas clínicas programadas en la base de datos de Supabase.
               </p>
             ) : (
-              citasDb.map(cita => {
+              upcomingCitas.map(cita => {
                 const date = cita.fecha_hora_cita ? getLimaDate(cita.fecha_hora_cita) : null;
                 const formattedDate = date 
                   ? date.toLocaleDateString('es-ES', {weekday: 'short', day: 'numeric', month: 'short'}) + ' a las ' + date.toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'})
@@ -234,7 +238,7 @@ function DashboardView({
                     style={{
                       display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
                       padding: '14px', background: 'var(--bg-tertiary)', borderRadius: '10px',
-                      borderLeft: cita.estado_cita === 'CANCELADA' ? '4px solid #ef4444' : '4px solid var(--primary)', 
+                      borderLeft: cita.estado_cita === 'CANCELADA' ? '4px solid var(--danger)' : '4px solid var(--primary)', 
                       border: '1px solid var(--border-color)',
                       borderLeftWidth: '4px', gap: '10px',
                       opacity: cita.estado_cita === 'CANCELADA' ? 0.7 : 1,
@@ -260,7 +264,7 @@ function DashboardView({
                         {cita.motivo_consulta || 'Sin motivo especificado'}
                       </p>
                       <p style={{fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px'}}>
-                        <Clock size={12} style={{color: cita.estado_cita === 'CANCELADA' ? '#ef4444' : 'var(--primary)'}} /> {formattedDate}
+                        <Clock size={12} style={{color: cita.estado_cita === 'CANCELADA' ? 'var(--danger)' : 'var(--primary)'}} /> {formattedDate}
                       </p>
                     </div>
                     <div style={{display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px', flexShrink: 0}}>
@@ -269,95 +273,12 @@ function DashboardView({
                         fontWeight: 600, 
                         padding: '2px 8px', 
                         borderRadius: '4px',
-                        background: cita.estado_cita === 'CANCELADA' ? 'rgba(239, 68, 68, 0.1)' : (['CONFIRMADA', 'COMPLETADA', 'ASISTIO'].includes(cita.estado_cita) ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)'),
-                        color: cita.estado_cita === 'CANCELADA' ? '#ef4444' : (['CONFIRMADA', 'COMPLETADA', 'ASISTIO'].includes(cita.estado_cita) ? '#10b981' : '#f59e0b')
+                        background: cita.estado_cita === 'CANCELADA' ? 'rgba(var(--danger-rgb), 0.1)' : (['CONFIRMADA', 'COMPLETADA', 'ASISTIO'].includes(cita.estado_cita) ? 'rgba(var(--success-rgb), 0.1)' : 'rgba(var(--warning-rgb), 0.1)'),
+                        color: cita.estado_cita === 'CANCELADA' ? 'var(--danger)' : (['CONFIRMADA', 'COMPLETADA', 'ASISTIO'].includes(cita.estado_cita) ? 'var(--success)' : 'var(--warning)')
                       }}>
                         {cita.estado_cita || 'AGENDADA'}
                       </span>
                     </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-
-        {/* Column 2: Google Calendar Events */}
-        <div className="glass-card" style={{flex: '1 1 400px', display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px'}}>
-          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-            <h2 style={{fontSize: '1.1rem', fontWeight: 600}}>Agenda (Google Calendar)</h2>
-            <span style={{fontSize: '0.75rem', background: gcalConnected ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)', color: gcalConnected ? '#10b981' : '#f59e0b', padding: '4px 8px', borderRadius: '6px', fontWeight: 600}}>
-              {gcalConnected ? 'CONECTADO' : 'OFFLINE'}
-            </span>
-          </div>
-          <div style={{display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', maxHeight: '400px'}}>
-            {appointments.length === 0 ? (
-              <p style={{fontSize: '0.9rem', color: 'var(--text-muted)', textAlign: 'center', padding: '30px 0'}}>
-                No hay eventos programados próximamente.
-              </p>
-            ) : (
-              appointments.slice(0, 8).map(app => {
-                const date = getLimaDate(app.start?.dateTime || app.start?.date);
-                const dbCita = citasDb.find(c => c.google_event_id === app.id);
-                const isCompleted = dbCita?.estado_cita === 'ASISTIO' || dbCita?.estado_cita === 'COMPLETADA';
-
-                return (
-                  <div key={app.id} 
-                    onClick={() => {
-                      // Map app structure to detail expected structure
-                      if (dbCita) {
-                        onOpenDetail(dbCita);
-                      } else {
-                        onOpenDetail({
-                          id: null,
-                          google_event_id: app.id,
-                          fecha_hora_cita: app.start.dateTime || app.start.date,
-                          motivo_consulta: app.summary,
-                          estado_cita: 'AGENDADA',
-                          telefono_paciente: '',
-                          correo_electronico: app.correo_electronico || '',
-                          pacientes: { nombre_paciente: app.summary.split(' - ')[0] || 'Paciente GCal' }
-                        });
-                      }
-                    }}
-                    style={{
-                      display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
-                      padding: '12px', background: 'var(--bg-tertiary)', borderRadius: '10px',
-                      borderLeft: '4px solid #f59e0b', border: '1px solid var(--border-color)',
-                      borderLeftWidth: '4px', cursor: 'pointer'
-                    }}
-                  >
-                    <div style={{overflow: 'hidden', marginRight: '10px'}}>
-                      <p style={{fontWeight: 600, fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-main)'}}>{app.summary}</p>
-                      <p style={{fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px'}}>
-                        {date.toLocaleDateString('es-ES', {weekday: 'short', day: 'numeric', month: 'short'})} a las {date.toLocaleTimeString('es-ES', {hour: '2-digit', minute:'2-digit'})}
-                      </p>
-                    </div>
-                    {!isCompleted && (
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onDeleteAppointment(app.id);
-                        }} 
-                        className="btn-icon" 
-                        style={{
-                          width:'30px', 
-                          height:'30px', 
-                          borderRadius:'6px', 
-                          color:'var(--danger)', 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          justifyContent: 'center', 
-                          background: 'transparent', 
-                          border: 'none', 
-                          cursor: 'pointer', 
-                          flexShrink: 0
-                        }} 
-                        title="Cancelar Cita"
-                      >
-                        <Trash size={14} />
-                      </button>
-                    )}
                   </div>
                 );
               })

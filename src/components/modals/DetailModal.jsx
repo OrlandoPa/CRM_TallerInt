@@ -142,11 +142,11 @@ function DetailModal({
                   borderRadius: '6px',
                   display: 'inline-block',
                   background: selectedAppointmentDetails.estado_cita === 'CANCELADA' || selectedAppointmentDetails.estado_cita === 'NO_ASISTIO' 
-                    ? 'rgba(239, 68, 68, 0.1)' 
-                    : (isCompleted ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)'),
+                    ? 'rgba(var(--danger-rgb), 0.1)' 
+                    : (isCompleted ? 'rgba(var(--success-rgb), 0.1)' : 'rgba(var(--warning-rgb), 0.1)'),
                   color: selectedAppointmentDetails.estado_cita === 'CANCELADA' || selectedAppointmentDetails.estado_cita === 'NO_ASISTIO' 
-                    ? '#ef4444' 
-                    : (isCompleted ? '#10b981' : '#f59e0b')
+                    ? 'var(--danger)' 
+                    : (isCompleted ? 'var(--success)' : 'var(--warning)')
                 }}>
                   {selectedAppointmentDetails.estado_cita || 'AGENDADA'}
                 </span>
@@ -161,7 +161,7 @@ function DetailModal({
                 type="button" 
                 onClick={() => onDelete(selectedAppointmentDetails.google_event_id)} 
                 className="btn" 
-                style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)' }}
+                style={{ background: 'rgba(var(--danger-rgb), 0.1)', color: 'var(--danger)', border: '1px solid rgba(var(--danger-rgb), 0.2)' }}
               >
                 <Trash size={14} /> Cancelar Cita
               </button>

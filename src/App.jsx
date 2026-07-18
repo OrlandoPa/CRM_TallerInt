@@ -2,7 +2,21 @@ import { useState, useEffect } from 'react';
 import { 
   Check, 
   AlertCircle, 
-  RefreshCw
+  RefreshCw,
+  Plus,
+  ArrowUp,
+  Calendar,
+  Sun,
+  Moon,
+  Accessibility,
+  EyeOff,
+  Link,
+  Type,
+  MousePointer,
+  ImageOff,
+  Ban,
+  RotateCcw,
+  Maximize2
 } from 'lucide-react';
 
 import * as api from './services/api';
@@ -46,6 +60,20 @@ const initialParams = getInitialParams();
 function App() {
   const [activeTab, setActiveTab] = useState(initialParams.activeTab);
   const [theme, setTheme] = useState('dark');
+  const [isFabOpen, setIsFabOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [accessSettings, setAccessSettings] = useState({
+    highContrast: false,
+    grayscale: false,
+    highlightLinks: false,
+    largeText: 0,
+    wideSpacing: false,
+    stopAnimations: false,
+    legibleFont: false,
+    dyslexiaFont: false,
+    largeCursor: false,
+    hideImages: false
+  });
   const [leads, setLeads] = useState([]);
   const [appointments, setAppointments] = useState([]);
   const [pacientes, setPacientes] = useState([]);
@@ -343,7 +371,96 @@ function App() {
     }
   };
 
+  const handleAddNewAppointmentDirectly = () => {
+    const todayStr = new Date().toLocaleString('sv-SE').slice(0, 10);
+    setTargetDateInput(todayStr);
+    setIsDatePickerModalOpen(true);
+  };
+
+  const toggleAccessSetting = (key, className) => {
+    // Exclude other font options if enabling one, and allow toggling off
+    if (key === 'legibleFont') {
+      if (accessSettings.legibleFont) {
+        document.body.classList.remove('legible-font');
+        document.documentElement.classList.remove('legible-font');
+        setAccessSettings(prev => ({ ...prev, legibleFont: false }));
+      } else {
+        document.body.classList.remove('dyslexia-font');
+        document.documentElement.classList.remove('dyslexia-font');
+        document.body.classList.add('legible-font');
+        document.documentElement.classList.add('legible-font');
+        setAccessSettings(prev => ({ ...prev, legibleFont: true, dyslexiaFont: false }));
+      }
+      return;
+    }
+    if (key === 'dyslexiaFont') {
+      if (accessSettings.dyslexiaFont) {
+        document.body.classList.remove('dyslexia-font');
+        document.documentElement.classList.remove('dyslexia-font');
+        setAccessSettings(prev => ({ ...prev, dyslexiaFont: false }));
+      } else {
+        document.body.classList.remove('legible-font');
+        document.documentElement.classList.remove('legible-font');
+        document.body.classList.add('dyslexia-font');
+        document.documentElement.classList.add('dyslexia-font');
+        setAccessSettings(prev => ({ ...prev, dyslexiaFont: true, legibleFont: false }));
+      }
+      return;
+    }
+
+    const newVal = !accessSettings[key];
+    setAccessSettings(prev => ({ ...prev, [key]: newVal }));
+    if (newVal) {
+      document.body.classList.add(className);
+      document.documentElement.classList.add(className);
+    } else {
+      document.body.classList.remove(className);
+      document.documentElement.classList.remove(className);
+    }
+  };
+
+  const toggleLargeTextSetting = () => {
+    const nextLevel = (accessSettings.largeText + 1) % 4;
+    document.documentElement.classList.remove('large-text-1', 'large-text-2', 'large-text-3');
+    document.body.classList.remove('large-text-1', 'large-text-2', 'large-text-3');
+    if (nextLevel > 0) {
+      document.documentElement.classList.add(`large-text-${nextLevel}`);
+      document.body.classList.add(`large-text-${nextLevel}`);
+    }
+    setAccessSettings(prev => ({ ...prev, largeText: nextLevel }));
+  };
+
+  const resetAccessSettings = () => {
+    const classes = [
+      'high-contrast', 'grayscale', 'highlight-links', 'large-text-1', 'large-text-2', 'large-text-3',
+      'wide-spacing', 'stop-animations', 'legible-font', 'dyslexia-font', 'large-cursor', 'hide-images'
+    ];
+    classes.forEach(c => {
+      document.documentElement.classList.remove(c);
+      document.body.classList.remove(c);
+    });
+    setAccessSettings({
+      highContrast: false,
+      grayscale: false,
+      highlightLinks: false,
+      largeText: 0,
+      wideSpacing: false,
+      stopAnimations: false,
+      legibleFont: false,
+      dyslexiaFont: false,
+      largeCursor: false,
+      hideImages: false
+    });
+  };
+
   const handleOpenDetailFromGCal = (app) => {
+    // If it's already a DB appointment object
+    if (app && app.fecha_hora_cita && !app.start) {
+      setSelectedAppointmentDetails(app);
+      setIsDetailModalOpen(true);
+      return;
+    }
+    // Otherwise it's a GCal event object
     const dbCita = citasDb.find(c => c.google_event_id === app.id);
     if (dbCita) {
       setSelectedAppointmentDetails(dbCita);
@@ -402,6 +519,8 @@ function App() {
           theme={theme} 
           toggleTheme={toggleTheme} 
           pastAppointmentsToReview={pastAppointmentsToReview}
+          isCollapsed={isSidebarCollapsed}
+          setIsCollapsed={setIsSidebarCollapsed}
         />
       )}
 
@@ -648,6 +767,100 @@ function App() {
           setTargetDateInput('');
         }}
       />
+      
+      {/* Floating Action Button (FAB) for Accessibility (Usability) Options */}
+      <div className="fab-container">
+        <button 
+          className={`fab-main-button ${isFabOpen ? 'open' : ''}`} 
+          onClick={() => setIsFabOpen(!isFabOpen)}
+          title="Menú de Accesibilidad"
+        >
+          <Accessibility size={26} />
+        </button>
+      </div>
+
+      <div className={`accessibility-panel ${isFabOpen ? 'open' : ''}`}>
+        <header className="accessibility-header">
+          <span>Menú de Accesibilidad</span>
+          <button onClick={() => setIsFabOpen(false)} className="btn-icon" style={{width:'28px', height:'28px', color: 'white', background: 'rgba(255,255,255,0.15)', border: 'none'}}>✕</button>
+        </header>
+        <div className="accessibility-grid">
+          <button 
+            className={`accessibility-item ${accessSettings.highContrast ? 'active' : ''}`}
+            onClick={() => toggleAccessSetting('highContrast', 'high-contrast')}
+          >
+            <Sun size={20} />
+            <span>Contraste +</span>
+          </button>
+          <button 
+            className={`accessibility-item ${accessSettings.grayscale ? 'active' : ''}`}
+            onClick={() => toggleAccessSetting('grayscale', 'grayscale')}
+          >
+            <EyeOff size={20} />
+            <span>Saturación</span>
+          </button>
+          <button 
+            className={`accessibility-item ${accessSettings.highlightLinks ? 'active' : ''}`}
+            onClick={() => toggleAccessSetting('highlightLinks', 'highlight-links')}
+          >
+            <Link size={20} />
+            <span>Resaltar Enlaces</span>
+          </button>
+          <button 
+            className={`accessibility-item ${accessSettings.largeText > 0 ? 'active' : ''}`}
+            onClick={toggleLargeTextSetting}
+          >
+            <Type size={20} />
+            <span>Agrandar Texto {accessSettings.largeText > 0 ? `Lvl ${accessSettings.largeText}` : ''}</span>
+          </button>
+          <button 
+            className={`accessibility-item ${accessSettings.wideSpacing ? 'active' : ''}`}
+            onClick={() => toggleAccessSetting('wideSpacing', 'wide-spacing')}
+          >
+            <Maximize2 size={20} />
+            <span>Espaciado Texto</span>
+          </button>
+          <button 
+            className={`accessibility-item ${accessSettings.stopAnimations ? 'active' : ''}`}
+            onClick={() => toggleAccessSetting('stopAnimations', 'stop-animations')}
+          >
+            <Ban size={20} />
+            <span>Detener Animaciones</span>
+          </button>
+          <button 
+            className={`accessibility-item ${accessSettings.legibleFont ? 'active' : ''}`}
+            onClick={() => toggleAccessSetting('legibleFont', 'legible-font')}
+          >
+            <span style={{ fontSize: '1.4rem', fontWeight: 'bold', fontFamily: 'sans-serif', lineHeight: 1 }}>Fl</span>
+            <span>Fuente Legible</span>
+          </button>
+          <button 
+            className={`accessibility-item ${accessSettings.dyslexiaFont ? 'active' : ''}`}
+            onClick={() => toggleAccessSetting('dyslexiaFont', 'dyslexia-font')}
+          >
+            <span style={{ fontSize: '1.4rem', fontWeight: 'bold', fontFamily: 'serif', lineHeight: 1 }}>Df</span>
+            <span>OpenDyslexic</span>
+          </button>
+          <button 
+            className={`accessibility-item ${accessSettings.largeCursor ? 'active' : ''}`}
+            onClick={() => toggleAccessSetting('largeCursor', 'large-cursor')}
+          >
+            <MousePointer size={20} />
+            <span>Cursor Grande</span>
+          </button>
+          <button 
+            className={`accessibility-item ${accessSettings.hideImages ? 'active' : ''}`}
+            onClick={() => toggleAccessSetting('hideImages', 'hide-images')}
+          >
+            <ImageOff size={20} />
+            <span>Ocultar Imágenes</span>
+          </button>
+        </div>
+        <button className="accessibility-reset-btn" onClick={resetAccessSettings}>
+          <RotateCcw size={16} />
+          <span>Restablecer accesibilidad</span>
+        </button>
+      </div>
     </div>
   );
 }

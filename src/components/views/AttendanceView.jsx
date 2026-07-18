@@ -7,14 +7,14 @@ function AttendanceView({
   onOpenReschedule 
 }) {
   return (
-    <div className="attendance-view animate-fade-in" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+    <div className="attendance-view animate-fade-in">
       <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Clock size={20} style={{ color: 'var(--primary)' }} />
             <h2 style={{ fontSize: '1.25rem', fontWeight: 600, margin: 0 }}>Citas Pasadas Pendientes de Asistencia</h2>
           </div>
-          <span className="status-badge" style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', fontWeight: 600, padding: '4px 10px', borderRadius: '8px' }}>
+          <span className="status-badge" style={{ background: 'rgba(var(--warning-rgb), 0.1)', color: 'var(--warning)', fontWeight: 600, padding: '4px 10px', borderRadius: '8px' }}>
             {pastAppointmentsToReview.length} {pastAppointmentsToReview.length === 1 ? 'pendiente' : 'pendientes'}
           </span>
         </div>
@@ -78,14 +78,14 @@ function AttendanceView({
                     <button 
                       onClick={() => onMarkAttendance(cita.google_event_id, 'ASISTIO')}
                       className="btn" 
-                      style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.2)', padding: '8px 16px', fontSize: '0.85rem' }}
+                      style={{ background: 'rgba(var(--success-rgb), 0.15)', color: 'var(--success)', border: '1px solid rgba(var(--success-rgb), 0.2)', padding: '8px 16px', fontSize: '0.85rem' }}
                     >
                       <Check size={16} /> Asistió
                     </button>
                     <button 
                       onClick={() => onMarkAttendance(cita.google_event_id, 'NO_ASISTIO')}
                       className="btn" 
-                      style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '8px 16px', fontSize: '0.85rem' }}
+                      style={{ background: 'rgba(var(--danger-rgb), 0.15)', color: 'var(--danger)', border: '1px solid rgba(var(--danger-rgb), 0.2)', padding: '8px 16px', fontSize: '0.85rem' }}
                     >
                       ✕ No Asistió
                     </button>

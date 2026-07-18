@@ -26,3 +26,15 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+#Archivos md
+ANEXOS.md
+c4_architecture_diagrams.md
+PRUEBAS_UNITARIAS.md
+MANUAL_USUARIO.md
+PRUEBAS_INTEGRACION.md
+STACK_TECNOLOGICO.md
+stress_test.js
+DOCUMENTACION_ARQUITECTURA.md
+DOCUMENTACION_RAD_DESARROLLO.md
+CASOS_DE_PRUEBA.md
