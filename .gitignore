@@ -39,3 +39,6 @@ DOCUMENTACION_ARQUITECTURA.md
 DOCUMENTACION_RAD_DESARROLLO.md
 CASOS_DE_PRUEBA.md
 PRUEBAS_CAJA_NEGRA.md
+
+# E2E Chrome test user data profiles
+tests/e2e/.chrome-user-data*
