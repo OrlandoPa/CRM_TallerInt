@@ -172,6 +172,7 @@ function AgendaView({
                   }}
                 >
                   <div 
+                    data-testid="appointment-card"
                     onClick={() => {
                       if (dbCitaResolved) {
                         onOpenDetail(dbCitaResolved);
@@ -244,6 +245,7 @@ function AgendaView({
                 Disponible
               </span>
               <button 
+                data-testid={`btn-slot-add-${slot.replace(':', '-')}`}
                 onClick={() => onAddAppointmentFromSlot(slot)}
                 className="btn btn-secondary" 
                 style={{ padding: '4px 10px', fontSize: '0.7rem', height: '28px', opacity: isSlotPast ? 0.5 : 1 }}
@@ -260,10 +262,11 @@ function AgendaView({
   };
 
   return (
-    <div className="agenda-view animate-fade-in">
+    <div className="agenda-view animate-fade-in" data-testid="view-agenda">
       <div className="glass-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '24px', padding: '16px 24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <button 
+            data-testid="btn-prev-day"
             onClick={() => {
               const newD = new Date(selectedAgendaDate);
               newD.setDate(newD.getDate() - 1);
@@ -274,10 +277,11 @@ function AgendaView({
           >
             <ChevronLeft size={16} />
           </button>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 600, margin: 0 }}>
+          <h2 data-testid="agenda-date-heading" style={{ fontSize: '1.25rem', fontWeight: 600, margin: 0 }}>
             {selectedAgendaDate.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase()}
           </h2>
           <button 
+            data-testid="btn-next-day"
             onClick={() => {
               const newD = new Date(selectedAgendaDate);
               newD.setDate(newD.getDate() + 1);
@@ -293,6 +297,7 @@ function AgendaView({
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Seleccionar Fecha:</span>
           <input 
+            data-testid="input-agenda-date"
             type="date" 
             className="form-control" 
             style={{ width: 'auto', padding: '6px 12px', margin: 0 }}
@@ -305,6 +310,7 @@ function AgendaView({
             }}
           />
           <button 
+            data-testid="btn-today"
             onClick={() => setSelectedAgendaDate(new Date())} 
             className="btn btn-secondary"
             style={{ padding: '6px 12px', fontSize: '0.85rem' }}

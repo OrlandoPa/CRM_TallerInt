@@ -19,7 +19,7 @@ function Header({ activeTab, gcalConnected, handleGoogleLogin, handleGoogleLogou
   return (
     <header className="top-bar">
       <div className="page-title">
-        <h1 style={{textTransform: 'capitalize'}}>
+        <h1 data-testid="header-title" style={{textTransform: 'capitalize'}}>
           {getPageTitle(activeTab)}
         </h1>
       </div>
@@ -27,6 +27,7 @@ function Header({ activeTab, gcalConnected, handleGoogleLogin, handleGoogleLogou
         {/* Google Calendar OAuth Login status in header */}
         {gcalConnected ? (
           <button 
+            data-testid="btn-gcal-logout"
             onClick={handleGoogleLogout} 
             className="btn" 
             style={{
@@ -45,6 +46,7 @@ function Header({ activeTab, gcalConnected, handleGoogleLogin, handleGoogleLogou
           </button>
         ) : (
           <button 
+            data-testid="btn-gcal-login"
             onClick={handleGoogleLogin} 
             className="btn" 
             style={{
@@ -63,10 +65,10 @@ function Header({ activeTab, gcalConnected, handleGoogleLogin, handleGoogleLogou
           </button>
         )}
 
-        <button onClick={handleRefresh} className="btn-icon" title="Sincronizar Datos">
+        <button data-testid="btn-sync" onClick={handleRefresh} className="btn-icon" title="Sincronizar Datos">
           <RefreshCw size={18} />
         </button>
-        <div style={{
+        <div data-testid="status-supabase" style={{
           display:'flex', 
           alignItems:'center', 
           gap:'10px', 

@@ -79,7 +79,7 @@ function DashboardView({
   };
 
   return (
-    <div className="dashboard-view animate-fade-in" style={{display: 'flex', flexDirection: 'column', gap: '24px'}}>
+    <div className="dashboard-view animate-fade-in" data-testid="view-dashboard" style={{display: 'flex', flexDirection: 'column', gap: '24px'}}>
       {!hasRequiredGCalGmail && (
         <div className="glass-card animate-pulse" style={{
           background: 'rgba(239, 68, 68, 0.1)',
@@ -100,7 +100,7 @@ function DashboardView({
       {/* KPI Metrics row */}
       <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px'}}>
         {/* Card 1: Pacientes Registrados */}
-        <div className="glass-card metric-card" style={{display: 'flex', alignItems: 'center', gap: '16px', padding: '20px'}}>
+        <div data-testid="metric-patients" className="glass-card metric-card" style={{display: 'flex', alignItems: 'center', gap: '16px', padding: '20px'}}>
           <div className="metric-icon-wrapper" style={{background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', padding: '12px', borderRadius: '10px'}}>
             <Users size={28} />
           </div>

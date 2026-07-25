@@ -8,7 +8,7 @@ function AttendanceView({
   hasRequiredGCalGmail
 }) {
   return (
-    <div className="attendance-view animate-fade-in">
+    <div className="attendance-view animate-fade-in" data-testid="view-attendance">
       {!hasRequiredGCalGmail && (
         <div className="glass-card animate-pulse" style={{
           background: 'rgba(239, 68, 68, 0.1)',
@@ -42,7 +42,9 @@ function AttendanceView({
         </p>
         
         {pastAppointmentsToReview.length === 0 ? (
-          <div style={{ 
+          <div 
+            data-testid="attendance-empty-notice"
+            style={{ 
             textAlign: 'center', 
             padding: '48px 24px', 
             color: 'var(--text-muted)', 
@@ -95,6 +97,7 @@ function AttendanceView({
                   </div>
                   <div style={{ display: 'flex', gap: '10px', flexWrap: 'nowrap' }}>
                     <button 
+                      data-testid="btn-mark-attended"
                       onClick={() => {
                         if (!hasRequiredGCalGmail) {
                           alert('Para acceder a estas funcionalidades por favor ingrese su cuenta de gmail valida para el google calendar');

@@ -35,17 +35,18 @@ function AppointmentModal({
   };
 
   return (
-    <div className="modal-overlay" style={{ zIndex: 110 }}>
+    <div className="modal-overlay" style={{ zIndex: 110 }} data-testid="modal-appointment">
       <div className="modal-content animate-slide-up">
         <header className="modal-header">
           <span className="modal-title">Agendar Cita en Google Calendar</span>
-          <button onClick={onClose} className="btn-icon" style={{width:'32px', height:'32px'}}>✕</button>
+          <button onClick={onClose} className="btn-icon" style={{width:'32px', height:'32px'}} data-testid="btn-close-appointment-modal">✕</button>
         </header>
         <form onSubmit={onSubmit}>
           <div className="modal-body">
             <div className="form-group">
               <label>Título de la Cita</label>
               <input 
+                data-testid="input-appointment-title"
                 type="text" 
                 className="form-control" 
                 placeholder="Ej. Juan Pérez - Evaluación de Ortodoncia"
@@ -57,6 +58,7 @@ function AppointmentModal({
             <div className="form-group">
               <label>¿Paciente nuevo?</label>
               <select 
+                data-testid="select-is-new-patient"
                 className="form-control"
                 value={isNewPatient ? 'si' : 'no'}
                 onChange={(e) => {
@@ -80,6 +82,7 @@ function AppointmentModal({
               <div className="form-group">
                 <label>Vincular a Paciente de WhatsApp (Opcional)</label>
                 <select 
+                  data-testid="select-whatsapp-patient"
                   className="form-control"
                   value={newEvent.phone_number}
                   onChange={(e) => {
@@ -110,6 +113,7 @@ function AppointmentModal({
                 <div className="form-group">
                   <label>Nombre del Paciente Nuevo</label>
                   <input 
+                    data-testid="input-patient-name"
                     type="text" 
                     className="form-control" 
                     placeholder="Ej. Carlos Prado"
@@ -130,6 +134,7 @@ function AppointmentModal({
                 <div className="form-group">
                   <label>Número de Celular</label>
                   <input 
+                    data-testid="input-patient-phone"
                     type="tel" 
                     className="form-control" 
                     placeholder="Ej. +51 999 888 777"
@@ -144,6 +149,7 @@ function AppointmentModal({
             <div className="form-group">
               <label>Tipo de Tratamiento / Motivo</label>
               <select 
+                data-testid="select-treatment"
                 className="form-control"
                 value={treatmentType}
                 onChange={(e) => {
@@ -177,6 +183,7 @@ function AppointmentModal({
             <div className="form-group">
               <label>Fecha y Hora de Inicio</label>
               <input 
+                data-testid="input-start-time"
                 type="datetime-local" 
                 className="form-control" 
                 value={newEvent.start}
@@ -199,6 +206,7 @@ function AppointmentModal({
             <div className="form-group">
               <label>Fecha y Hora de Fin</label>
               <input 
+                data-testid="input-end-time"
                 type="datetime-local" 
                 className="form-control" 
                 value={newEvent.end}
@@ -275,6 +283,7 @@ function AppointmentModal({
               Cancelar
             </button>
             <button 
+              data-testid="btn-submit-appointment"
               type="submit" 
               className="btn btn-primary" 
               disabled={!gcalConnected || (newEvent.start && isPeruHoliday(new Date(newEvent.start)))}

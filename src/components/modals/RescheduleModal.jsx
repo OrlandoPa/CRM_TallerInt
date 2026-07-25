@@ -14,7 +14,7 @@ function RescheduleModal({
   const isHoliday = rescheduleEvent.start ? isPeruHoliday(new Date(rescheduleEvent.start)) : false;
 
   return (
-    <div className="modal-overlay" style={{ zIndex: 120 }}>
+    <div className="modal-overlay" style={{ zIndex: 120 }} data-testid="modal-reschedule">
       <div className="modal-content animate-slide-up" style={{ maxWidth: '450px', width: '90%' }}>
         <header className="modal-header">
           <span className="modal-title">Reprogramar Cita</span>
@@ -23,6 +23,7 @@ function RescheduleModal({
             onClick={onClose} 
             className="btn-icon" 
             style={{width:'32px', height:'32px'}}
+            data-testid="btn-close-reschedule"
           >
             ✕
           </button>
@@ -44,6 +45,7 @@ function RescheduleModal({
               <input 
                 type="datetime-local" 
                 className="form-control" 
+                data-testid="input-reschedule-start"
                 value={rescheduleEvent.start}
                 onChange={(e) => setRescheduleEvent(prev => ({ ...prev, start: e.target.value }))}
                 required
@@ -55,6 +57,7 @@ function RescheduleModal({
               <input 
                 type="datetime-local" 
                 className="form-control" 
+                data-testid="input-reschedule-end"
                 value={rescheduleEvent.end}
                 onChange={(e) => setRescheduleEvent(prev => ({ ...prev, end: e.target.value }))}
                 required
@@ -84,10 +87,11 @@ function RescheduleModal({
               type="button" 
               onClick={onClose} 
               className="btn btn-secondary"
+              data-testid="btn-cancel-reschedule"
             >
               Cancelar
             </button>
-            <button type="submit" className="btn btn-primary" disabled={isHoliday}>
+            <button type="submit" className="btn btn-primary" disabled={isHoliday} data-testid="btn-submit-reschedule">
               Guardar Cambios
             </button>
           </footer>

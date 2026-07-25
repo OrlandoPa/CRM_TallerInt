@@ -51,6 +51,7 @@ function Sidebar({ activeTab, setActiveTab, theme, toggleTheme, pastAppointments
 
       <nav className="sidebar-menu" style={{ width: '100%' }}>
         <button 
+          data-testid="tab-dashboard"
           className={`menu-item ${activeTab === 'dashboard' ? 'active' : ''}`}
           onClick={() => setActiveTab('dashboard')}
           title={isCollapsed ? "Dashboard" : ""}
@@ -60,6 +61,7 @@ function Sidebar({ activeTab, setActiveTab, theme, toggleTheme, pastAppointments
         </button>
 
         <button 
+          data-testid="tab-agenda"
           className={`menu-item ${activeTab === 'agenda' ? 'active' : ''}`}
           onClick={() => {
             setActiveTab('agenda');
@@ -71,6 +73,7 @@ function Sidebar({ activeTab, setActiveTab, theme, toggleTheme, pastAppointments
         </button>
 
         <button 
+          data-testid="tab-attendance"
           className={`menu-item ${activeTab === 'attendance' ? 'active' : ''}`}
           onClick={() => setActiveTab('attendance')}
           title={isCollapsed ? "Tomar Asistencia" : ""}
@@ -102,6 +105,7 @@ function Sidebar({ activeTab, setActiveTab, theme, toggleTheme, pastAppointments
         </button>
 
         <button 
+          data-testid="tab-chats"
           className={`menu-item ${activeTab === 'chats' ? 'active' : ''}`}
           onClick={() => setActiveTab('chats')}
           title={isCollapsed ? "Chats WhatsApp" : ""}
@@ -110,6 +114,7 @@ function Sidebar({ activeTab, setActiveTab, theme, toggleTheme, pastAppointments
           {!isCollapsed && <span>Chats WhatsApp</span>}
         </button>
         <button 
+          data-testid="tab-calendar"
           className={`menu-item ${activeTab === 'calendar' ? 'active' : ''}`}
           onClick={() => setActiveTab('calendar')}
           title={isCollapsed ? "Calendario" : ""}
@@ -120,7 +125,7 @@ function Sidebar({ activeTab, setActiveTab, theme, toggleTheme, pastAppointments
       </nav>
 
       <div className="sidebar-footer" style={{ width: '100%' }}>
-        <button onClick={toggleTheme} className="menu-item" style={{width: '100%', background: 'none', border: 'none', textAlign: 'left', padding: isCollapsed ? '12px' : '12px 16px', justifyContent: isCollapsed ? 'center' : 'flex-start'}} title={isCollapsed ? (theme === 'dark' ? 'Modo Claro' : 'Modo Oscuro') : ""}>
+        <button data-testid="btn-theme-toggle" onClick={toggleTheme} className="menu-item" style={{width: '100%', background: 'none', border: 'none', textAlign: 'left', padding: isCollapsed ? '12px' : '12px 16px', justifyContent: isCollapsed ? 'center' : 'flex-start'}} title={isCollapsed ? (theme === 'dark' ? 'Modo Claro' : 'Modo Oscuro') : ""}>
           {theme === 'dark' ? <Sun size={20} style={{ flexShrink: 0 }} /> : <Moon size={20} style={{ flexShrink: 0 }} />}
           {!isCollapsed && <span>{theme === 'dark' ? 'Modo Claro' : 'Modo Oscuro'}</span>}
         </button>

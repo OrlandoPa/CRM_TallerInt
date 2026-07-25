@@ -14,11 +14,11 @@ function DetailModal({
   const isCompleted = ['ASISTIO', 'COMPLETADA'].includes(selectedAppointmentDetails.estado_cita);
 
   return (
-    <div className="modal-overlay" style={{ zIndex: 120 }}>
+    <div className="modal-overlay" style={{ zIndex: 120 }} data-testid="modal-detail">
       <div className="modal-content animate-slide-up" style={{ maxWidth: '500px', width: '90%' }}>
         <header className="modal-header">
           <span className="modal-title">Detalles de la Cita</span>
-          <button onClick={onClose} className="btn-icon" style={{width:'32px', height:'32px'}}>✕</button>
+          <button onClick={onClose} className="btn-icon" style={{width:'32px', height:'32px'}} data-testid="btn-close-detail-modal">✕</button>
         </header>
         <div className="modal-body">
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -160,6 +160,7 @@ function DetailModal({
             {!isCompleted && selectedAppointmentDetails.estado_cita !== 'CANCELADA' && (
               <button 
                 type="button" 
+                data-testid="btn-cancel-appointment"
                 onClick={() => {
                   if (!hasRequiredGCalGmail) {
                     alert('Para acceder a estas funcionalidades por favor ingrese su cuenta de gmail valida para el google calendar');
@@ -186,6 +187,7 @@ function DetailModal({
             {!isCompleted && selectedAppointmentDetails.estado_cita !== 'CANCELADA' && (
               <button 
                 type="button" 
+                data-testid="btn-reschedule-appointment"
                 onClick={() => {
                   if (!hasRequiredGCalGmail) {
                     alert('Para acceder a estas funcionalidades por favor ingrese su cuenta de gmail valida para el google calendar');
@@ -206,7 +208,7 @@ function DetailModal({
                 <RefreshCw size={14} /> Reprogramar
               </button>
             )}
-            <button type="button" onClick={onClose} className="btn btn-primary">
+            <button type="button" onClick={onClose} className="btn btn-primary" data-testid="btn-close-detail">
               Cerrar
             </button>
           </div>
