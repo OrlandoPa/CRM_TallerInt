@@ -550,13 +550,10 @@ function App() {
   // Conectar automáticamente Google Calendar al iniciar sesión con la cuenta de usuario
   useEffect(() => {
     if (user && user.email) {
-      setGcalConnected(true);
+      const token = api.getGCalToken();
+      setGcalConnected(!!token);
       setGcalEmail(user.email);
       localStorage.setItem('gcal_user_email', user.email);
-      if (!localStorage.getItem('gcal_access_token')) {
-        localStorage.setItem('gcal_access_token', 'google_session_token_' + Date.now());
-        localStorage.setItem('gcal_token_expiry', (Date.now() + 86400 * 1000).toString());
-      }
     }
   }, [user]);
 

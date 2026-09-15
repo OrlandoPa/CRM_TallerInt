@@ -138,14 +138,14 @@ function LoginView({ onLoginSuccess }) {
       }
     }
 
-    const isLocalOrTest = typeof window !== 'undefined' &&
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || !window.location.hostname);
+    const isUnitTest = import.meta.env.MODE === 'test' || (typeof window !== 'undefined' && !window.navigator?.userAgent);
 
-    if (supabase && supabase.auth && !isLocalOrTest) {
+    if (supabase && supabase.auth && !isUnitTest) {
       supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin
+          redirectTo: window.location.origin,
+          scopes: 'https://www.googleapis.com/auth/calendar.events'
         }
       }).catch((err) => {
         console.warn('Fallback a simulación de inicio de sesión:', err);
