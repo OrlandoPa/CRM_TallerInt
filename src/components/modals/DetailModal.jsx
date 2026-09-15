@@ -99,7 +99,7 @@ function DetailModal({
             </div>
 
             <div className="form-group">
-              <label>Notas de la Cita</label>
+              <label>Notas de la Cita y Tratamiento</label>
               <div style={{ 
                 background: 'var(--bg-tertiary)', 
                 padding: '12px', 
@@ -107,7 +107,8 @@ function DetailModal({
                 border: '1px solid var(--border-color)', 
                 fontSize: '0.9rem', 
                 color: 'var(--text-primary)', 
-                minHeight: '60px' 
+                minHeight: '60px',
+                whiteSpace: 'pre-line'
               }}>
                 {selectedAppointmentDetails.detalles_notas_cita || selectedAppointmentDetails.description || 'Sin notas adicionales'}
               </div>

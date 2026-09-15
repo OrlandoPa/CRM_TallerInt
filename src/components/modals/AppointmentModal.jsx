@@ -251,13 +251,37 @@ function AppointmentModal({
             )}
 
             <div className="form-group">
-              <label>Detalles / Notas de la Cita</label>
+              <label>Detalles / Notas Clínicas de la Cita</label>
+              <textarea 
+                className="form-control"
+                rows={2}
+                placeholder="Observaciones de la cita o del paciente..."
+                value={newEvent.description}
+                onChange={(e) => setNewEvent(prev => ({ ...prev, description: e.target.value }))}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Receta Médica / Indicaciones del Tratamiento (Opcional)</label>
               <textarea 
                 className="form-control"
                 rows={3}
-                placeholder="Observaciones de la cita médica..."
-                value={newEvent.description}
-                onChange={(e) => setNewEvent(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Ej. Amoxicilina 500mg c/8h por 7 días, Paracetamol 500mg si hay dolor. Reposo 24 horas."
+                value={newEvent.receta_medica || ''}
+                onChange={(e) => {
+                  const recetaText = e.target.value;
+                  setNewEvent(prev => {
+                    const cleanDesc = (prev.description || '').replace(/\n\n\[Receta Médica\][\s\S]*/, '');
+                    const updatedDesc = recetaText.trim() 
+                      ? `${cleanDesc}\n\n[Receta Médica]\n${recetaText.trim()}`
+                      : cleanDesc;
+                    return {
+                      ...prev,
+                      receta_medica: recetaText,
+                      description: updatedDesc
+                    };
+                  });
+                }}
               />
             </div>
 
