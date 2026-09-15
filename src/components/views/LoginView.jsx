@@ -152,7 +152,7 @@ function LoginView({ onLoginSuccess }) {
             <ShieldCheck size={24} />
           </div>
           <span style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.3px' }}>
-            Taller Int
+            Sistema de Gestión de Reserva de Citas Odontológicas
           </span>
         </div>
 
@@ -180,7 +180,7 @@ function LoginView({ onLoginSuccess }) {
           </h1>
 
           <p style={{ fontSize: '1rem', color: 'var(--text-secondary)', lineHeight: '1.6', marginBottom: '32px' }}>
-            Plataforma médica optimizada para la administración eficiente de consultorios, sincronización bidireccional en tiempo real y atención al paciente.
+            Plataforma médica para la administración eficiente de consultorios, sincronización bidireccional en tiempo real y atención al paciente.
           </p>
 
           {/* Tarjetas de características clave */}

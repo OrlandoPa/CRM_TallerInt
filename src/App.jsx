@@ -177,14 +177,16 @@ function App() {
     }
   };
 
-  // Verify Google Token on mount, settings changes, or month changes
+  // Sincronizar datos automáticamente al montar, cambiar usuario, configuración o fecha de calendario
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchData();
-    }, 0);
-    return () => clearTimeout(timer);
+    if (user) {
+      const timer = setTimeout(() => {
+        fetchData();
+      }, 0);
+      return () => clearTimeout(timer);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings, currentDate]);
+  }, [user, settings, currentDate]);
 
   // Fetch Google User Email if authenticated
   useEffect(() => {
@@ -554,6 +556,7 @@ function App() {
       setGcalConnected(!!token);
       setGcalEmail(user.email);
       localStorage.setItem('gcal_user_email', user.email);
+      fetchData();
     }
   }, [user]);
 
