@@ -88,10 +88,56 @@ function LoginView({ onLoginSuccess }) {
     }
   }, [googleClientId]);
 
-  // Manejar Login vía Supabase OAuth si está configurado Supabase
+  // Manejar Login vía Google OAuth / Supabase OAuth
   const handleSupabaseGoogleLogin = () => {
     setLoading(true);
     setError('');
+
+    // Si Google Identity Services (OAuth2 Client) está disponible, solicitar token con acceso a Calendar
+    if (googleClientId && window.google?.accounts?.oauth2) {
+      try {
+        const client = window.google.accounts.oauth2.initTokenClient({
+          client_id: googleClientId,
+          scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.email',
+          callback: async (tokenResponse) => {
+            if (tokenResponse.access_token) {
+              localStorage.setItem('gcal_access_token', tokenResponse.access_token);
+              localStorage.setItem('gcal_token_expiry', (Date.now() + tokenResponse.expires_in * 1000).toString());
+              
+              try {
+                const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                  headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
+                });
+                if (res.ok) {
+                  const info = await res.json();
+                  const result = validateAndLoginUser({
+                    email: info.email,
+                    name: info.name,
+                    picture: info.picture
+                  });
+                  if (result.success) {
+                    if (onLoginSuccess) onLoginSuccess(result.user);
+                    return;
+                  } else {
+                    setError(result.error);
+                    setLoading(false);
+                    return;
+                  }
+                }
+              } catch (err) {
+                console.error('Error al obtener perfil:', err);
+              }
+            }
+            handleSimulatedGoogleLogin(allowedEmail);
+          }
+        });
+        client.requestAccessToken();
+        return;
+      } catch (err) {
+        console.warn('Error inicializando token de Google OAuth:', err);
+      }
+    }
+
     const isLocalOrTest = typeof window !== 'undefined' &&
       (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || !window.location.hostname);
 
