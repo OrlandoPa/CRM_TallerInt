@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { ShieldCheck, AlertCircle, Lock, Sparkles, CheckCircle2, UserCheck } from 'lucide-react';
+import { useState } from 'react';
+import { ShieldCheck, AlertCircle, Lock } from 'lucide-react';
 import { supabase } from '../../services/api';
 import { validateAndLoginUser, getAllowedEmail } from '../../services/authService';
 
@@ -9,91 +9,12 @@ function LoginView({ onLoginSuccess }) {
   const allowedEmail = getAllowedEmail();
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
-  // Procesar credencial de Google GIS token
-  const handleCredentialResponse = (response) => {
-    setLoading(true);
-    setError('');
-    try {
-      if (!response.credential) {
-        throw new Error('No se recibió la credencial de Google.');
-      }
-
-      // Decodificar JWT Token Payload de Google
-      const base64Url = response.credential.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(
-        atob(base64)
-          .split('')
-          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-          .join('')
-      );
-      const payload = JSON.parse(jsonPayload);
-
-      const result = validateAndLoginUser({
-        email: payload.email,
-        name: payload.name,
-        picture: payload.picture,
-        sub: payload.sub
-      });
-
-      if (result.success) {
-        if (onLoginSuccess) onLoginSuccess(result.user);
-      } else {
-        setError(result.error);
-      }
-    } catch (err) {
-      console.error('Error al procesar autenticación de Google:', err);
-      setError('Error al procesar el inicio de sesión con Google. Intente nuevamente.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Cargar SDK de Google Identity Services dinámicamente si no está presente
-  useEffect(() => {
-    if (!googleClientId) return;
-
-    const initializeGoogleGIS = () => {
-      if (window.google?.accounts?.id) {
-        window.google.accounts.id.initialize({
-          client_id: googleClientId,
-          callback: handleCredentialResponse,
-          auto_select: false
-        });
-
-        const btnElement = document.getElementById('google-signin-button');
-        if (btnElement) {
-          btnElement.innerHTML = '';
-          window.google.accounts.id.renderButton(btnElement, {
-            theme: 'outline',
-            size: 'large',
-            width: 320,
-            text: 'signin_with',
-            shape: 'pill',
-            logo_alignment: 'left'
-          });
-        }
-      }
-    };
-
-    if (window.google?.accounts?.id) {
-      initializeGoogleGIS();
-    } else {
-      const script = document.createElement('script');
-      script.src = 'https://accounts.google.com/gsi/client';
-      script.async = true;
-      script.defer = true;
-      script.onload = initializeGoogleGIS;
-      document.body.appendChild(script);
-    }
-  }, [googleClientId]);
-
-  // Manejar Login vía Google OAuth / Supabase OAuth
-  const handleSupabaseGoogleLogin = () => {
+  // Función única y unificada para iniciar sesión con Google
+  const handleGoogleLogin = () => {
     setLoading(true);
     setError('');
 
-    // Si Google Identity Services (OAuth2 Client) está disponible, solicitar token con acceso a Calendar
+    // 1. Si Google Identity Services Client está cargado en el navegador, solicitar token con acceso a Calendar
     if (googleClientId && window.google?.accounts?.oauth2) {
       try {
         const client = window.google.accounts.oauth2.initTokenClient({
@@ -103,7 +24,7 @@ function LoginView({ onLoginSuccess }) {
             if (tokenResponse.access_token) {
               localStorage.setItem('gcal_access_token', tokenResponse.access_token);
               localStorage.setItem('gcal_token_expiry', (Date.now() + tokenResponse.expires_in * 1000).toString());
-              
+
               try {
                 const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
                   headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
@@ -128,7 +49,7 @@ function LoginView({ onLoginSuccess }) {
                 console.error('Error al obtener perfil:', err);
               }
             }
-            handleSimulatedGoogleLogin(allowedEmail);
+            handleSimulatedLogin(allowedEmail);
           }
         });
         client.requestAccessToken();
@@ -138,6 +59,7 @@ function LoginView({ onLoginSuccess }) {
       }
     }
 
+    // 2. Si Supabase Auth OAuth está disponible y no es entorno de pruebas unitarias
     const isUnitTest = import.meta.env.MODE === 'test' || (typeof window !== 'undefined' && !window.navigator?.userAgent);
 
     if (supabase && supabase.auth && !isUnitTest) {
@@ -149,15 +71,15 @@ function LoginView({ onLoginSuccess }) {
         }
       }).catch((err) => {
         console.warn('Fallback a simulación de inicio de sesión:', err);
-        handleSimulatedGoogleLogin(allowedEmail);
+        handleSimulatedLogin(allowedEmail);
       });
     } else {
-      handleSimulatedGoogleLogin(allowedEmail);
+      handleSimulatedLogin(allowedEmail);
     }
   };
 
-  // Función de simulación para entornos sin credenciales OAuth o pruebas unitarias
-  const handleSimulatedGoogleLogin = (emailToUse) => {
+  // Función de respaldo para pruebas unitarias / desarrollo offline
+  const handleSimulatedLogin = (emailToUse) => {
     setLoading(true);
     setError('');
     const targetEmail = emailToUse || allowedEmail;
@@ -253,21 +175,10 @@ function LoginView({ onLoginSuccess }) {
           </div>
         )}
 
-        {/* Botón de Google GIS Nativo */}
-        <div
-          id="google-signin-button"
-          style={{
-            display: 'flex',
-            justifyContent: 'center',
-            minHeight: '44px',
-            marginBottom: '16px'
-          }}
-        ></div>
-
-        {/* Botón de Acción Google Sign In Directo / Fallback */}
+        {/* Único Botón de Acción Google Sign In */}
         <button
           data-testid="btn-google-login"
-          onClick={handleSupabaseGoogleLogin}
+          onClick={handleGoogleLogin}
           disabled={loading}
           className="btn"
           style={{
@@ -293,7 +204,6 @@ function LoginView({ onLoginSuccess }) {
             <span>Verificando cuenta...</span>
           ) : (
             <>
-              {/* Google SVG Logo */}
               <svg width="20" height="20" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
                 <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
@@ -305,9 +215,9 @@ function LoginView({ onLoginSuccess }) {
           )}
         </button>
 
-        {/* Sección de Simulación en Modo Pruebas/Desarrollo */}
+        {/* Aviso de Acceso Restringido */}
         <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid var(--glass-border)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
             <Lock size={13} />
             <span>Acceso restringido únicamente al correo autorizado</span>
           </div>
