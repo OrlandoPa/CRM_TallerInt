@@ -18,7 +18,7 @@ describe('UT-FRONT-LOGIN: Módulo de Autenticación y Login monousuario', () => 
   });
 
   describe('authService Unit Tests', () => {
-    it('Debe identificar correctamente el correo autorizado (automatizadon8n@gmail.com)', () => {
+    it('Debe identificar correctamente el correo autorizado', () => {
       const allowed = authService.getAllowedEmail();
       expect(allowed).toBe('automatizadon8n@gmail.com');
       expect(authService.isEmailAuthorized('automatizadon8n@gmail.com')).toBe(true);
@@ -61,7 +61,7 @@ describe('UT-FRONT-LOGIN: Módulo de Autenticación y Login monousuario', () => 
 
   describe('LoginView Component Unit Tests', () => {
     it('Debe renderizar la vista de Login con el aviso de cuenta autorizada', () => {
-      render(<LoginView onLoginSuccess={() => {}} />);
+      render(<LoginView onLoginSuccess={() => { }} />);
 
       expect(screen.getByTestId('login-view')).toBeTruthy();
       expect(screen.getByText(/Taller CRM Int/i)).toBeTruthy();

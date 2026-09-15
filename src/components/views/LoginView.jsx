@@ -17,7 +17,7 @@ function LoginView({ onLoginSuccess }) {
       if (!response.credential) {
         throw new Error('No se recibió la credencial de Google.');
       }
-      
+
       // Decodificar JWT Token Payload de Google
       const base64Url = response.credential.split('.')[1];
       const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
@@ -92,7 +92,7 @@ function LoginView({ onLoginSuccess }) {
   const handleSupabaseGoogleLogin = () => {
     setLoading(true);
     setError('');
-    const isLocalOrTest = typeof window !== 'undefined' && 
+    const isLocalOrTest = typeof window !== 'undefined' &&
       (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || !window.location.hostname);
 
     if (supabase && supabase.auth && !isLocalOrTest) {
@@ -130,7 +130,7 @@ function LoginView({ onLoginSuccess }) {
   };
 
   return (
-    <div 
+    <div
       className="login-container"
       data-testid="login-view"
       style={{
@@ -142,7 +142,7 @@ function LoginView({ onLoginSuccess }) {
         padding: '24px'
       }}
     >
-      <div 
+      <div
         className="login-card"
         style={{
           width: '100%',
@@ -176,15 +176,15 @@ function LoginView({ onLoginSuccess }) {
         </div>
 
         <h1 style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '8px', letterSpacing: '-0.5px' }}>
-          Taller CRM Int
+          Gestión de Citas Odontologicas
         </h1>
         <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '28px', lineHeight: '1.5' }}>
-          Sistema de Gestión Integrado. Inicie sesión con la cuenta de Google autorizada para continuar.
+          Sistema de Gestión. Inicie sesión con la cuenta de Google autorizada para continuar.
         </p>
 
         {/* Notificación de Error */}
         {error && (
-          <div 
+          <div
             data-testid="login-error-alert"
             style={{
               background: 'rgba(248, 113, 113, 0.12)',
@@ -208,13 +208,13 @@ function LoginView({ onLoginSuccess }) {
         )}
 
         {/* Botón de Google GIS Nativo */}
-        <div 
-          id="google-signin-button" 
-          style={{ 
-            display: 'flex', 
-            justifyContent: 'center', 
+        <div
+          id="google-signin-button"
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
             minHeight: '44px',
-            marginBottom: '16px' 
+            marginBottom: '16px'
           }}
         ></div>
 
@@ -249,10 +249,10 @@ function LoginView({ onLoginSuccess }) {
             <>
               {/* Google SVG Logo */}
               <svg width="20" height="20" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
               </svg>
               Continuar con Google
             </>
@@ -263,25 +263,7 @@ function LoginView({ onLoginSuccess }) {
         <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid var(--glass-border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '12px' }}>
             <Lock size={13} />
-            <span>Acceso restringido únicamente al correo autorizado:</span>
-          </div>
-
-          <div style={{
-            background: 'var(--bg-tertiary)',
-            border: '1px dashed var(--border-color)',
-            borderRadius: '10px',
-            padding: '10px 14px',
-            fontSize: '0.82rem',
-            color: 'var(--primary)',
-            fontWeight: 600,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
-            wordBreak: 'break-all'
-          }}>
-            <UserCheck size={15} />
-            <span data-testid="allowed-email-display">{allowedEmail}</span>
+            <span>Acceso restringido únicamente al correo autorizado</span>
           </div>
 
           {/* Botón rápido para pruebas manuales con cuenta no autorizada */}
