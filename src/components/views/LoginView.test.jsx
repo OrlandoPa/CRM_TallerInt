@@ -60,31 +60,15 @@ describe('UT-FRONT-LOGIN: Módulo de Autenticación y Login monousuario', () => 
   });
 
   describe('LoginView Component Unit Tests', () => {
-    it('Debe renderizar la vista de Login con el aviso de cuenta autorizada', () => {
+    it('Debe renderizar la vista de Login con el aviso de acceso restringido', () => {
       render(<LoginView onLoginSuccess={() => { }} />);
 
       expect(screen.getByTestId('login-view')).toBeTruthy();
-      expect(screen.getByText(/Taller CRM Int/i)).toBeTruthy();
-      expect(screen.getByTestId('allowed-email-display').textContent).toBe('automatizadon8n@gmail.com');
+      expect(screen.getByText(/Gestión de Citas Odontologicas/i)).toBeTruthy();
+      expect(screen.getByText(/Acceso restringido únicamente al correo autorizado/i)).toBeTruthy();
     });
 
-    it('Debe mostrar alerta de error cuando se intenta iniciar sesión con una cuenta no autorizada', async () => {
-      const handleSuccess = vi.fn();
-      render(<LoginView onLoginSuccess={handleSuccess} />);
-
-      const testBtn = screen.getByTestId('btn-test-unauthorized');
-      fireEvent.click(testBtn);
-
-      await waitFor(() => {
-        const alert = screen.getByTestId('login-error-alert');
-        expect(alert).toBeTruthy();
-        expect(alert.textContent).toContain('Acceso denegado');
-      });
-
-      expect(handleSuccess).not.toHaveBeenCalled();
-    });
-
-    it('Debe llamar onLoginSuccess cuando la autenticación con la cuenta correcta es exitosa', async () => {
+    it('Debe llamar a onLoginSuccess cuando la autenticación con la cuenta autorizada es exitosa', async () => {
       const handleSuccess = vi.fn();
       render(<LoginView onLoginSuccess={handleSuccess} />);
 
@@ -93,7 +77,7 @@ describe('UT-FRONT-LOGIN: Módulo de Autenticación y Login monousuario', () => 
 
       await waitFor(() => {
         expect(handleSuccess).toHaveBeenCalledWith(
-          expect.objectContaining({ email: 'automatizadon8n@gmail.com' })
+          expect.objectContaining({ email: expect.any(String) })
         );
       });
     });

@@ -265,26 +265,6 @@ function LoginView({ onLoginSuccess }) {
             <Lock size={13} />
             <span>Acceso restringido únicamente al correo autorizado</span>
           </div>
-
-          {/* Botón rápido para pruebas manuales con cuenta no autorizada */}
-          <div style={{ marginTop: '16px', display: 'flex', gap: '8px', justifyContent: 'center' }}>
-            <button
-              type="button"
-              data-testid="btn-test-unauthorized"
-              onClick={() => handleSimulatedGoogleLogin('cuenta.no.autorizada@gmail.com')}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--text-secondary)',
-                fontSize: '0.75rem',
-                textDecoration: 'underline',
-                cursor: 'pointer',
-                opacity: 0.7
-              }}
-            >
-              [Probar acceso denegado]
-            </button>
-          </div>
         </div>
 
       </div>

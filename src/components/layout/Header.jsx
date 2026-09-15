@@ -1,6 +1,6 @@
-import { LogIn, LogOut, RefreshCw, User } from 'lucide-react';
+import { LogOut, RefreshCw, User } from 'lucide-react';
 
-function Header({ activeTab, gcalConnected, handleGoogleLogin, handleGoogleLogout, handleRefresh, supabaseOnline, user, onLogout }) {
+function Header({ activeTab, handleRefresh, supabaseOnline, user, onLogout }) {
   const getPageTitle = (tab) => {
     switch (tab) {
       case 'chats':
@@ -24,47 +24,6 @@ function Header({ activeTab, gcalConnected, handleGoogleLogin, handleGoogleLogou
         </h1>
       </div>
       <div className="top-bar-actions">
-        {/* Google Calendar OAuth Login status in header */}
-        {gcalConnected ? (
-          <button 
-            data-testid="btn-gcal-logout"
-            onClick={handleGoogleLogout} 
-            className="btn" 
-            style={{
-              background: 'rgba(var(--success-rgb), 0.1)', 
-              color: 'var(--success)', 
-              border: '1px solid rgba(var(--success-rgb), 0.2)', 
-              fontSize: '0.8rem', 
-              padding: '6px 12px', 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '6px'
-            }}
-          >
-            <span className="pulse-dot" style={{background: 'var(--success)', boxShadow: '0 0 6px var(--success)'}}></span>
-            GCal Conectado (Salir)
-          </button>
-        ) : (
-          <button 
-            data-testid="btn-gcal-login"
-            onClick={handleGoogleLogin} 
-            className="btn" 
-            style={{
-              background: 'rgba(var(--warning-rgb), 0.1)', 
-              color: 'var(--warning)', 
-              border: '1px solid rgba(var(--warning-rgb), 0.2)', 
-              fontSize: '0.8rem', 
-              padding: '6px 12px', 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '6px'
-            }}
-          >
-            <LogIn size={14} />
-            Conectar Google Calendar
-          </button>
-        )}
-
         <button data-testid="btn-sync" onClick={handleRefresh} className="btn-icon" title="Sincronizar Datos">
           <RefreshCw size={18} />
         </button>

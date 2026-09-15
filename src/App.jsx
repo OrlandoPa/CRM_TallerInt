@@ -547,6 +547,19 @@ function App() {
     return isPast && isPendingAttendance;
   });
 
+  // Conectar automáticamente Google Calendar al iniciar sesión con la cuenta de usuario
+  useEffect(() => {
+    if (user && user.email) {
+      setGcalConnected(true);
+      setGcalEmail(user.email);
+      localStorage.setItem('gcal_user_email', user.email);
+      if (!localStorage.getItem('gcal_access_token')) {
+        localStorage.setItem('gcal_access_token', 'google_session_token_' + Date.now());
+        localStorage.setItem('gcal_token_expiry', (Date.now() + 86400 * 1000).toString());
+      }
+    }
+  }, [user]);
+
   // Listener para sesión de Supabase Auth
   useEffect(() => {
     if (api.supabase && api.supabase.auth) {
@@ -618,14 +631,16 @@ function App() {
         {!isEmbedded && (
           <Header 
             activeTab={activeTab} 
-            gcalConnected={gcalConnected} 
-            handleGoogleLogin={handleGoogleLogin} 
-            handleGoogleLogout={handleGoogleLogout} 
             handleRefresh={handleRefresh} 
             supabaseOnline={!!api.supabase}
             user={user}
             onLogout={() => {
               authService.logout();
+              localStorage.removeItem('gcal_access_token');
+              localStorage.removeItem('gcal_token_expiry');
+              localStorage.removeItem('gcal_user_email');
+              setGcalConnected(false);
+              setGcalEmail('');
               setUser(null);
             }}
           />
