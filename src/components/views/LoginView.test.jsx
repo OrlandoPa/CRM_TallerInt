@@ -1,0 +1,101 @@
+// @vitest-environment jsdom
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import React from 'react';
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import LoginView from './LoginView';
+import * as authService from '../../services/authService';
+
+describe('UT-FRONT-LOGIN: Módulo de Autenticación y Login monousuario', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    document.body.innerHTML = '';
+    vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
+    document.body.innerHTML = '';
+  });
+
+  describe('authService Unit Tests', () => {
+    it('Debe identificar correctamente el correo autorizado (automatizadon8n@gmail.com)', () => {
+      const allowed = authService.getAllowedEmail();
+      expect(allowed).toBe('automatizadon8n@gmail.com');
+      expect(authService.isEmailAuthorized('automatizadon8n@gmail.com')).toBe(true);
+      expect(authService.isEmailAuthorized('AUTOMATIZADON8N@GMAIL.COM')).toBe(true);
+    });
+
+    it('Debe rechazar correos no autorizados', () => {
+      expect(authService.isEmailAuthorized('otro.usuario@gmail.com')).toBe(false);
+      expect(authService.isEmailAuthorized('hack@domain.com')).toBe(false);
+      expect(authService.isEmailAuthorized('')).toBe(false);
+      expect(authService.isEmailAuthorized(null)).toBe(false);
+    });
+
+    it('validateAndLoginUser debe permitir ingreso únicamente si el correo coincide', () => {
+      // Intento no autorizado
+      const invalidRes = authService.validateAndLoginUser({ email: 'desconocido@gmail.com' });
+      expect(invalidRes.success).toBe(false);
+      expect(invalidRes.error).toContain('Acceso denegado');
+      expect(authService.getCurrentUser()).toBeNull();
+
+      // Intento autorizado
+      const validRes = authService.validateAndLoginUser({
+        email: 'automatizadon8n@gmail.com',
+        name: 'Administrador Taller',
+        picture: 'https://example.com/pic.jpg'
+      });
+      expect(validRes.success).toBe(true);
+      expect(validRes.user.email).toBe('automatizadon8n@gmail.com');
+      expect(authService.getCurrentUser().email).toBe('automatizadon8n@gmail.com');
+    });
+
+    it('logout debe eliminar la sesión activa de localStorage', () => {
+      authService.validateAndLoginUser({ email: 'automatizadon8n@gmail.com' });
+      expect(authService.getCurrentUser()).not.toBeNull();
+
+      authService.logout();
+      expect(authService.getCurrentUser()).toBeNull();
+    });
+  });
+
+  describe('LoginView Component Unit Tests', () => {
+    it('Debe renderizar la vista de Login con el aviso de cuenta autorizada', () => {
+      render(<LoginView onLoginSuccess={() => {}} />);
+
+      expect(screen.getByTestId('login-view')).toBeTruthy();
+      expect(screen.getByText(/Taller CRM Int/i)).toBeTruthy();
+      expect(screen.getByTestId('allowed-email-display').textContent).toBe('automatizadon8n@gmail.com');
+    });
+
+    it('Debe mostrar alerta de error cuando se intenta iniciar sesión con una cuenta no autorizada', async () => {
+      const handleSuccess = vi.fn();
+      render(<LoginView onLoginSuccess={handleSuccess} />);
+
+      const testBtn = screen.getByTestId('btn-test-unauthorized');
+      fireEvent.click(testBtn);
+
+      await waitFor(() => {
+        const alert = screen.getByTestId('login-error-alert');
+        expect(alert).toBeTruthy();
+        expect(alert.textContent).toContain('Acceso denegado');
+      });
+
+      expect(handleSuccess).not.toHaveBeenCalled();
+    });
+
+    it('Debe llamar onLoginSuccess cuando la autenticación con la cuenta correcta es exitosa', async () => {
+      const handleSuccess = vi.fn();
+      render(<LoginView onLoginSuccess={handleSuccess} />);
+
+      const googleBtn = screen.getByTestId('btn-google-login');
+      fireEvent.click(googleBtn);
+
+      await waitFor(() => {
+        expect(handleSuccess).toHaveBeenCalledWith(
+          expect.objectContaining({ email: 'automatizadon8n@gmail.com' })
+        );
+      });
+    });
+  });
+});

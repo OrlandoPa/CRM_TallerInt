@@ -26,6 +26,10 @@ import { isValidWorkingHours, calculateEndTime } from './utils/dateHelpers';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 
+// Auth & Views
+import LoginView from './components/views/LoginView';
+import * as authService from './services/authService';
+
 // Tab views
 import DashboardView from './components/views/DashboardView';
 import AgendaView from './components/views/AgendaView';
@@ -58,6 +62,7 @@ const getInitialParams = () => {
 const initialParams = getInitialParams();
 
 function App() {
+  const [user, setUser] = useState(() => authService.getCurrentUser());
   const [activeTab, setActiveTab] = useState(initialParams.activeTab);
   const [theme, setTheme] = useState('dark');
   const [isFabOpen, setIsFabOpen] = useState(false);
@@ -542,6 +547,36 @@ function App() {
     return isPast && isPendingAttendance;
   });
 
+  // Listener para sesión de Supabase Auth
+  useEffect(() => {
+    if (api.supabase && api.supabase.auth) {
+      const { data: authListener } = api.supabase.auth.onAuthStateChange((event, session) => {
+        if (session && session.user && session.user.email) {
+          const result = authService.validateAndLoginUser({
+            email: session.user.email,
+            name: session.user.user_metadata?.full_name || session.user.email.split('@')[0],
+            picture: session.user.user_metadata?.avatar_url
+          });
+          if (result.success) {
+            setUser(result.user);
+          } else {
+            setErrorMsg(result.error);
+            setUser(null);
+          }
+        }
+      });
+
+      return () => {
+        authListener?.subscription?.unsubscribe();
+      };
+    }
+  }, []);
+
+  // Si no hay sesión de usuario activa, mostrar Auth Gate (LoginView)
+  if (!user) {
+    return <LoginView onLoginSuccess={(loggedInUser) => setUser(loggedInUser)} />;
+  }
+
   return (
     <div className={`app-container ${isEmbedded ? 'embedded-mode' : ''}`}>
       {/* Toast Notifications */}
@@ -588,6 +623,11 @@ function App() {
             handleGoogleLogout={handleGoogleLogout} 
             handleRefresh={handleRefresh} 
             supabaseOnline={!!api.supabase}
+            user={user}
+            onLogout={() => {
+              authService.logout();
+              setUser(null);
+            }}
           />
         )}
 
