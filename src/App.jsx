@@ -374,11 +374,13 @@ function App() {
 
   const handleSavePrescription = async (cita, recetaText) => {
     try {
-      const eventIdOrId = cita.google_event_id || cita.id;
-      await api.updateAppointmentPrescription(eventIdOrId, recetaText);
+      await api.updateAppointmentPrescription(cita, recetaText);
       
+      const gId = cita.google_event_id;
+      const dbId = cita.id;
+
       setCitasDb(prev => prev.map(c => {
-        if (c.google_event_id === eventIdOrId || c.id === eventIdOrId) {
+        if ((gId && c.google_event_id === gId) || (dbId && c.id === dbId)) {
           return { ...c, tratamiento_receta: recetaText };
         }
         return c;

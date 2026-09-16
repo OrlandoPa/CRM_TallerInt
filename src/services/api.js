@@ -448,16 +448,51 @@ export const updateAppointmentStatus = async (googleEventId, status) => {
   return { google_event_id: googleEventId, estado_cita: status };
 };
 
-export const updateAppointmentPrescription = async (eventIdOrId, tratamientoReceta) => {
+export const updateAppointmentPrescription = async (citaObjOrId, tratamientoReceta) => {
   if (supabase) {
     try {
-      let query = supabase.from('citas').update({ tratamiento_receta: tratamientoReceta || null });
-      if (typeof eventIdOrId === 'number') {
-        query = query.eq('id', eventIdOrId);
-      } else {
-        query = query.or(`google_event_id.eq.${eventIdOrId},id.eq.${eventIdOrId}`);
+      const payload = { tratamiento_receta: tratamientoReceta || null };
+      let data = null;
+      let error = null;
+
+      let dbId = null;
+      let gcalId = null;
+
+      if (typeof citaObjOrId === 'object' && citaObjOrId !== null) {
+        dbId = citaObjOrId.id && /^\d+$/.test(String(citaObjOrId.id)) ? parseInt(citaObjOrId.id, 10) : null;
+        gcalId = citaObjOrId.google_event_id || null;
+      } else if (typeof citaObjOrId === 'number') {
+        dbId = citaObjOrId;
+      } else if (typeof citaObjOrId === 'string') {
+        if (/^\d+$/.test(citaObjOrId.trim())) {
+          dbId = parseInt(citaObjOrId.trim(), 10);
+        } else {
+          gcalId = citaObjOrId.trim();
+        }
       }
-      const { data, error } = await query.select();
+
+      // Try updating by numeric DB id first if available
+      if (dbId) {
+        const res = await supabase
+          .from('citas')
+          .update(payload)
+          .eq('id', dbId)
+          .select();
+        data = res.data;
+        error = res.error;
+      }
+
+      // If no numeric id update occurred or zero rows updated, try updating by google_event_id
+      if ((!data || data.length === 0) && gcalId) {
+        const res = await supabase
+          .from('citas')
+          .update(payload)
+          .eq('google_event_id', gcalId)
+          .select();
+        data = res.data;
+        error = res.error;
+      }
+
       if (error) throw error;
       return data?.[0];
     } catch (err) {
@@ -465,7 +500,7 @@ export const updateAppointmentPrescription = async (eventIdOrId, tratamientoRece
       throw err;
     }
   }
-  return { google_event_id: eventIdOrId, tratamiento_receta: tratamientoReceta };
+  return { google_event_id: typeof citaObjOrId === 'string' ? citaObjOrId : citaObjOrId?.google_event_id, tratamiento_receta: tratamientoReceta };
 };
 
 export const rescheduleAppointment = async (eventId, start, end) => {
