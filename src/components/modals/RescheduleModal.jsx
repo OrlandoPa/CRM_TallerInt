@@ -14,7 +14,7 @@ function RescheduleModal({
   const isHoliday = rescheduleEvent.start ? isPeruHoliday(new Date(rescheduleEvent.start)) : false;
 
   return (
-    <div className="modal-overlay" style={{ zIndex: 120 }} data-testid="modal-reschedule">
+    <div className="modal-overlay" style={{ zIndex: 160 }} data-testid="modal-reschedule">
       <div className="modal-content animate-slide-up" style={{ maxWidth: '450px', width: '90%' }}>
         <header className="modal-header">
           <span className="modal-title">Reprogramar Cita</span>

@@ -35,7 +35,7 @@ function AppointmentModal({
   };
 
   return (
-    <div className="modal-overlay" style={{ zIndex: 110 }} data-testid="modal-appointment">
+    <div className="modal-overlay" style={{ zIndex: 150 }} data-testid="modal-appointment">
       <div className="modal-content animate-slide-up">
         <header className="modal-header">
           <span className="modal-title">Agendar Cita en Google Calendar</span>

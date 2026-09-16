@@ -2,7 +2,7 @@ function LeadModal({ isOpen, onClose, lead, onChange, onSubmit }) {
   if (!isOpen || !lead) return null;
 
   return (
-    <div className="modal-overlay">
+    <div className="modal-overlay" style={{ zIndex: 130 }}>
       <div className="modal-content animate-slide-up">
         <header className="modal-header">
           <span className="modal-title">Detalles del Lead CRM</span>

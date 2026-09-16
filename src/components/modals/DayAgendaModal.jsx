@@ -121,7 +121,7 @@ function DayAgendaModal({
   const unmatched = getUnmatchedEvents(selectedDay);
 
   return (
-    <div className="modal-overlay">
+    <div className="modal-overlay" style={{ zIndex: 125 }}>
       <div className="modal-content animate-slide-up" style={{maxWidth: '650px', width: '90%'}}>
         <header className="modal-header">
           <div style={{display:'flex', alignItems:'center', gap:'8px'}}>

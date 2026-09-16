@@ -10,7 +10,7 @@ function DatePickerModal({
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay" style={{ zIndex: 130 }}>
+    <div className="modal-overlay" style={{ zIndex: 120 }}>
       <div className="modal-content animate-slide-up" style={{ maxWidth: '400px', width: '90%' }}>
         <header className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
