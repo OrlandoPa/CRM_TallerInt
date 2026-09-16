@@ -352,7 +352,8 @@ function App() {
         new Date(newEvent.end).toISOString(),
         desc,
         phone,
-        sendEmailReminder ? newEvent.email : ''
+        sendEmailReminder ? newEvent.email : '',
+        newEvent.tratamiento_receta || newEvent.receta_medica || ''
       );
       
       if (newEvent.phone_number) {
@@ -364,10 +365,31 @@ function App() {
 
       fetchData();
       closeAppointmentModal();
-      showToast('Cita agendada directamente en Google Calendar');
+      setSuccessMsg('Cita agendada correctamente.');
     } catch (err) {
       console.error(err);
-      showToast('Error al agendar cita en Google Calendar', false);
+      setErrorMsg(err.message || 'Error al agendar la cita en Google Calendar.');
+    }
+  };
+
+  const handleSavePrescription = async (cita, recetaText) => {
+    try {
+      const eventIdOrId = cita.google_event_id || cita.id;
+      await api.updateAppointmentPrescription(eventIdOrId, recetaText);
+      
+      setCitasDb(prev => prev.map(c => {
+        if (c.google_event_id === eventIdOrId || c.id === eventIdOrId) {
+          return { ...c, tratamiento_receta: recetaText };
+        }
+        return c;
+      }));
+
+      setSelectedAppointmentDetails(prev => prev ? { ...prev, tratamiento_receta: recetaText } : prev);
+      setSuccessMsg('Tratamiento / Receta médica guardada en la Base de Datos.');
+    } catch (err) {
+      console.error(err);
+      setErrorMsg('Error al guardar el tratamiento / receta en la Base de Datos.');
+      throw err;
     }
   };
 
@@ -847,6 +869,7 @@ function App() {
         pacientes={pacientes}
         citasDb={citasDb}
         hasRequiredGCalGmail={hasRequiredGCalGmail}
+        onSavePrescription={handleSavePrescription}
         onDelete={(eventId) => {
           handleDeleteAppointment(eventId);
           setIsDetailModalOpen(false);

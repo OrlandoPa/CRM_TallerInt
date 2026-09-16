@@ -87,3 +87,36 @@ describe('UT-FRONT-06: Renderizado de identificador_paciente en DetailModal', ()
     expect(contactElement).toBeTruthy();
   });
 });
+
+describe('UT-FRONT-07: Visualización y Edición de tratamiento_receta en DetailModal', () => {
+  it('Debería cargar y permitir guardar el tratamiento_receta de la cita en Supabase DB', () => {
+    const mockAppointmentDetails = {
+      id: 106,
+      identificador_paciente: '+51 987 654 321',
+      fecha_hora_cita: new Date().toISOString(),
+      motivo_consulta: 'Ortodoncia',
+      estado_cita: 'AGENDADA',
+      tratamiento_receta: 'Amoxicilina 500mg c/8h por 7 días',
+      pacientes: { nombre_paciente: 'Carlos Prado' }
+    };
+
+    render(
+      <DetailModal
+        isOpen={true}
+        onClose={() => {}}
+        selectedAppointmentDetails={mockAppointmentDetails}
+        onDelete={() => {}}
+        onReschedule={() => {}}
+        onSavePrescription={() => Promise.resolve()}
+        hasRequiredGCalGmail={true}
+      />
+    );
+
+    const textareas = screen.getAllByTestId('textarea-tratamiento-receta');
+    const textarea = textareas[textareas.length - 1];
+    expect(textarea.value).toBe('Amoxicilina 500mg c/8h por 7 días');
+
+    const saveBtns = screen.getAllByTestId('btn-save-prescription');
+    expect(saveBtns[saveBtns.length - 1]).toBeTruthy();
+  });
+});

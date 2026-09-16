@@ -262,12 +262,12 @@ function AppointmentModal({
             </div>
 
             <div className="form-group">
-              <label>Receta Médica / Indicaciones del Tratamiento (Opcional)</label>
+              <label>Tratamiento / Receta Médica (Opcional)</label>
               <textarea 
                 className="form-control"
                 rows={3}
                 placeholder="Ej. Amoxicilina 500mg c/8h por 7 días, Paracetamol 500mg si hay dolor. Reposo 24 horas."
-                value={newEvent.receta_medica || ''}
+                value={newEvent.tratamiento_receta || newEvent.receta_medica || ''}
                 onChange={(e) => {
                   const recetaText = e.target.value;
                   setNewEvent(prev => {
@@ -277,6 +277,7 @@ function AppointmentModal({
                       : cleanDesc;
                     return {
                       ...prev,
+                      tratamiento_receta: recetaText,
                       receta_medica: recetaText,
                       description: updatedDesc
                     };

@@ -217,7 +217,7 @@ export const getAppointments = async (timeMin, timeMax) => {
   return mockState.appointments;
 };
 
-export const createAppointment = async (summary, start, end, description = '', phone = '', email = '') => {
+export const createAppointment = async (summary, start, end, description = '', phone = '', email = '', tratamiento_receta = '') => {
   const token = getGCalToken();
   const calendarId = getCalendarId();
   let gcalEventId = null;
@@ -296,7 +296,8 @@ export const createAppointment = async (summary, start, end, description = '', p
           estado_cita: 'AGENDADA',
           google_event_id: gcalEventId,
           detalles_notas_cita: description || null,
-          correo_electronico: email || null
+          correo_electronico: email || null,
+          tratamiento_receta: tratamiento_receta || null
         });
         
       if (error) throw error;
@@ -445,6 +446,26 @@ export const updateAppointmentStatus = async (googleEventId, status) => {
     app.id === googleEventId ? { ...app, status: status.toLowerCase() } : app
   );
   return { google_event_id: googleEventId, estado_cita: status };
+};
+
+export const updateAppointmentPrescription = async (eventIdOrId, tratamientoReceta) => {
+  if (supabase) {
+    try {
+      let query = supabase.from('citas').update({ tratamiento_receta: tratamientoReceta || null });
+      if (typeof eventIdOrId === 'number') {
+        query = query.eq('id', eventIdOrId);
+      } else {
+        query = query.or(`google_event_id.eq.${eventIdOrId},id.eq.${eventIdOrId}`);
+      }
+      const { data, error } = await query.select();
+      if (error) throw error;
+      return data?.[0];
+    } catch (err) {
+      console.error('Error updating tratamiento_receta in Supabase:', err);
+      throw err;
+    }
+  }
+  return { google_event_id: eventIdOrId, tratamiento_receta: tratamientoReceta };
 };
 
 export const rescheduleAppointment = async (eventId, start, end) => {

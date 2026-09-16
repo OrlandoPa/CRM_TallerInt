@@ -1,4 +1,5 @@
-import { Phone, Clock, Trash, RefreshCw } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Phone, Clock, Trash, RefreshCw, FileText } from 'lucide-react';
 import { getLimaDate } from '../../utils/dateHelpers';
 import { resolveContactIdentifier } from '../../utils/contactHelpers';
 
@@ -8,11 +9,23 @@ function DetailModal({
   selectedAppointmentDetails, 
   onDelete, 
   onReschedule,
+  onSavePrescription,
   hasRequiredGCalGmail,
   leads = [],
   pacientes = [],
   citasDb = []
 }) {
+  const [prescriptionText, setPrescriptionText] = useState('');
+  const [isSavingPrescription, setIsSavingPrescription] = useState(false);
+  const [prescriptionSaved, setPrescriptionSaved] = useState(false);
+
+  useEffect(() => {
+    if (selectedAppointmentDetails) {
+      setPrescriptionText(selectedAppointmentDetails.tratamiento_receta || selectedAppointmentDetails.receta_medica || '');
+      setPrescriptionSaved(false);
+    }
+  }, [selectedAppointmentDetails]);
+
   if (!isOpen || !selectedAppointmentDetails) return null;
 
   const isCompleted = ['ASISTIO', 'COMPLETADA'].includes(selectedAppointmentDetails.estado_cita);
@@ -107,7 +120,7 @@ function DetailModal({
             </div>
 
             <div className="form-group">
-              <label>Notas de la Cita y Tratamiento</label>
+              <label>Notas de la Cita</label>
               <div style={{ 
                 background: 'var(--bg-tertiary)', 
                 padding: '12px', 
@@ -119,6 +132,50 @@ function DetailModal({
                 whiteSpace: 'pre-line'
               }}>
                 {selectedAppointmentDetails.detalles_notas_cita || selectedAppointmentDetails.description || 'Sin notas adicionales'}
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <FileText size={14} style={{ color: 'var(--primary)' }} /> Tratamiento / Receta Médica (Opcional)
+                </span>
+                {prescriptionSaved && <span style={{ color: 'var(--success)', fontSize: '0.75rem', fontWeight: 600 }}>✓ Guardado en BD</span>}
+              </label>
+              <textarea 
+                data-testid="textarea-tratamiento-receta"
+                className="form-control"
+                rows={3}
+                placeholder="Ej. Amoxicilina 500mg c/8h por 7 días. Indicaciones o receta médica..."
+                value={prescriptionText}
+                onChange={(e) => {
+                  setPrescriptionText(e.target.value);
+                  setPrescriptionSaved(false);
+                }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
+                <button 
+                  type="button" 
+                  data-testid="btn-save-prescription"
+                  className="btn btn-secondary" 
+                  style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+                  disabled={isSavingPrescription}
+                  onClick={async () => {
+                    setIsSavingPrescription(true);
+                    try {
+                      if (onSavePrescription) {
+                        await onSavePrescription(selectedAppointmentDetails, prescriptionText);
+                      }
+                      setPrescriptionSaved(true);
+                    } catch (err) {
+                      console.error(err);
+                    } finally {
+                      setIsSavingPrescription(false);
+                    }
+                  }}
+                >
+                  {isSavingPrescription ? 'Guardando...' : 'Guardar Receta / Tratamiento'}
+                </button>
               </div>
             </div>
 
