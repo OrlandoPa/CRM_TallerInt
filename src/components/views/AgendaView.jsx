@@ -1,5 +1,6 @@
 import { ChevronLeft, ChevronRight, Trash } from 'lucide-react';
 import { getLimaDate } from '../../utils/dateHelpers';
+import { resolveContactIdentifier } from '../../utils/contactHelpers';
 
 function AgendaView({ 
   selectedAgendaDate, 
@@ -200,7 +201,7 @@ function AgendaView({
                     </span>
                     {dbCitaResolved ? (
                       <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {dbCitaResolved.identificador_paciente || dbCitaResolved.telefono_paciente || dbCitaResolved.pacientes?.identificador_paciente || dbCitaResolved.pacientes?.telefono_whatsapp || dbCitaResolved.pacientes?.telefono_paciente || 'Sin teléfono/ID'} | {dbCitaResolved.detalles_notas_cita || 'Sin notas'}
+                        {resolveContactIdentifier(dbCitaResolved, [], [], citasDb) || 'Sin teléfono/ID'} | {dbCitaResolved.detalles_notas_cita || 'Sin notas'}
                       </span>
                     ) : activeEvent.description && (
                       <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

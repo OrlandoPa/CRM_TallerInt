@@ -1,5 +1,6 @@
 import { Phone, Clock, Trash, RefreshCw } from 'lucide-react';
 import { getLimaDate } from '../../utils/dateHelpers';
+import { resolveContactIdentifier } from '../../utils/contactHelpers';
 
 function DetailModal({ 
   isOpen, 
@@ -7,11 +8,18 @@ function DetailModal({
   selectedAppointmentDetails, 
   onDelete, 
   onReschedule,
-  hasRequiredGCalGmail
+  hasRequiredGCalGmail,
+  leads = [],
+  pacientes = [],
+  citasDb = []
 }) {
   if (!isOpen || !selectedAppointmentDetails) return null;
 
   const isCompleted = ['ASISTIO', 'COMPLETADA'].includes(selectedAppointmentDetails.estado_cita);
+  const contactText = resolveContactIdentifier(selectedAppointmentDetails, leads, pacientes, citasDb);
+  const patientDisplayName = selectedAppointmentDetails.pacientes?.nombre_paciente 
+    || (selectedAppointmentDetails.summary ? selectedAppointmentDetails.summary.split(' - ')[0].trim() : '') 
+    || 'Paciente sin nombre';
 
   return (
     <div className="modal-overlay" style={{ zIndex: 120 }} data-testid="modal-detail">
@@ -32,11 +40,11 @@ function DetailModal({
               border: '1px solid var(--border-color)' 
             }}>
               <div className="chat-avatar" style={{ flexShrink: 0 }}>
-                {(selectedAppointmentDetails.pacientes?.nombre_paciente || 'P')[0].toUpperCase()}
+                {(patientDisplayName || 'P')[0].toUpperCase()}
               </div>
               <div>
                 <h3 style={{ fontSize: '1.05rem', fontWeight: 600, margin: 0 }}>
-                  {selectedAppointmentDetails.pacientes?.nombre_paciente || 'Paciente sin nombre'}
+                  {patientDisplayName}
                 </h3>
                 <p style={{ 
                   fontSize: '0.8rem', 
@@ -46,14 +54,7 @@ function DetailModal({
                   alignItems: 'center', 
                   gap: '4px' 
                 }}>
-                  <Phone size={12} /> {
-                    selectedAppointmentDetails.identificador_paciente || 
-                    selectedAppointmentDetails.telefono_paciente || 
-                    selectedAppointmentDetails.pacientes?.identificador_paciente || 
-                    selectedAppointmentDetails.pacientes?.telefono_whatsapp || 
-                    selectedAppointmentDetails.pacientes?.telefono_paciente || 
-                    'Sin teléfono registrado'
-                  }
+                  <Phone size={12} /> {contactText || 'Sin teléfono registrado'}
                 </p>
               </div>
             </div>

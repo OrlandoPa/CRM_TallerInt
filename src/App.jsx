@@ -514,29 +514,43 @@ function App() {
   };
 
   const handleOpenDetailFromGCal = (app) => {
-    // If it's already a DB appointment object
+    let detailObj = app;
     if (app && app.fecha_hora_cita && !app.start) {
-      setSelectedAppointmentDetails(app);
-      setIsDetailModalOpen(true);
-      return;
-    }
-    // Otherwise it's a GCal event object
-    const dbCita = citasDb.find(c => c.google_event_id === app.id);
-    if (dbCita) {
-      setSelectedAppointmentDetails(dbCita);
+      detailObj = app;
     } else {
-      setSelectedAppointmentDetails({
-        id: null,
-        google_event_id: app.id,
-        fecha_hora_cita: app.start.dateTime || app.start.date,
-        motivo_consulta: app.summary,
-        estado_cita: 'AGENDADA',
-        identificador_paciente: '',
-        telefono_paciente: '',
-        correo_electronico: app.correo_electronico || '',
-        pacientes: { nombre_paciente: app.summary.split(' - ')[0] || 'Paciente GCal' }
-      });
+      let dbCita = citasDb.find(c => c.google_event_id === app.id);
+      
+      // Fallback: match by patient name if not matched by google_event_id
+      if (!dbCita && app.summary) {
+        const patientNameFromSummary = app.summary.split(' - ')[0].trim().toLowerCase();
+        if (patientNameFromSummary && patientNameFromSummary !== 'paciente') {
+          dbCita = citasDb.find(c => (c.pacientes?.nombre_paciente || '').toLowerCase().trim() === patientNameFromSummary);
+        }
+      }
+
+      if (dbCita) {
+        detailObj = dbCita;
+      } else {
+        const patientName = app.summary ? app.summary.split(' - ')[0].trim() : 'Paciente GCal';
+        const leadMatch = leads.find(l => (l.client_name || '').toLowerCase().trim() === patientName.toLowerCase());
+        const pacMatch = pacientes.find(p => (p.nombre_paciente || '').toLowerCase().trim() === patientName.toLowerCase());
+        const contactId = (leadMatch?.phone_number) || (pacMatch?.identificador_paciente || pacMatch?.telefono_whatsapp || pacMatch?.telefono_paciente) || '';
+
+        detailObj = {
+          id: null,
+          google_event_id: app.id,
+          fecha_hora_cita: app.start?.dateTime || app.start?.date,
+          motivo_consulta: app.summary,
+          estado_cita: 'AGENDADA',
+          identificador_paciente: contactId,
+          telefono_paciente: contactId,
+          correo_electronico: app.correo_electronico || leadMatch?.client_email || '',
+          pacientes: { nombre_paciente: patientName, identificador_paciente: contactId }
+        };
+      }
     }
+    
+    setSelectedAppointmentDetails(detailObj);
     setIsDetailModalOpen(true);
   };
 
@@ -824,6 +838,10 @@ function App() {
         isOpen={isDetailModalOpen}
         onClose={() => setIsDetailModalOpen(false)}
         selectedAppointmentDetails={selectedAppointmentDetails}
+        leads={leads}
+        pacientes={pacientes}
+        citasDb={citasDb}
+        hasRequiredGCalGmail={hasRequiredGCalGmail}
         onDelete={(eventId) => {
           handleDeleteAppointment(eventId);
           setIsDetailModalOpen(false);
