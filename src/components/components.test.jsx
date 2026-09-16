@@ -57,3 +57,33 @@ describe('UT-FRONT-05: Contador de Alertas en Sidebar (Sidebar)', () => {
     expect(badgeElement.textContent).toBe(cantidadEsperada);
   });
 });
+
+import DetailModal from './modals/DetailModal';
+
+describe('UT-FRONT-06: Renderizado de identificador_paciente en DetailModal', () => {
+  it('Debería mostrar correctamente el identificador_paciente (celular o username) cuando la cita proviene de Supabase con identificador_paciente', () => {
+    const mockAppointmentDetails = {
+      id: 105,
+      identificador_paciente: '@usuario_whatsapp_999',
+      fecha_hora_cita: new Date().toISOString(),
+      motivo_consulta: 'Consulta General',
+      estado_cita: 'AGENDADA',
+      detalles_notas_cita: 'Notas de prueba',
+      pacientes: { nombre_paciente: 'Ana Torres', identificador_paciente: '@usuario_whatsapp_999' }
+    };
+
+    render(
+      <DetailModal
+        isOpen={true}
+        onClose={() => {}}
+        selectedAppointmentDetails={mockAppointmentDetails}
+        onDelete={() => {}}
+        onReschedule={() => {}}
+        hasRequiredGCalGmail={true}
+      />
+    );
+
+    const contactElement = screen.getByText(/@usuario_whatsapp_999/i);
+    expect(contactElement).toBeTruthy();
+  });
+});

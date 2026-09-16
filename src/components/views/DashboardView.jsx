@@ -270,7 +270,10 @@ function DashboardView({
                           color: 'var(--text-main)',
                           textDecoration: cita.estado_cita === 'CANCELADA' ? 'line-through' : 'none'
                         }}>{patientName}</span>
-                        <span style={{fontSize: '0.7rem', color: 'var(--text-secondary)'}}>({cita.telefono_paciente})</span>
+                        {(() => {
+                          const contact = cita.identificador_paciente || cita.telefono_paciente || cita.pacientes?.identificador_paciente || cita.pacientes?.telefono_whatsapp || cita.pacientes?.telefono_paciente;
+                          return contact ? <span style={{fontSize: '0.7rem', color: 'var(--text-secondary)'}}>({contact})</span> : null;
+                        })()}
                       </div>
                       <p style={{
                         fontSize: '0.8rem', 

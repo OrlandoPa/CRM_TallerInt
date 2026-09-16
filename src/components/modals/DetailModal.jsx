@@ -46,7 +46,14 @@ function DetailModal({
                   alignItems: 'center', 
                   gap: '4px' 
                 }}>
-                  <Phone size={12} /> {selectedAppointmentDetails.telefono_paciente || 'Sin teléfono registrado'}
+                  <Phone size={12} /> {
+                    selectedAppointmentDetails.identificador_paciente || 
+                    selectedAppointmentDetails.telefono_paciente || 
+                    selectedAppointmentDetails.pacientes?.identificador_paciente || 
+                    selectedAppointmentDetails.pacientes?.telefono_whatsapp || 
+                    selectedAppointmentDetails.pacientes?.telefono_paciente || 
+                    'Sin teléfono registrado'
+                  }
                 </p>
               </div>
             </div>

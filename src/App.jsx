@@ -531,6 +531,7 @@ function App() {
         fecha_hora_cita: app.start.dateTime || app.start.date,
         motivo_consulta: app.summary,
         estado_cita: 'AGENDADA',
+        identificador_paciente: '',
         telefono_paciente: '',
         correo_electronico: app.correo_electronico || '',
         pacientes: { nombre_paciente: app.summary.split(' - ')[0] || 'Paciente GCal' }

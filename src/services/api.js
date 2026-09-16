@@ -92,9 +92,10 @@ export const getLeads = async () => {
       const leadsMap = new Map();
       if (pacientesData) {
         pacientesData.forEach(p => {
-          if (p.telefono_whatsapp) {
-            leadsMap.set(p.telefono_whatsapp.replace(/[\s\-+]/g, ''), {
-              phone_number: p.telefono_whatsapp,
+          const phoneOrId = p.identificador_paciente || p.telefono_whatsapp || p.telefono_paciente;
+          if (phoneOrId) {
+            leadsMap.set(phoneOrId.replace(/[\s\-+]/g, ''), {
+              phone_number: phoneOrId,
               client_name: p.nombre_paciente || 'Paciente sin nombre',
               client_email: '',
               status: 'contacted',
@@ -270,14 +271,15 @@ export const createAppointment = async (summary, start, end, description = '', p
       if (phone) {
         const { data: existingPatient } = await supabase
           .from('pacientes')
-          .select('telefono_whatsapp')
-          .eq('telefono_whatsapp', phone);
+          .select('identificador_paciente, telefono_whatsapp')
+          .or(`identificador_paciente.eq.${phone},telefono_whatsapp.eq.${phone}`);
           
         if (!existingPatient || existingPatient.length === 0) {
           const patientName = summary.split(' - ')[0] || 'Paciente WhatsApp';
           await supabase
             .from('pacientes')
             .insert({
+              identificador_paciente: phone,
               telefono_whatsapp: phone,
               nombre_paciente: patientName
             });
@@ -287,6 +289,7 @@ export const createAppointment = async (summary, start, end, description = '', p
       const { error } = await supabase
         .from('citas')
         .insert({
+          identificador_paciente: phone || null,
           telefono_paciente: phone || null,
           fecha_hora_cita: start,
           motivo_consulta: summary,
@@ -375,9 +378,9 @@ export const getPacientes = async () => {
   }
   // Off-line mock simulation matching the active design
   return [
-    { telefono_whatsapp: '+51 987 654 321', nombre_paciente: 'Juan Pérez', created_at: new Date().toISOString() },
-    { telefono_whatsapp: '+51 912 345 678', nombre_paciente: 'María Rodríguez', created_at: new Date().toISOString() },
-    { telefono_whatsapp: '+51 955 667 788', nombre_paciente: 'Carlos Mendoza', created_at: new Date().toISOString() }
+    { identificador_paciente: '+51 987 654 321', telefono_whatsapp: '+51 987 654 321', nombre_paciente: 'Juan Pérez', created_at: new Date().toISOString() },
+    { identificador_paciente: '+51 912 345 678', telefono_whatsapp: '+51 912 345 678', nombre_paciente: 'María Rodríguez', created_at: new Date().toISOString() },
+    { identificador_paciente: '+51 955 667 788', telefono_whatsapp: '+51 955 667 788', nombre_paciente: 'Carlos Mendoza', created_at: new Date().toISOString() }
   ];
 };
 
@@ -386,7 +389,7 @@ export const getCitasDb = async () => {
     try {
       const { data, error } = await supabase
         .from('citas')
-        .select('*, pacientes(nombre_paciente)')
+        .select('*, pacientes(*)')
         .order('fecha_hora_cita', { ascending: true });
       if (error) throw error;
       return data || [];
@@ -399,21 +402,23 @@ export const getCitasDb = async () => {
   return [
     {
       id: 101,
+      identificador_paciente: '+51 987 654 321',
       telefono_paciente: '+51 987 654 321',
       fecha_hora_cita: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       motivo_consulta: 'Evaluación y limpieza profunda',
       estado_cita: 'AGENDADA',
       detalles_notas_cita: 'Paciente reporta sangrado leve de encías.',
-      pacientes: { nombre_paciente: 'Juan Pérez' }
+      pacientes: { nombre_paciente: 'Juan Pérez', identificador_paciente: '+51 987 654 321' }
     },
     {
       id: 102,
+      identificador_paciente: '+51 955 667 788',
       telefono_paciente: '+51 955 667 788',
       fecha_hora_cita: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
       motivo_consulta: 'Revisión mensual de Ortodoncia',
       estado_cita: 'AGENDADA',
       detalles_notas_cita: 'Ajuste de brackets superior e inferior.',
-      pacientes: { nombre_paciente: 'Carlos Mendoza' }
+      pacientes: { nombre_paciente: 'Carlos Mendoza', identificador_paciente: '+51 955 667 788' }
     }
   ];
 };

@@ -183,6 +183,7 @@ function AgendaView({
                           fecha_hora_cita: activeEvent.start.dateTime || activeEvent.start.date,
                           motivo_consulta: activeEvent.summary,
                           estado_cita: 'AGENDADA',
+                          identificador_paciente: '',
                           telefono_paciente: '',
                           correo_electronico: activeEvent.correo_electronico || '',
                           pacientes: { nombre_paciente: activeEvent.summary.split(' - ')[0] || 'Paciente GCal' }
@@ -199,7 +200,7 @@ function AgendaView({
                     </span>
                     {dbCitaResolved ? (
                       <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {dbCitaResolved.telefono_paciente || 'Sin teléfono'} | {dbCitaResolved.detalles_notas_cita || 'Sin notas'}
+                        {dbCitaResolved.identificador_paciente || dbCitaResolved.telefono_paciente || dbCitaResolved.pacientes?.identificador_paciente || dbCitaResolved.pacientes?.telefono_whatsapp || dbCitaResolved.pacientes?.telefono_paciente || 'Sin teléfono/ID'} | {dbCitaResolved.detalles_notas_cita || 'Sin notas'}
                       </span>
                     ) : activeEvent.description && (
                       <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

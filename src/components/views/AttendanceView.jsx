@@ -81,9 +81,12 @@ function AttendanceView({
                   <div style={{ flex: '1 1 300px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <span style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--text-primary)' }}>{patientName}</span>
-                      {cita.telefono_paciente && (
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>({cita.telefono_paciente})</span>
-                      )}
+                      {(() => {
+                        const contact = cita.identificador_paciente || cita.telefono_paciente || cita.pacientes?.identificador_paciente || cita.pacientes?.telefono_whatsapp || cita.pacientes?.telefono_paciente;
+                        return contact ? (
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>({contact})</span>
+                        ) : null;
+                      })()}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
                       <Clock size={14} style={{ color: 'var(--primary)' }} />
