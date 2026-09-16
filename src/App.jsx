@@ -768,34 +768,30 @@ function App() {
       </main>
 
       {/* MODALS */}
-      <LeadModal 
-        isOpen={isLeadModalOpen}
-        onClose={() => setIsLeadModalOpen(false)}
-        lead={selectedLead}
-        onChange={setSelectedLead}
-        onSubmit={handleUpdateLead}
-      />
+      <DatePickerModal 
+        isOpen={isDatePickerModalOpen}
+        onClose={() => {
+          setIsDatePickerModalOpen(false);
+          setTargetDateInput('');
+        }}
+        targetDateInput={targetDateInput}
+        setTargetDateInput={setTargetDateInput}
+        onSubmit={() => {
+          if (!targetDateInput) {
+            showToast('Por favor, selecciona una fecha.', false);
+            return;
+          }
+          const parts = targetDateInput.split('-');
+          const year = parseInt(parts[0]);
+          const month = parseInt(parts[1]) - 1;
+          const day = parseInt(parts[2]);
+          const targetDate = new Date(year, month, day);
 
-      <AppointmentModal 
-        isOpen={isAppointmentModalOpen}
-        onClose={closeAppointmentModal}
-        newEvent={newEvent}
-        setNewEvent={setNewEvent}
-        isNewPatient={isNewPatient}
-        setIsNewPatient={setIsNewPatient}
-        newPatientName={newPatientName}
-        setNewPatientName={setNewPatientName}
-        newPatientPhone={newPatientPhone}
-        setNewPatientPhone={setNewPatientPhone}
-        treatmentType={treatmentType}
-        setTreatmentType={setTreatmentType}
-        sendEmailReminder={sendEmailReminder}
-        setSendEmailReminder={setSendEmailReminder}
-        gcalConnected={gcalConnected}
-        isTimeLocked={isTimeLocked}
-        leads={leads}
-        minDateTime={minDateTime}
-        onSubmit={handleCreateAppointment}
+          setCurrentDate(targetDate);
+          setSelectedDayForAgenda(targetDate);
+          setIsDatePickerModalOpen(false);
+          setTargetDateInput('');
+        }}
       />
 
       <DayAgendaModal 
@@ -830,8 +826,17 @@ function App() {
           setIsNewPatient(false);
           setNewPatientName('');
           setNewPatientPhone('');
+          setSelectedDayForAgenda(null);
           setIsAppointmentModalOpen(true);
         }}
+      />
+
+      <LeadModal 
+        isOpen={isLeadModalOpen}
+        onClose={() => setIsLeadModalOpen(false)}
+        lead={selectedLead}
+        onChange={setSelectedLead}
+        onSubmit={handleUpdateLead}
       />
 
       <DetailModal 
@@ -872,30 +877,26 @@ function App() {
         onSubmit={handleRescheduleSubmit}
       />
 
-      <DatePickerModal 
-        isOpen={isDatePickerModalOpen}
-        onClose={() => {
-          setIsDatePickerModalOpen(false);
-          setTargetDateInput('');
-        }}
-        targetDateInput={targetDateInput}
-        setTargetDateInput={setTargetDateInput}
-        onSubmit={() => {
-          if (!targetDateInput) {
-            showToast('Por favor, selecciona una fecha.', false);
-            return;
-          }
-          const parts = targetDateInput.split('-');
-          const year = parseInt(parts[0]);
-          const month = parseInt(parts[1]) - 1;
-          const day = parseInt(parts[2]);
-          const targetDate = new Date(year, month, day);
-
-          setCurrentDate(targetDate);
-          setSelectedDayForAgenda(targetDate);
-          setIsDatePickerModalOpen(false);
-          setTargetDateInput('');
-        }}
+      <AppointmentModal 
+        isOpen={isAppointmentModalOpen}
+        onClose={closeAppointmentModal}
+        newEvent={newEvent}
+        setNewEvent={setNewEvent}
+        isNewPatient={isNewPatient}
+        setIsNewPatient={setIsNewPatient}
+        newPatientName={newPatientName}
+        setNewPatientName={setNewPatientName}
+        newPatientPhone={newPatientPhone}
+        setNewPatientPhone={setNewPatientPhone}
+        treatmentType={treatmentType}
+        setTreatmentType={setTreatmentType}
+        sendEmailReminder={sendEmailReminder}
+        setSendEmailReminder={setSendEmailReminder}
+        gcalConnected={gcalConnected}
+        isTimeLocked={isTimeLocked}
+        leads={leads}
+        minDateTime={minDateTime}
+        onSubmit={handleCreateAppointment}
       />
       
       {/* Floating Action Button (FAB) for Accessibility (Usability) Options */}
