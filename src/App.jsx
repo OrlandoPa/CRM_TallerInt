@@ -386,22 +386,16 @@ function App() {
       
       const gId = cita.google_event_id || result?.google_event_id;
       const dbId = cita.id || result?.id;
-      const citaFecha = cita.fecha_hora_cita || result?.fecha_hora_cita;
-      const patientId = cita.identificador_paciente 
-                     || cita.telefono_paciente 
-                     || cita.pacientes?.identificador_paciente 
-                     || result?.identificador_paciente;
 
       setCitasDb(prev => {
         let matched = false;
         const next = prev.map(c => {
           const isSameDbId = dbId && c.id && String(c.id) === String(dbId);
           const isSameGcal = gId && c.google_event_id && c.google_event_id === gId;
-          const isSameCitaByDate = citaFecha && c.fecha_hora_cita && c.fecha_hora_cita === citaFecha && c.identificador_paciente === patientId;
 
-          if (isSameDbId || isSameGcal || isSameCitaByDate) {
+          if (isSameDbId || isSameGcal) {
             matched = true;
-            return { ...c, tratamiento_receta: recetaText };
+            return { ...c, ...result, tratamiento_receta: recetaText };
           }
           return c;
         });

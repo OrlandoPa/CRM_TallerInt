@@ -452,7 +452,7 @@ export const updateAppointmentPrescription = async (citaObjOrId, tratamientoRece
       let appObj = typeof citaObjOrId === 'object' && citaObjOrId !== null ? citaObjOrId : null;
       let rawId = typeof citaObjOrId === 'string' ? citaObjOrId : null;
 
-      // Extract DB numeric ID if present
+      // Extract DB numeric ID if present (Primary Key in table 'citas')
       const dbId = appObj?.id && /^\d+$/.test(String(appObj.id)) 
         ? parseInt(appObj.id, 10) 
         : (typeof citaObjOrId === 'number' ? citaObjOrId : null);
@@ -460,72 +460,9 @@ export const updateAppointmentPrescription = async (citaObjOrId, tratamientoRece
       // Extract Google Event ID if present
       const gcalId = appObj?.google_event_id || (typeof citaObjOrId === 'string' && !/^\d+$/.test(citaObjOrId) ? citaObjOrId : null);
 
-      // Extract Patient Identifier
-      let patientIdentifier = appObj?.identificador_paciente 
-                           || appObj?.telefono_paciente 
-                           || appObj?.phone_number 
-                           || appObj?.pacientes?.identificador_paciente 
-                           || appObj?.pacientes?.telefono_whatsapp
-                           || (rawId && (rawId.startsWith('+') || rawId.startsWith('@') || /^\d{7,}$/.test(rawId.replace(/\D/g,''))) ? rawId : null);
-
-      let patientName = appObj?.pacientes?.nombre_paciente 
-                     || (appObj?.summary ? appObj.summary.split(' - ')[0].trim() : '')
-                     || (appObj?.motivo_consulta ? appObj.motivo_consulta.split(' - ')[0].trim() : '');
-
-      // Search text in appObj for phone or handle regex if identifier not yet found
-      if (!patientIdentifier && appObj) {
-        const textToSearch = `${appObj.description || ''} ${appObj.summary || ''} ${appObj.motivo_consulta || ''} ${appObj.detalles_notas_cita || ''}`;
-        const phoneMatch = textToSearch.match(/(\+?\d{7,15})/);
-        const handleMatch = textToSearch.match(/@[a-zA-Z0-9_\.-]+/);
-        if (phoneMatch) {
-          patientIdentifier = phoneMatch[0].trim();
-        } else if (handleMatch) {
-          patientIdentifier = handleMatch[0].trim();
-        }
-      }
-
-      // Query 'pacientes' table by name if identifier still missing
-      if (!patientIdentifier && patientName && patientName !== 'Paciente GCal' && patientName !== 'Paciente') {
-        try {
-          const { data: pacByName } = await supabase
-            .from('pacientes')
-            .select('identificador_paciente')
-            .ilike('nombre_paciente', `%${patientName}%`)
-            .limit(1);
-
-          if (pacByName && pacByName.length > 0 && pacByName[0].identificador_paciente) {
-            patientIdentifier = pacByName[0].identificador_paciente;
-          }
-        } catch (e) {
-          console.warn('Warning querying patient by name:', e);
-        }
-      }
-
-      // Query 'citas' table by google_event_id or id if identifier still missing
-      if (!patientIdentifier && gcalId) {
-        try {
-          const { data: citaByGcal } = await supabase
-            .from('citas')
-            .select('identificador_paciente')
-            .eq('google_event_id', gcalId)
-            .limit(1);
-
-          if (citaByGcal && citaByGcal.length > 0 && citaByGcal[0].identificador_paciente) {
-            patientIdentifier = citaByGcal[0].identificador_paciente;
-          }
-        } catch (e) {
-          console.warn('Warning querying cita by google_event_id:', e);
-        }
-      }
-
-      if (!patientIdentifier) {
-        patientIdentifier = patientName || rawId || 'PACIENTE_SIN_ID';
-      }
-
-      const cleanIdentifier = patientIdentifier.trim();
       const payload = { tratamiento_receta: tratamientoReceta || null };
 
-      // 1. Primary target: Update SPECIFIC row by DB numeric 'id'
+      // 1. Primary target: Update strictly by DB numeric 'id' (table 'citas')
       if (dbId) {
         const { data: updateById, error: errById } = await supabase
           .from('citas')
@@ -543,7 +480,7 @@ export const updateAppointmentPrescription = async (citaObjOrId, tratamientoRece
         }
       }
 
-      // 2. Secondary target: Update SPECIFIC row by 'google_event_id'
+      // 2. Secondary target: Update strictly by 'google_event_id' (table 'citas')
       if (gcalId) {
         const { data: updateByGcal, error: errByGcal } = await supabase
           .from('citas')
@@ -561,33 +498,51 @@ export const updateAppointmentPrescription = async (citaObjOrId, tratamientoRece
         }
       }
 
-      // 3. Tertiary target: Update SPECIFIC row by 'identificador_paciente' AND 'fecha_hora_cita'
-      let validFecha = null;
-      if (appObj?.fecha_hora_cita && !isNaN(new Date(appObj.fecha_hora_cita).getTime())) {
-        validFecha = new Date(appObj.fecha_hora_cita).toISOString();
-      } else if (appObj?.start?.dateTime && !isNaN(new Date(appObj.start.dateTime).getTime())) {
-        validFecha = new Date(appObj.start.dateTime).toISOString();
-      }
+      // 3. Fallback: If no appointment row exists in 'citas' table yet, insert a NEW row for this specific appointment
+      let patientIdentifier = appObj?.identificador_paciente 
+                           || appObj?.telefono_paciente 
+                           || appObj?.phone_number 
+                           || appObj?.pacientes?.identificador_paciente 
+                           || appObj?.pacientes?.telefono_whatsapp
+                           || (rawId && (rawId.startsWith('+') || rawId.startsWith('@') || /^\d{7,}$/.test(rawId.replace(/\D/g,''))) ? rawId : null);
 
-      if (cleanIdentifier && validFecha) {
-        const { data: updateByDate, error: errByDate } = await supabase
-          .from('citas')
-          .update(payload)
-          .eq('identificador_paciente', cleanIdentifier)
-          .eq('fecha_hora_cita', validFecha)
-          .select();
+      let patientName = appObj?.pacientes?.nombre_paciente 
+                     || (appObj?.summary ? appObj.summary.split(' - ')[0].trim() : '')
+                     || (appObj?.motivo_consulta ? appObj.motivo_consulta.split(' - ')[0].trim() : '');
 
-        if (errByDate) {
-          console.error('Error updating cita by identificador_paciente and fecha:', errByDate);
-          throw errByDate;
-        }
-
-        if (updateByDate && updateByDate.length > 0) {
-          return updateByDate[0];
+      if (!patientIdentifier && appObj) {
+        const textToSearch = `${appObj.description || ''} ${appObj.summary || ''} ${appObj.motivo_consulta || ''} ${appObj.detalles_notas_cita || ''}`;
+        const phoneMatch = textToSearch.match(/(\+?\d{7,15})/);
+        const handleMatch = textToSearch.match(/@[a-zA-Z0-9_\.-]+/);
+        if (phoneMatch) {
+          patientIdentifier = phoneMatch[0].trim();
+        } else if (handleMatch) {
+          patientIdentifier = handleMatch[0].trim();
         }
       }
 
-      // 4. Fallback: Insert a new row in 'citas' for this SPECIFIC appointment
+      if (!patientIdentifier && patientName && patientName !== 'Paciente GCal' && patientName !== 'Paciente') {
+        try {
+          const { data: pacByName } = await supabase
+            .from('pacientes')
+            .select('identificador_paciente')
+            .ilike('nombre_paciente', `%${patientName}%`)
+            .limit(1);
+
+          if (pacByName && pacByName.length > 0 && pacByName[0].identificador_paciente) {
+            patientIdentifier = pacByName[0].identificador_paciente;
+          }
+        } catch (e) {
+          console.warn('Warning querying patient by name:', e);
+        }
+      }
+
+      if (!patientIdentifier) {
+        patientIdentifier = patientName || rawId || 'PACIENTE_SIN_ID';
+      }
+
+      const cleanIdentifier = patientIdentifier.trim();
+
       try {
         const { data: existingPac } = await supabase
           .from('pacientes')
@@ -609,9 +564,16 @@ export const updateAppointmentPrescription = async (citaObjOrId, tratamientoRece
         console.warn('Patient table sync warning:', pacErr);
       }
 
+      let validFecha = new Date().toISOString();
+      if (appObj?.fecha_hora_cita && !isNaN(new Date(appObj.fecha_hora_cita).getTime())) {
+        validFecha = new Date(appObj.fecha_hora_cita).toISOString();
+      } else if (appObj?.start?.dateTime && !isNaN(new Date(appObj.start.dateTime).getTime())) {
+        validFecha = new Date(appObj.start.dateTime).toISOString();
+      }
+
       const newCitaPayload = {
         identificador_paciente: cleanIdentifier,
-        fecha_hora_cita: validFecha || new Date().toISOString(),
+        fecha_hora_cita: validFecha,
         motivo_consulta: appObj?.motivo_consulta || appObj?.summary || 'Consulta Médica',
         estado_cita: appObj?.estado_cita || 'AGENDADA',
         google_event_id: gcalId || `gcal-${Date.now()}`,
