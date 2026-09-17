@@ -452,7 +452,15 @@ export const updateAppointmentPrescription = async (citaObjOrId, tratamientoRece
       let appObj = typeof citaObjOrId === 'object' && citaObjOrId !== null ? citaObjOrId : null;
       let rawId = typeof citaObjOrId === 'string' ? citaObjOrId : null;
 
-      // 1. Direct property check for patient identifier
+      // Extract DB numeric ID if present
+      const dbId = appObj?.id && /^\d+$/.test(String(appObj.id)) 
+        ? parseInt(appObj.id, 10) 
+        : (typeof citaObjOrId === 'number' ? citaObjOrId : null);
+
+      // Extract Google Event ID if present
+      const gcalId = appObj?.google_event_id || (typeof citaObjOrId === 'string' && !/^\d+$/.test(citaObjOrId) ? citaObjOrId : null);
+
+      // Extract Patient Identifier
       let patientIdentifier = appObj?.identificador_paciente 
                            || appObj?.telefono_paciente 
                            || appObj?.phone_number 
@@ -464,7 +472,7 @@ export const updateAppointmentPrescription = async (citaObjOrId, tratamientoRece
                      || (appObj?.summary ? appObj.summary.split(' - ')[0].trim() : '')
                      || (appObj?.motivo_consulta ? appObj.motivo_consulta.split(' - ')[0].trim() : '');
 
-      // 2. Search text in appObj for phone or handle regex if identifier not yet found
+      // Search text in appObj for phone or handle regex if identifier not yet found
       if (!patientIdentifier && appObj) {
         const textToSearch = `${appObj.description || ''} ${appObj.summary || ''} ${appObj.motivo_consulta || ''} ${appObj.detalles_notas_cita || ''}`;
         const phoneMatch = textToSearch.match(/(\+?\d{7,15})/);
@@ -476,7 +484,7 @@ export const updateAppointmentPrescription = async (citaObjOrId, tratamientoRece
         }
       }
 
-      // 3. Query 'pacientes' table by name if identifier still missing
+      // Query 'pacientes' table by name if identifier still missing
       if (!patientIdentifier && patientName && patientName !== 'Paciente GCal' && patientName !== 'Paciente') {
         try {
           const { data: pacByName } = await supabase
@@ -493,8 +501,7 @@ export const updateAppointmentPrescription = async (citaObjOrId, tratamientoRece
         }
       }
 
-      // 4. Query 'citas' table by google_event_id or id if identifier still missing
-      const gcalId = appObj?.google_event_id || appObj?.id || (typeof citaObjOrId === 'string' ? citaObjOrId : null);
+      // Query 'citas' table by google_event_id or id if identifier still missing
       if (!patientIdentifier && gcalId) {
         try {
           const { data: citaByGcal } = await supabase
@@ -511,7 +518,6 @@ export const updateAppointmentPrescription = async (citaObjOrId, tratamientoRece
         }
       }
 
-      // 5. Fallback identifier if none found
       if (!patientIdentifier) {
         patientIdentifier = patientName || rawId || 'PACIENTE_SIN_ID';
       }
@@ -519,41 +525,69 @@ export const updateAppointmentPrescription = async (citaObjOrId, tratamientoRece
       const cleanIdentifier = patientIdentifier.trim();
       const payload = { tratamiento_receta: tratamientoReceta || null };
 
-      // Step A: Primary search & update by identificador_paciente in table 'citas'
-      const { data: updateData, error: updateErr } = await supabase
-        .from('citas')
-        .update(payload)
-        .eq('identificador_paciente', cleanIdentifier)
-        .select();
+      // 1. Primary target: Update SPECIFIC row by DB numeric 'id'
+      if (dbId) {
+        const { data: updateById, error: errById } = await supabase
+          .from('citas')
+          .update(payload)
+          .eq('id', dbId)
+          .select();
 
-      if (updateErr) {
-        console.error('Error updating citas by identificador_paciente:', updateErr);
-        throw updateErr;
+        if (errById) {
+          console.error('Error updating cita by id:', errById);
+          throw errById;
+        }
+
+        if (updateById && updateById.length > 0) {
+          return updateById[0];
+        }
       }
 
-      if (updateData && updateData.length > 0) {
-        return updateData[0];
-      }
-
-      // Step B: Secondary update by google_event_id if no row was updated by identificador_paciente
+      // 2. Secondary target: Update SPECIFIC row by 'google_event_id'
       if (gcalId) {
-        const { data: gcalUpdateData, error: gcalUpdateErr } = await supabase
+        const { data: updateByGcal, error: errByGcal } = await supabase
           .from('citas')
           .update(payload)
           .eq('google_event_id', gcalId)
           .select();
 
-        if (gcalUpdateErr) {
-          console.error('Error updating citas by google_event_id:', gcalUpdateErr);
-          throw gcalUpdateErr;
+        if (errByGcal) {
+          console.error('Error updating cita by google_event_id:', errByGcal);
+          throw errByGcal;
         }
 
-        if (gcalUpdateData && gcalUpdateData.length > 0) {
-          return gcalUpdateData[0];
+        if (updateByGcal && updateByGcal.length > 0) {
+          return updateByGcal[0];
         }
       }
 
-      // Step C: Fallback insert if no appointment row exists in 'citas' table yet
+      // 3. Tertiary target: Update SPECIFIC row by 'identificador_paciente' AND 'fecha_hora_cita'
+      let validFecha = null;
+      if (appObj?.fecha_hora_cita && !isNaN(new Date(appObj.fecha_hora_cita).getTime())) {
+        validFecha = new Date(appObj.fecha_hora_cita).toISOString();
+      } else if (appObj?.start?.dateTime && !isNaN(new Date(appObj.start.dateTime).getTime())) {
+        validFecha = new Date(appObj.start.dateTime).toISOString();
+      }
+
+      if (cleanIdentifier && validFecha) {
+        const { data: updateByDate, error: errByDate } = await supabase
+          .from('citas')
+          .update(payload)
+          .eq('identificador_paciente', cleanIdentifier)
+          .eq('fecha_hora_cita', validFecha)
+          .select();
+
+        if (errByDate) {
+          console.error('Error updating cita by identificador_paciente and fecha:', errByDate);
+          throw errByDate;
+        }
+
+        if (updateByDate && updateByDate.length > 0) {
+          return updateByDate[0];
+        }
+      }
+
+      // 4. Fallback: Insert a new row in 'citas' for this SPECIFIC appointment
       try {
         const { data: existingPac } = await supabase
           .from('pacientes')
@@ -575,16 +609,9 @@ export const updateAppointmentPrescription = async (citaObjOrId, tratamientoRece
         console.warn('Patient table sync warning:', pacErr);
       }
 
-      let validFecha = new Date().toISOString();
-      if (appObj?.fecha_hora_cita && !isNaN(new Date(appObj.fecha_hora_cita).getTime())) {
-        validFecha = new Date(appObj.fecha_hora_cita).toISOString();
-      } else if (appObj?.start?.dateTime && !isNaN(new Date(appObj.start.dateTime).getTime())) {
-        validFecha = new Date(appObj.start.dateTime).toISOString();
-      }
-
       const newCitaPayload = {
         identificador_paciente: cleanIdentifier,
-        fecha_hora_cita: validFecha,
+        fecha_hora_cita: validFecha || new Date().toISOString(),
         motivo_consulta: appObj?.motivo_consulta || appObj?.summary || 'Consulta Médica',
         estado_cita: appObj?.estado_cita || 'AGENDADA',
         google_event_id: gcalId || `gcal-${Date.now()}`,
