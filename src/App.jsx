@@ -568,13 +568,21 @@ function App() {
     if (app && app.fecha_hora_cita && !app.start) {
       detailObj = app;
     } else {
-      let dbCita = citasDb.find(c => c.google_event_id === app.id);
+      let dbCita = citasDb.find(c => (c.google_event_id && app.id && c.google_event_id === app.id) || (c.id && app.id && String(c.id) === String(app.id)));
       
-      // Fallback: match by patient name if not matched by google_event_id
-      if (!dbCita && app.summary) {
+      const appStartTime = app.start?.dateTime || app.start?.date || app.fecha_hora_cita;
+
+      // Fallback: match by patient name AND date if not matched by ID
+      if (!dbCita && app.summary && appStartTime) {
         const patientNameFromSummary = app.summary.split(' - ')[0].trim().toLowerCase();
+        const appDateStr = new Date(appStartTime).toISOString().slice(0, 10);
+
         if (patientNameFromSummary && patientNameFromSummary !== 'paciente') {
-          dbCita = citasDb.find(c => (c.pacientes?.nombre_paciente || '').toLowerCase().trim() === patientNameFromSummary);
+          dbCita = citasDb.find(c => {
+            const cName = (c.pacientes?.nombre_paciente || '').toLowerCase().trim();
+            const cDateStr = c.fecha_hora_cita ? new Date(c.fecha_hora_cita).toISOString().slice(0, 10) : '';
+            return cName === patientNameFromSummary && cDateStr === appDateStr;
+          });
         }
       }
 
@@ -589,7 +597,7 @@ function App() {
         detailObj = {
           id: null,
           google_event_id: app.id,
-          fecha_hora_cita: app.start?.dateTime || app.start?.date,
+          fecha_hora_cita: appStartTime,
           motivo_consulta: app.summary,
           estado_cita: 'AGENDADA',
           identificador_paciente: contactId,
