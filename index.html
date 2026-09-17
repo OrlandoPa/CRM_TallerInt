@@ -9,8 +9,13 @@
   <title>Panel de Gestión de Citas</title>
   <!-- Google Identity Services client library -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <!-- UserWay Accessibility Widget -->
-  <script src="https://cdn.userway.org/widget.js" async></script>
+  <!-- UserWay Accessibility Widget (Position 3: Bottom-Right) -->
+  <script>
+    window.UserWayConfig = {
+      position: 3
+    };
+  </script>
+  <script src="https://cdn.userway.org/widget.js" data-position="3" async></script>
 </head>
 
 <body>

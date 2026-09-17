@@ -1466,3 +1466,13 @@ body.hide-images .chat-avatar,
 body.hide-images .logo-icon {
   visibility: hidden !important;
 }
+
+/* Position UserWay Accessibility Widget at bottom-right corner */
+#userwayAccessibilityIcon,
+.uway,
+div[id^="userway"] {
+  bottom: 20px !important;
+  right: 20px !important;
+  top: auto !important;
+  left: auto !important;
+}
