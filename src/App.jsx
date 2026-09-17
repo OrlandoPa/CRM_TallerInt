@@ -374,23 +374,38 @@ function App() {
 
   const handleSavePrescription = async (cita, recetaText) => {
     try {
-      await api.updateAppointmentPrescription(cita, recetaText);
+      const result = await api.updateAppointmentPrescription(cita, recetaText);
       
       const gId = cita.google_event_id;
       const dbId = cita.id;
+      const patientId = cita.identificador_paciente 
+                     || cita.telefono_paciente 
+                     || cita.pacientes?.identificador_paciente 
+                     || result?.identificador_paciente;
 
-      setCitasDb(prev => prev.map(c => {
-        if ((gId && c.google_event_id === gId) || (dbId && c.id === dbId)) {
-          return { ...c, tratamiento_receta: recetaText };
+      setCitasDb(prev => {
+        let matched = false;
+        const next = prev.map(c => {
+          if ((gId && c.google_event_id === gId) || 
+              (dbId && c.id === dbId) || 
+              (patientId && c.identificador_paciente === patientId)) {
+            matched = true;
+            return { ...c, tratamiento_receta: recetaText };
+          }
+          return c;
+        });
+        if (!matched && result) {
+          return [...next, result];
         }
-        return c;
-      }));
+        return next;
+      });
 
       setSelectedAppointmentDetails(prev => prev ? { ...prev, tratamiento_receta: recetaText } : prev);
       setSuccessMsg('Tratamiento / Receta médica guardada en la Base de Datos.');
     } catch (err) {
-      console.error(err);
-      setErrorMsg('Error al guardar el tratamiento / receta en la Base de Datos.');
+      console.error('Error saving prescription:', err);
+      const errMsg = err?.message || (typeof err === 'string' ? err : 'Error al guardar el tratamiento / receta en la BD.');
+      setErrorMsg(`Error al guardar en BD: ${errMsg}`);
       throw err;
     }
   };
