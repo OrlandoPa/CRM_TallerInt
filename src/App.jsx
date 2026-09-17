@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   Check, 
   AlertCircle, 
@@ -16,7 +16,8 @@ import {
   ImageOff,
   Ban,
   RotateCcw,
-  Maximize2
+  Maximize2,
+  X
 } from 'lucide-react';
 
 import * as api from './services/api';
@@ -297,14 +298,21 @@ function App() {
     showToast('Datos actualizados');
   };
 
-  // Toast notifications helper
+  const toastTimeoutRef = useRef(null);
+
+  // Toast notifications helper (4 seconds duration)
   const showToast = (msg, isSuccess = true) => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
     if (isSuccess) {
+      setErrorMsg('');
       setSuccessMsg(msg);
-      setTimeout(() => setSuccessMsg(''), 3000);
+      toastTimeoutRef.current = setTimeout(() => setSuccessMsg(''), 4000);
     } else {
+      setSuccessMsg('');
       setErrorMsg(msg);
-      setTimeout(() => setErrorMsg(''), 4000);
+      toastTimeoutRef.current = setTimeout(() => setErrorMsg(''), 4000);
     }
   };
 
@@ -365,10 +373,10 @@ function App() {
 
       fetchData();
       closeAppointmentModal();
-      setSuccessMsg('Cita agendada correctamente.');
+      showToast('Cita agendada correctamente.');
     } catch (err) {
       console.error(err);
-      setErrorMsg(err.message || 'Error al agendar la cita en Google Calendar.');
+      showToast(err.message || 'Error al agendar la cita en Google Calendar.', false);
     }
   };
 
@@ -401,11 +409,11 @@ function App() {
       });
 
       setSelectedAppointmentDetails(prev => prev ? { ...prev, tratamiento_receta: recetaText } : prev);
-      setSuccessMsg('Tratamiento / Receta médica guardada en la Base de Datos.');
+      showToast('Tratamiento / Receta médica guardada en la Base de Datos.');
     } catch (err) {
       console.error('Error saving prescription:', err);
       const errMsg = err?.message || (typeof err === 'string' ? err : 'Error al guardar el tratamiento / receta en la BD.');
-      setErrorMsg(`Error al guardar en BD: ${errMsg}`);
+      showToast(`Error al guardar en BD: ${errMsg}`, false);
       throw err;
     }
   };
@@ -647,22 +655,57 @@ function App() {
   return (
     <div className={`app-container ${isEmbedded ? 'embedded-mode' : ''}`}>
       {/* Toast Notifications */}
+      {/* Toast Notifications */}
       {successMsg && (
         <div style={{
-          position: 'fixed', top: '20px', right: '20px', background: 'rgba(16, 185, 129, 0.9)', 
-          color: 'white', padding: '12px 24px', borderRadius: '8px', zIndex: 2000, 
-          fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-        }} className="animate-fade-in">
-          <Check size={18} /> {successMsg}
+          position: 'fixed', top: '20px', right: '20px', background: 'rgba(16, 185, 129, 0.95)', 
+          color: 'white', padding: '12px 16px 12px 20px', borderRadius: '8px', zIndex: 2000, 
+          fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          gap: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', minWidth: '260px', maxWidth: '420px'
+        }} className="animate-fade-in" data-testid="toast-success">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Check size={18} style={{ flexShrink: 0 }} /> <span>{successMsg}</span>
+          </div>
+          <button 
+            type="button" 
+            onClick={() => setSuccessMsg('')}
+            style={{
+              background: 'transparent', border: 'none', color: 'white', 
+              cursor: 'pointer', display: 'flex', alignItems: 'center', 
+              justifyContent: 'center', padding: '2px', marginLeft: '6px',
+              borderRadius: '4px', opacity: 0.9
+            }}
+            title="Cerrar notificación"
+            data-testid="btn-close-toast-success"
+          >
+            <X size={18} />
+          </button>
         </div>
       )}
       {errorMsg && (
         <div style={{
-          position: 'fixed', top: '20px', right: '20px', background: 'rgba(239, 68, 68, 0.9)', 
-          color: 'white', padding: '12px 24px', borderRadius: '8px', zIndex: 2000, 
-          fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-        }} className="animate-fade-in">
-          <AlertCircle size={18} /> {errorMsg}
+          position: 'fixed', top: '20px', right: '20px', background: 'rgba(239, 68, 68, 0.95)', 
+          color: 'white', padding: '12px 16px 12px 20px', borderRadius: '8px', zIndex: 2000, 
+          fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          gap: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', minWidth: '260px', maxWidth: '420px'
+        }} className="animate-fade-in" data-testid="toast-error">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <AlertCircle size={18} style={{ flexShrink: 0 }} /> <span>{errorMsg}</span>
+          </div>
+          <button 
+            type="button" 
+            onClick={() => setErrorMsg('')}
+            style={{
+              background: 'transparent', border: 'none', color: 'white', 
+              cursor: 'pointer', display: 'flex', alignItems: 'center', 
+              justifyContent: 'center', padding: '2px', marginLeft: '6px',
+              borderRadius: '4px', opacity: 0.9
+            }}
+            title="Cerrar notificación"
+            data-testid="btn-close-toast-error"
+          >
+            <X size={18} />
+          </button>
         </div>
       )}
 
