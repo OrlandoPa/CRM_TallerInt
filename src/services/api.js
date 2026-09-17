@@ -457,10 +457,11 @@ export const updateAppointmentPrescription = async (citaObjOrId, tratamientoRece
 
       let dbId = null;
       let gcalId = null;
+      let appObj = typeof citaObjOrId === 'object' && citaObjOrId !== null ? citaObjOrId : null;
 
-      if (typeof citaObjOrId === 'object' && citaObjOrId !== null) {
-        dbId = citaObjOrId.id && /^\d+$/.test(String(citaObjOrId.id)) ? parseInt(citaObjOrId.id, 10) : null;
-        gcalId = citaObjOrId.google_event_id || null;
+      if (appObj) {
+        dbId = appObj.id && /^\d+$/.test(String(appObj.id)) ? parseInt(appObj.id, 10) : null;
+        gcalId = appObj.google_event_id || null;
       } else if (typeof citaObjOrId === 'number') {
         dbId = citaObjOrId;
       } else if (typeof citaObjOrId === 'string') {
@@ -471,26 +472,81 @@ export const updateAppointmentPrescription = async (citaObjOrId, tratamientoRece
         }
       }
 
-      // Try updating by numeric DB id first if available
+      // 1. Try updating by numeric DB id first if available
       if (dbId) {
         const res = await supabase
           .from('citas')
           .update(payload)
           .eq('id', dbId)
           .select();
-        data = res.data;
-        error = res.error;
+        if (!res.error && res.data && res.data.length > 0) {
+          data = res.data;
+        } else if (res.error) {
+          error = res.error;
+        }
       }
 
-      // If no numeric id update occurred or zero rows updated, try updating by google_event_id
+      // 2. Try updating by google_event_id if not updated yet
       if ((!data || data.length === 0) && gcalId) {
         const res = await supabase
           .from('citas')
           .update(payload)
           .eq('google_event_id', gcalId)
           .select();
-        data = res.data;
-        error = res.error;
+        if (!res.error && res.data && res.data.length > 0) {
+          data = res.data;
+          error = null;
+        } else if (res.error) {
+          error = res.error;
+        }
+      }
+
+      // 3. If STILL zero rows updated (appointment came from GCal and does not exist in 'citas' table yet):
+      if (!data || data.length === 0) {
+        const phoneVal = appObj?.identificador_paciente || appObj?.telefono_paciente || appObj?.phone_number || null;
+        
+        // Ensure patient exists in pacientes table if phoneVal is provided
+        if (phoneVal) {
+          const { data: existingPatient } = await supabase
+            .from('pacientes')
+            .select('identificador_paciente, telefono_whatsapp')
+            .or(`identificador_paciente.eq.${phoneVal},telefono_whatsapp.eq.${phoneVal}`);
+            
+          if (!existingPatient || existingPatient.length === 0) {
+            const patientName = appObj?.pacientes?.nombre_paciente || (appObj?.summary ? appObj.summary.split(' - ')[0] : 'Paciente');
+            await supabase
+              .from('pacientes')
+              .insert({
+                identificador_paciente: phoneVal,
+                telefono_whatsapp: phoneVal,
+                nombre_paciente: patientName
+              });
+          }
+        }
+
+        const insertData = {
+          google_event_id: gcalId || appObj?.google_event_id || `gcal-event-${Date.now()}`,
+          identificador_paciente: phoneVal,
+          telefono_paciente: phoneVal,
+          fecha_hora_cita: appObj?.fecha_hora_cita || new Date().toISOString(),
+          motivo_consulta: appObj?.motivo_consulta || appObj?.summary || 'Consulta',
+          estado_cita: appObj?.estado_cita || 'AGENDADA',
+          detalles_notas_cita: appObj?.detalles_notas_cita || appObj?.description || null,
+          correo_electronico: appObj?.correo_electronico || null,
+          tratamiento_receta: tratamientoReceta || null
+        };
+
+        const resInsert = await supabase
+          .from('citas')
+          .insert(insertData)
+          .select();
+
+        if (resInsert.error) {
+          console.error('Error inserting cita row for prescription:', resInsert.error);
+          throw resInsert.error;
+        }
+        data = resInsert.data;
+        error = null;
       }
 
       if (error) throw error;
