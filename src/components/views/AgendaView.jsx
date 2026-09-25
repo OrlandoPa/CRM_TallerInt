@@ -1,6 +1,7 @@
 import { ChevronLeft, ChevronRight, Trash } from 'lucide-react';
 import { getLimaDate } from '../../utils/dateHelpers';
 import { resolveContactIdentifier } from '../../utils/contactHelpers';
+import { esAtendida } from '../../utils/estadosCita';
 
 function AgendaView({ 
   selectedAgendaDate, 
@@ -217,14 +218,14 @@ function AgendaView({
                          fontWeight: 600,
                          padding: '2px 6px',
                          borderRadius: '4px',
-                         background: ['ASISTIO', 'COMPLETADA'].includes(dbCitaResolved.estado_cita) ? 'rgba(var(--success-rgb), 0.15)' : 'rgba(var(--danger-rgb), 0.15)',
-                         color: ['ASISTIO', 'COMPLETADA'].includes(dbCitaResolved.estado_cita) ? 'var(--success)' : 'var(--danger)'
+                         background: esAtendida(dbCitaResolved.estado_cita) ? 'rgba(var(--success-rgb), 0.15)' : 'rgba(var(--danger-rgb), 0.15)',
+                         color: esAtendida(dbCitaResolved.estado_cita) ? 'var(--success)' : 'var(--danger)'
                        }}>
                          {dbCitaResolved.estado_cita}
                        </span>
                      )}
                     
-                    {!(dbCitaResolved?.estado_cita === 'ASISTIO' || dbCitaResolved?.estado_cita === 'COMPLETADA') && (
+                    {!(esAtendida(dbCitaResolved?.estado_cita)) && (
                       <button 
                         onClick={(e) => {
                           e.stopPropagation();

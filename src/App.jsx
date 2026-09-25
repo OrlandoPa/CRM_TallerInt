@@ -11,6 +11,7 @@ import {
 
 import * as api from './services/api';
 import { isValidWorkingHours, calculateEndTime } from './utils/dateHelpers';
+import { esPendiente } from './utils/estadosCita';
 
 // Layout components
 import Sidebar from './components/layout/Sidebar';
@@ -114,7 +115,7 @@ function App() {
   const [gcalEmail, setGcalEmail] = useState(() => localStorage.getItem('gcal_user_email') || '');
 
   // Calendar month state
-  const [currentDate, setCurrentDate] = useState(new Date()); // Today's date (June 2026)
+  const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedAgendaDate, setSelectedAgendaDate] = useState(new Date());
 
   const chatwootDashboardUrl = api.getChatwootDashboardUrl(activeConversationId);
@@ -129,23 +130,35 @@ function App() {
       const timeMin = new Date(year, month, 1).toISOString();
       const timeMax = new Date(year, month + 1, 1).toISOString();
 
-      const fetchedLeads = await api.getLeads();
-      const fetchedAppointments = await api.getAppointments(timeMin, timeMax);
-      setLeads(fetchedLeads);
-      setAppointments(fetchedAppointments);
+      // Cada fuente se carga por separado: si una falla, se informa y el resto se muestra igual
+      const [leadsRes, appointmentsRes, pacientesRes, citasRes] = await Promise.allSettled([
+        api.getLeads(),
+        api.getAppointments(timeMin, timeMax),
+        api.getPacientes(),
+        api.getCitasDb()
+      ]);
 
-      const fetchedPacientes = await api.getPacientes();
-      const fetchedCitasDb = await api.getCitasDb();
-      setPacientes(fetchedPacientes);
-      setCitasDb(fetchedCitasDb);
+      if (leadsRes.status === 'fulfilled') setLeads(leadsRes.value);
+      if (appointmentsRes.status === 'fulfilled') setAppointments(appointmentsRes.value);
+      if (pacientesRes.status === 'fulfilled') setPacientes(pacientesRes.value);
+      if (citasRes.status === 'fulfilled') setCitasDb(citasRes.value);
       setGcalConnected(!!api.getGCalToken());
 
+      const errors = [leadsRes, appointmentsRes, pacientesRes, citasRes]
+        .filter(r => r.status === 'rejected')
+        .map(r => r.reason?.message || String(r.reason));
+      if (errors.length > 0) {
+        console.error('Errores al sincronizar:', errors);
+        setErrorMsg(`Error al sincronizar: ${[...new Set(errors)].join(' · ')}`);
+      }
+
+      const fetchedLeads = leadsRes.status === 'fulfilled' ? leadsRes.value : [];
       if (fetchedLeads.length > 0 && !activeChatPhone && !isEmbedded) {
         setActiveChatPhone(fetchedLeads[0].phone_number);
       }
     } catch (err) {
       console.error(err);
-      setErrorMsg('Error al sincronizar datos. Usando mocks offline.');
+      setErrorMsg(`Error al sincronizar datos: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -301,7 +314,7 @@ function App() {
       showToast('Lead actualizado correctamente');
     } catch (err) {
       console.error(err);
-      showToast('Error al actualizar lead', false);
+      showToast(err.message || 'Error al actualizar lead', false);
     }
   };
 
@@ -336,13 +349,6 @@ function App() {
         sendEmailReminder ? newEvent.email : '',
         newEvent.tratamiento_receta || newEvent.receta_medica || ''
       );
-      
-      if (newEvent.phone_number) {
-        const lead = leads.find(l => l.phone_number === newEvent.phone_number);
-        if (lead && lead.status !== 'scheduled') {
-          await api.updateLead({ ...lead, status: 'scheduled' });
-        }
-      }
 
       fetchData();
       closeAppointmentModal();
@@ -409,7 +415,7 @@ function App() {
       fetchData();
     } catch (err) {
       console.error(err);
-      showToast('Error al cancelar la cita', false);
+      showToast(err.message || 'Error al cancelar la cita', false);
     }
   };
 
@@ -422,7 +428,7 @@ function App() {
       setIsDetailModalOpen(false);
     } catch (err) {
       console.error(err);
-      showToast('Error al actualizar el estado de la cita', false);
+      showToast(err.message || 'Error al actualizar el estado de la cita', false);
     }
   };
 
@@ -444,7 +450,7 @@ function App() {
       fetchData();
     } catch (err) {
       console.error(err);
-      showToast('Error al reprogramar la cita', false);
+      showToast(err.message || 'Error al reprogramar la cita', false);
     }
   };
 
@@ -509,7 +515,7 @@ function App() {
   const pastAppointmentsToReview = citasDb.filter(cita => {
     if (!cita.fecha_hora_cita) return false;
     const isPast = new Date(cita.fecha_hora_cita) < new Date();
-    const isPendingAttendance = cita.estado_cita === 'AGENDADA' || cita.estado_cita === 'CONFIRMADA' || !cita.estado_cita;
+    const isPendingAttendance = esPendiente(cita.estado_cita);
     return isPast && isPendingAttendance;
   });
 

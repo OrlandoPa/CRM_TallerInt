@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Phone, Clock, Trash, RefreshCw, FileText } from 'lucide-react';
 import { getLimaDate } from '../../utils/dateHelpers';
 import { resolveContactIdentifier } from '../../utils/contactHelpers';
+import { esAtendida } from '../../utils/estadosCita';
 
 function DetailModal({ 
   isOpen, 
@@ -28,7 +29,7 @@ function DetailModal({
 
   if (!isOpen || !selectedAppointmentDetails) return null;
 
-  const isCompleted = ['ASISTIO', 'COMPLETADA'].includes(selectedAppointmentDetails.estado_cita);
+  const isCompleted = esAtendida(selectedAppointmentDetails.estado_cita);
   const contactText = resolveContactIdentifier(selectedAppointmentDetails, leads, pacientes, citasDb);
   const patientDisplayName = selectedAppointmentDetails.pacientes?.nombre_paciente 
     || (selectedAppointmentDetails.summary ? selectedAppointmentDetails.summary.split(' - ')[0].trim() : '') 

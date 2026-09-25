@@ -1,5 +1,6 @@
 import { Clock, Clock3, Trash } from 'lucide-react';
 import { getLimaDate } from '../../utils/dateHelpers';
+import { esAtendida } from '../../utils/estadosCita';
 
 function DayAgendaModal({ 
   selectedDay, 
@@ -266,7 +267,7 @@ function DayAgendaModal({
                             </div>
                             
                             <div style={{display:'flex', gap:'8px', flexShrink:0}}>
-                              {!(dbCitaResolved?.estado_cita === 'ASISTIO' || dbCitaResolved?.estado_cita === 'COMPLETADA') && (
+                              {!(esAtendida(dbCitaResolved?.estado_cita)) && (
                                 <button 
                                   onClick={(e) => {
                                     e.stopPropagation();

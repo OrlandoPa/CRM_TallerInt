@@ -80,10 +80,11 @@ function AppointmentModal({
 
             {!isNewPatient ? (
               <div className="form-group">
-                <label>Vincular a Paciente de WhatsApp (Opcional)</label>
+                <label>Paciente (registrado o contacto de WhatsApp)</label>
                 <select 
                   data-testid="select-whatsapp-patient"
                   className="form-control"
+                  required
                   value={newEvent.phone_number}
                   onChange={(e) => {
                     const num = e.target.value;
@@ -100,7 +101,7 @@ function AppointmentModal({
                     setSendEmailReminder(!!patientEmail);
                   }}
                 >
-                  <option value="">-- No vincular --</option>
+                  <option value="">-- Selecciona un paciente --</option>
                   {leads.map(l => (
                     <option key={l.phone_number} value={l.phone_number}>
                       {l.client_name} ({l.phone_number})

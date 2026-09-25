@@ -1,4 +1,24 @@
 /**
+ * Normaliza el identificador de un paciente para que el front, n8n y la BD usen
+ * el mismo formato. Debe coincidir con public.normalizar_identificador() en Supabase.
+ * - Teléfonos: formato E.164 (+51987654321). Un móvil peruano de 9 dígitos recibe +51.
+ * - Cualquier otro valor (usuario de WhatsApp, user_123) solo se recorta.
+ */
+export const normalizarIdentificador = (valor) => {
+  if (valor === null || valor === undefined) return '';
+  const texto = String(valor).trim();
+  if (!texto) return '';
+
+  const compacto = texto.replace(/[\s\-().]/g, '');
+  if (/^\+?\d{7,15}$/.test(compacto)) {
+    let digitos = compacto.replace(/^\+/, '');
+    if (/^9\d{8}$/.test(digitos)) digitos = `51${digitos}`;
+    return `+${digitos}`;
+  }
+  return texto;
+};
+
+/**
  * Helper to resolve contact identifier (phone number or WhatsApp username)
  * for a patient / appointment from all available sources.
  */

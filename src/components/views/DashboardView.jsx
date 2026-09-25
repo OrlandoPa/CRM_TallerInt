@@ -1,5 +1,6 @@
 import { Users, Calendar as CalendarIcon, Clock3, Check, AlertCircle, Clock, Trash } from 'lucide-react';
 import { getLimaDate } from '../../utils/dateHelpers';
+import { esAtendida, esEstadoPositivo, esPendiente } from '../../utils/estadosCita';
 
 function DashboardView({ 
   citasDb, 
@@ -13,8 +14,8 @@ function DashboardView({
   // Metrics calculations
   const totalPacientes = pacientes.length;
   const totalCitas = citasDb.length;
-  const citasAgendadas = citasDb.filter(c => c.estado_cita === 'AGENDADA' || c.estado_cita === 'CONFIRMADA' || !c.estado_cita).length;
-  const citasAsistio = citasDb.filter(c => c.estado_cita === 'ASISTIO' || c.estado_cita === 'COMPLETADA').length;
+  const citasAgendadas = citasDb.filter(c => esPendiente(c.estado_cita)).length;
+  const citasAsistio = citasDb.filter(c => esAtendida(c.estado_cita)).length;
   const citasNoAsistio = citasDb.filter(c => c.estado_cita === 'NO_ASISTIO').length;
   const totalAsistenciaResuelta = citasAsistio + citasNoAsistio;
   const tasaAsistencia = totalAsistenciaResuelta ? Math.round((citasAsistio / totalAsistenciaResuelta) * 100) : 0;
@@ -294,8 +295,8 @@ function DashboardView({
                         fontWeight: 600, 
                         padding: '2px 8px', 
                         borderRadius: '4px',
-                        background: cita.estado_cita === 'CANCELADA' ? 'rgba(var(--danger-rgb), 0.1)' : (['CONFIRMADA', 'COMPLETADA', 'ASISTIO'].includes(cita.estado_cita) ? 'rgba(var(--success-rgb), 0.1)' : 'rgba(var(--warning-rgb), 0.1)'),
-                        color: cita.estado_cita === 'CANCELADA' ? 'var(--danger)' : (['CONFIRMADA', 'COMPLETADA', 'ASISTIO'].includes(cita.estado_cita) ? 'var(--success)' : 'var(--warning)')
+                        background: cita.estado_cita === 'CANCELADA' ? 'rgba(var(--danger-rgb), 0.1)' : (esEstadoPositivo(cita.estado_cita) ? 'rgba(var(--success-rgb), 0.1)' : 'rgba(var(--warning-rgb), 0.1)'),
+                        color: cita.estado_cita === 'CANCELADA' ? 'var(--danger)' : (esEstadoPositivo(cita.estado_cita) ? 'var(--success)' : 'var(--warning)')
                       }}>
                         {cita.estado_cita || 'AGENDADA'}
                       </span>

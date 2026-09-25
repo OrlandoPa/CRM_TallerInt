@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import { mockState } from './mockData.js';
+import { ESTADOS_CITA } from '../utils/estadosCita.js';
+import { normalizarIdentificador } from '../utils/contactHelpers.js';
 
 // Supabase credentials come only from build-time env vars (never from localStorage)
 const getSupabaseCredentials = () => {
@@ -19,7 +20,9 @@ export const supabase = (creds.url && creds.key)
     })
   : null;
 
-console.log('Supabase Connection Status:', supabase ? 'Configured dynamically' : 'Using Mock Data (no credentials)');
+if (!supabase) {
+  console.error('Supabase no está configurado: define VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY.');
+}
 
 // Helper to check and get Google Calendar access token
 export const getGCalToken = () => {
@@ -72,104 +75,126 @@ export const getChatwootDashboardUrl = (conversationId = null) => {
 };
 
 // --- API METHODS ---
+//
+// Regla general: cualquier error de Supabase o Google Calendar se propaga a la UI.
+
+const GCAL_BASE = 'https://www.googleapis.com/calendar/v3/calendars';
+
+const gcalEventsUrl = (eventId = '') => {
+  const cal = encodeURIComponent(getCalendarId());
+  return `${GCAL_BASE}/${cal}/events${eventId ? `/${encodeURIComponent(eventId)}` : ''}`;
+};
+
+const requireGCalToken = () => {
+  const token = getGCalToken();
+  if (!token) {
+    throw new Error('Google Calendar no está conectado. Usa "Reconectar" e inténtalo de nuevo.');
+  }
+  return token;
+};
+
+const gcalError = async (response, action) => {
+  if (response.status === 401) {
+    localStorage.removeItem('gcal_access_token');
+    localStorage.removeItem('gcal_token_expiry');
+    return new Error(`La sesión de Google Calendar expiró (${action}). Reconecta y vuelve a intentarlo.`);
+  }
+  let detail = response.statusText;
+  try {
+    const body = await response.json();
+    detail = body?.error?.message || detail;
+  } catch {
+    // respuesta sin JSON
+  }
+  return new Error(`Google Calendar (${action}): ${detail || response.status}`);
+};
+
+const dbError = (err, action) =>
+  new Error(`Base de datos (${action}): ${err?.message || JSON.stringify(err)}`, { cause: err });
+
+// Crea el paciente si no existe (evita violar la FK de citas)
+const ensurePaciente = async (identificador, nombre) => {
+  const { data: existing, error: selErr } = await supabase
+    .from('pacientes')
+    .select('identificador_paciente')
+    .eq('identificador_paciente', identificador)
+    .limit(1);
+  if (selErr) throw dbError(selErr, 'buscar paciente');
+
+  if (!existing || existing.length === 0) {
+    const { error: insErr } = await supabase
+      .from('pacientes')
+      .insert({ identificador_paciente: identificador, nombre_paciente: nombre || identificador });
+    if (insErr) throw dbError(insErr, 'registrar paciente');
+  }
+};
 
 // 1. CRM LEADS
 export const getLeads = async () => {
-  if (supabase) {
-    try {
-      const { data: pacientesData, error: crmError } = await supabase
-        .from('pacientes')
-        .select('*');
-        
-      if (crmError) throw crmError;
-      
-      const { data: msgData, error: msgError } = await supabase
-        .from('mensajes_whatsapp')
-        .select('session_id')
-        .order('id', { ascending: false });
-        
-      if (msgError) throw msgError;
-      
-      const uniquePhones = msgData ? [...new Set(msgData.map(m => m.session_id).filter(Boolean))] : [];
-      
-      const leadsMap = new Map();
-      if (pacientesData) {
-        pacientesData.forEach(p => {
-          const phoneOrId = p.identificador_paciente || p.telefono_whatsapp || p.telefono_paciente;
-          if (phoneOrId) {
-            leadsMap.set(phoneOrId.replace(/[\s\-+]/g, ''), {
-              phone_number: phoneOrId,
-              client_name: p.nombre_paciente || 'Paciente sin nombre',
-              client_email: '',
-              status: 'contacted',
-              internal_notes: 'Paciente registrado en la base de datos.',
-              created_at: p.created_at || new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            });
-          }
-        });
-      }
-      
-      uniquePhones.forEach(phone => {
-        const cleanPhone = phone.replace(/[\s\-+]/g, '');
-        if (!leadsMap.has(cleanPhone)) {
-          leadsMap.set(cleanPhone, {
-            phone_number: phone,
-            client_name: `WhatsApp Lead (${phone.slice(-4)})`,
-            client_email: '',
-            status: 'lead',
-            internal_notes: 'Nuevo contacto detectado en WhatsApp.',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          });
-        }
+  const { data: pacientesData, error: crmError } = await supabase
+    .from('pacientes')
+    .select('*');
+  if (crmError) throw dbError(crmError, 'leer pacientes');
+
+  const { data: msgData, error: msgError } = await supabase
+    .from('mensajes_whatsapp')
+    .select('session_id')
+    .order('id', { ascending: false });
+  if (msgError) throw dbError(msgError, 'leer mensajes');
+
+  const uniqueSessions = msgData ? [...new Set(msgData.map(m => m.session_id).filter(Boolean))] : [];
+
+  const leadsMap = new Map();
+  (pacientesData || []).forEach(p => {
+    const identificador = p.identificador_paciente;
+    if (identificador) {
+      leadsMap.set(normalizarIdentificador(identificador), {
+        phone_number: identificador,
+        client_name: p.nombre_paciente || 'Paciente sin nombre',
+        client_email: '',
+        status: 'contacted',
+        internal_notes: 'Paciente registrado en la base de datos.',
+        created_at: p.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString()
       });
-      
-      const mergedLeads = Array.from(leadsMap.values());
-      return mergedLeads;
-    } catch (err) {
-      console.error('Error fetching leads from Supabase, using mock:', err);
     }
-  }
-  
-  await new Promise(r => setTimeout(r, 400));
-  return mockState.leads;
+  });
+
+  uniqueSessions.forEach(session => {
+    const key = normalizarIdentificador(session);
+    if (!leadsMap.has(key)) {
+      leadsMap.set(key, {
+        phone_number: session,
+        client_name: `WhatsApp Lead (${String(session).slice(-4)})`,
+        client_email: '',
+        status: 'lead',
+        internal_notes: 'Nuevo contacto detectado en WhatsApp.',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+    }
+  });
+
+  return Array.from(leadsMap.values());
 };
 
 export const updateLead = async (lead) => {
-  if (supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('pacientes')
-        .upsert({
-          identificador_paciente: lead.phone_number,
-          nombre_paciente: lead.client_name
-        })
-        .select();
-        
-      if (error) throw error;
-      
-      if (data && data.length > 0) {
-        return {
-          phone_number: data[0].identificador_paciente || lead.phone_number,
-          client_name: data[0].nombre_paciente,
-          client_email: lead.client_email || '',
-          status: lead.status || 'contacted',
-          internal_notes: lead.internal_notes || '',
-          updated_at: new Date().toISOString()
-        };
-      }
-    } catch (err) {
-      console.error('Error updating patient in Supabase:', err);
-    }
-  }
-  
-  mockState.leads = mockState.leads.map(l => 
-    l.phone_number === lead.phone_number 
-      ? { ...l, ...lead, updated_at: new Date().toISOString() } 
-      : l
-  );
-  return lead;
+  const identificador = normalizarIdentificador(lead.phone_number);
+  const { data, error } = await supabase
+    .from('pacientes')
+    .upsert({
+      identificador_paciente: identificador,
+      nombre_paciente: lead.client_name
+    })
+    .select();
+  if (error) throw dbError(error, 'actualizar paciente');
+
+  return {
+    ...lead,
+    phone_number: data?.[0]?.identificador_paciente || identificador,
+    client_name: data?.[0]?.nombre_paciente || lead.client_name,
+    updated_at: new Date().toISOString()
+  };
 };
 
 // 2. WHATSAPP CHATS
@@ -178,494 +203,285 @@ export const updateLead = async (lead) => {
 // 3. GOOGLE CALENDAR APPOINTMENTS - DIRECT CLIENT API CONNECTION
 export const getAppointments = async (timeMin, timeMax) => {
   const token = getGCalToken();
-  const calendarId = getCalendarId();
 
-  if (token) {
-    try {
-      const cal = encodeURIComponent(calendarId);
-      const tMin = timeMin || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-      const tMax = timeMax || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-      
-      const response = await fetch(
-        `https://www.googleapis.com/calendar/v3/calendars/${cal}/events?maxResults=100&timeMin=${tMin}&timeMax=${tMax}&singleEvents=true&orderBy=startTime`, 
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
-      
-      if (!response.ok) {
-        if (response.status === 401) {
-          localStorage.removeItem('gcal_access_token');
-          localStorage.removeItem('gcal_token_expiry');
-        }
-        throw new Error(`Google Calendar API error: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      return (data.items || []).map(item => ({
-        id: item.id,
-        summary: item.summary || 'Cita Odontológica',
-        description: item.description || '',
-        start: { dateTime: item.start?.dateTime || item.start?.date },
-        end: { dateTime: item.end?.dateTime || item.end?.date },
-        status: item.status || 'confirmed',
-        correo_electronico: item.attendees?.[0]?.email || ''
-      }));
-    } catch (err) {
-      console.error('Error fetching direct appointments from Google Calendar, using mock:', err);
-    }
+  if (!token) {
+    // Sin conexión a Google Calendar: la UI muestra el aviso "Reconectar"
+    return [];
   }
-  
-  await new Promise(r => setTimeout(r, 450));
-  return mockState.appointments;
+
+  const tMin = timeMin || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const tMax = timeMax || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const params = new URLSearchParams({
+    maxResults: '250',
+    timeMin: tMin,
+    timeMax: tMax,
+    singleEvents: 'true',
+    orderBy: 'startTime'
+  });
+
+  const response = await fetch(`${gcalEventsUrl()}?${params}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!response.ok) throw await gcalError(response, 'leer eventos');
+
+  const data = await response.json();
+  return (data.items || []).map(item => ({
+    id: item.id,
+    summary: item.summary || 'Cita Odontológica',
+    description: item.description || '',
+    start: { dateTime: item.start?.dateTime || item.start?.date },
+    end: { dateTime: item.end?.dateTime || item.end?.date },
+    status: item.status || 'confirmed',
+    correo_electronico: item.attendees?.[0]?.email || ''
+  }));
 };
 
 export const createAppointment = async (summary, start, end, description = '', phone = '', email = '', tratamiento_receta = '') => {
-  const token = getGCalToken();
-  const calendarId = getCalendarId();
-  let gcalEventId = null;
-  let gcalStatus = 'confirmed';
+  const identificador = normalizarIdentificador(phone);
 
-  if (token) {
-    try {
-      const cal = encodeURIComponent(calendarId);
-      const url = `https://www.googleapis.com/calendar/v3/calendars/${cal}/events${email ? '?sendUpdates=all' : ''}`;
-      
-      const eventBody = {
-        summary: summary,
-        description: description,
-        start: { dateTime: start },
-        end: { dateTime: end }
-      };
-
-      if (email) {
-        eventBody.attendees = [{ email: email }];
-      }
-
-      const response = await fetch(
-        url, 
-        {
-          method: 'POST',
-          headers: { 
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(eventBody)
-        }
-      );
-      
-      if (!response.ok) throw new Error(`Google Calendar creation error: ${response.statusText}`);
-      const data = await response.json();
-      gcalEventId = data.id;
-      gcalStatus = data.status || 'confirmed';
-    } catch (err) {
-      console.error('Error creating direct appointment in Google Calendar, using mock:', err);
-    }
+  if (!identificador) {
+    throw new Error('Selecciona o registra al paciente (celular o usuario de WhatsApp) antes de agendar.');
   }
 
-  if (!gcalEventId) {
-    gcalEventId = `gcal-event-${Date.now()}`;
+  // 1. Google Calendar es obligatorio: n8n consulta la disponibilidad allí
+  const token = requireGCalToken();
+  const eventBody = {
+    summary,
+    description,
+    start: { dateTime: start },
+    end: { dateTime: end }
+  };
+  if (email) {
+    eventBody.attendees = [{ email }];
   }
 
-  // Sync to Supabase Table 'citas'
-  if (supabase) {
-    try {
-      // Ensure patient exists in 'pacientes' table if phone is provided to avoid Foreign Key violations
-      if (phone) {
-        const { data: existingPatient } = await supabase
-          .from('pacientes')
-          .select('identificador_paciente')
-          .eq('identificador_paciente', phone);
-          
-        if (!existingPatient || existingPatient.length === 0) {
-          const patientName = summary.split(' - ')[0] || 'Paciente WhatsApp';
-          await supabase
-            .from('pacientes')
-            .insert({
-              identificador_paciente: phone,
-              nombre_paciente: patientName
-            });
-        }
-      }
+  const response = await fetch(`${gcalEventsUrl()}${email ? '?sendUpdates=all' : ''}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(eventBody)
+  });
+  if (!response.ok) throw await gcalError(response, 'crear evento');
+  const gcalEvent = await response.json();
 
-      const { error } = await supabase
-        .from('citas')
-        .insert({
-          identificador_paciente: phone || null,
-          fecha_hora_cita: start,
-          motivo_consulta: summary,
-          estado_cita: 'AGENDADA',
-          google_event_id: gcalEventId,
-          detalles_notas_cita: description || null,
-          correo_electronico: email || null,
-          tratamiento_receta: tratamiento_receta || null
-        });
-        
-      if (error) throw error;
-    } catch (err) {
-      console.error('Error inserting appointment into Supabase:', err);
-      throw new Error(`Cita en Google Calendar OK, pero falló guardar en Base de Datos: ${err.message || JSON.stringify(err)}`, { cause: err });
-    }
+  // 2. Registro en Supabase. Si falla, se revierte el evento para no dejar datos a medias.
+  try {
+    const patientName = summary.split(' - ')[0].trim() || 'Paciente WhatsApp';
+    await ensurePaciente(identificador, patientName);
+
+    const { error } = await supabase
+      .from('citas')
+      .insert({
+        identificador_paciente: identificador,
+        fecha_hora_cita: start,
+        motivo_consulta: summary,
+        estado_cita: ESTADOS_CITA.AGENDADA,
+        google_event_id: gcalEvent.id,
+        detalles_notas_cita: description || null,
+        correo_electronico: email || null,
+        tratamiento_receta: tratamiento_receta || null,
+        recordatorio_enviado: false
+      });
+    if (error) throw dbError(error, 'guardar cita');
+  } catch (err) {
+    await fetch(gcalEventsUrl(gcalEvent.id), {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    }).catch(() => {});
+    throw new Error(`No se guardó la cita (se revirtió en Google Calendar). ${err.message}`, { cause: err });
   }
-  
-  const newAppointment = {
-    id: gcalEventId,
-    summary: summary,
+
+  return {
+    id: gcalEvent.id,
+    summary,
     description: description || 'Creada manualmente desde el CRM',
     start: { dateTime: start },
     end: { dateTime: end },
-    status: gcalStatus,
+    status: gcalEvent.status || 'confirmed',
     correo_electronico: email || null
   };
-  
-  mockState.appointments.push(newAppointment);
-  return newAppointment;
 };
 
 export const deleteAppointment = async (eventId) => {
-  const token = getGCalToken();
-  const calendarId = getCalendarId();
-
-  // 1. Delete from Google Calendar
-  if (token) {
-    try {
-      const cal = encodeURIComponent(calendarId);
-      const response = await fetch(
-        `https://www.googleapis.com/calendar/v3/calendars/${cal}/events/${eventId}`, 
-        {
-          method: 'DELETE',
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
-      
-      if (!response.ok && response.status !== 404) {
-        throw new Error(`Google Calendar delete error: ${response.statusText}`);
-      }
-    } catch (err) {
-      console.error('Error deleting direct appointment in Google Calendar:', err);
-    }
+  // 1. Eliminar de Google Calendar (404/410 = ya no existe, se continúa)
+  const token = requireGCalToken();
+  const response = await fetch(gcalEventsUrl(eventId), {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!response.ok && response.status !== 404 && response.status !== 410) {
+    throw await gcalError(response, 'cancelar evento');
   }
 
-  // 2. Sync status update in Supabase Table 'citas'
-  if (supabase) {
-    try {
-      const { error } = await supabase
-        .from('citas')
-        .update({ estado_cita: 'CANCELADA' })
-        .eq('google_event_id', eventId);
-        
-      if (error) throw error;
-    } catch (err) {
-      console.error('Error updating appointment status to CANCELADA in Supabase:', err);
-    }
-  }
-  
-  mockState.appointments = mockState.appointments.filter(app => app.id !== eventId);
+  // 2. Soft delete en Supabase
+  const { error } = await supabase
+    .from('citas')
+    .update({ estado_cita: ESTADOS_CITA.CANCELADA, updated_at: new Date().toISOString() })
+    .eq('google_event_id', eventId);
+  if (error) throw dbError(error, 'cancelar cita');
+
   return true;
 };
 
 // 4. SUPABASE CUSTOM CLINIC TABLES
 export const getPacientes = async () => {
-  if (supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('pacientes')
-        .select('*');
-      if (error) throw error;
-      return data || [];
-    } catch (err) {
-      console.error('Error fetching patients from Supabase:', err);
-      return [];
-    }
-  }
-  // Off-line mock simulation matching the active design
-  return [
-    { identificador_paciente: '+51 987 654 321', telefono_whatsapp: '+51 987 654 321', nombre_paciente: 'Juan Pérez', created_at: new Date().toISOString() },
-    { identificador_paciente: '+51 912 345 678', telefono_whatsapp: '+51 912 345 678', nombre_paciente: 'María Rodríguez', created_at: new Date().toISOString() },
-    { identificador_paciente: '+51 955 667 788', telefono_whatsapp: '+51 955 667 788', nombre_paciente: 'Carlos Mendoza', created_at: new Date().toISOString() }
-  ];
+  const { data, error } = await supabase
+    .from('pacientes')
+    .select('*');
+  if (error) throw dbError(error, 'leer pacientes');
+  return data || [];
 };
 
 export const getCitasDb = async () => {
-  if (supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('citas')
-        .select('*, pacientes(*)')
-        .order('fecha_hora_cita', { ascending: true });
-      if (error) throw error;
-      return data || [];
-    } catch (err) {
-      console.error('Error fetching appointments from Supabase:', err);
-      return [];
-    }
-  }
-  // Off-line mock simulation matching the active design
-  return [
-    {
-      id: 101,
-      identificador_paciente: '+51 987 654 321',
-      telefono_paciente: '+51 987 654 321',
-      fecha_hora_cita: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-      motivo_consulta: 'Evaluación y limpieza profunda',
-      estado_cita: 'AGENDADA',
-      detalles_notas_cita: 'Paciente reporta sangrado leve de encías.',
-      pacientes: { nombre_paciente: 'Juan Pérez', identificador_paciente: '+51 987 654 321' }
-    },
-    {
-      id: 102,
-      identificador_paciente: '+51 955 667 788',
-      telefono_paciente: '+51 955 667 788',
-      fecha_hora_cita: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
-      motivo_consulta: 'Revisión mensual de Ortodoncia',
-      estado_cita: 'AGENDADA',
-      detalles_notas_cita: 'Ajuste de brackets superior e inferior.',
-      pacientes: { nombre_paciente: 'Carlos Mendoza', identificador_paciente: '+51 955 667 788' }
-    }
-  ];
+  const { data, error } = await supabase
+    .from('citas')
+    .select('*, pacientes(*)')
+    .order('fecha_hora_cita', { ascending: true });
+  if (error) throw dbError(error, 'leer citas');
+  return data || [];
 };
 
 export const updateAppointmentStatus = async (googleEventId, status) => {
-  if (supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('citas')
-        .update({ estado_cita: status })
-        .eq('google_event_id', googleEventId)
-        .select();
-        
-      if (error) throw error;
-      return data[0];
-    } catch (err) {
-      console.error('Error updating appointment status in Supabase:', err);
-      throw err;
-    }
+  const { data, error } = await supabase
+    .from('citas')
+    .update({ estado_cita: status, updated_at: new Date().toISOString() })
+    .eq('google_event_id', googleEventId)
+    .select();
+  if (error) throw dbError(error, 'actualizar estado');
+  if (!data || data.length === 0) {
+    throw new Error('La cita no existe en la base de datos (solo está en Google Calendar).');
   }
-  
-  // Offline simulation fallback
-  mockState.appointments = mockState.appointments.map(app => 
-    app.id === googleEventId ? { ...app, status: status.toLowerCase() } : app
-  );
-  return { google_event_id: googleEventId, estado_cita: status };
+  return data[0];
+};
+
+// Busca el identificador real del paciente de una cita que solo existe en Google Calendar
+const resolvePacienteIdentificador = async (appObj, rawId) => {
+  const direct = appObj?.identificador_paciente
+    || appObj?.telefono_paciente
+    || appObj?.phone_number
+    || appObj?.pacientes?.identificador_paciente
+    || (rawId && /^\+?[\d\s-]{7,}$/.test(rawId) ? rawId : null);
+  if (direct) return normalizarIdentificador(direct);
+
+  if (appObj) {
+    const text = `${appObj.description || ''} ${appObj.summary || ''} ${appObj.motivo_consulta || ''} ${appObj.detalles_notas_cita || ''}`;
+    const phoneMatch = text.match(/\+?\d[\d\s-]{6,16}\d/);
+    if (phoneMatch) return normalizarIdentificador(phoneMatch[0]);
+  }
+
+  // Coincidencia EXACTA por nombre (nunca parcial, para no asignar la cita a otra persona)
+  const patientName = appObj?.pacientes?.nombre_paciente
+    || (appObj?.summary ? appObj.summary.split(' - ')[0].trim() : '');
+  if (patientName && !['Paciente', 'Paciente GCal', 'Paciente sin nombre'].includes(patientName)) {
+    const { data, error } = await supabase
+      .from('pacientes')
+      .select('identificador_paciente')
+      .ilike('nombre_paciente', patientName)
+      .limit(2);
+    if (error) throw dbError(error, 'buscar paciente por nombre');
+    if (data && data.length === 1) return data[0].identificador_paciente;
+  }
+
+  return null;
 };
 
 export const updateAppointmentPrescription = async (citaObjOrId, tratamientoReceta) => {
-  if (supabase) {
-    try {
-      let appObj = typeof citaObjOrId === 'object' && citaObjOrId !== null ? citaObjOrId : null;
-      let rawId = typeof citaObjOrId === 'string' ? citaObjOrId : null;
+  const appObj = typeof citaObjOrId === 'object' && citaObjOrId !== null ? citaObjOrId : null;
+  const rawId = typeof citaObjOrId === 'string' ? citaObjOrId : null;
 
-      // Extract DB numeric ID if present (Primary Key in table 'citas')
-      const dbId = appObj?.id && /^\d+$/.test(String(appObj.id)) 
-        ? parseInt(appObj.id, 10) 
-        : (typeof citaObjOrId === 'number' ? citaObjOrId : null);
+  // Primary Key numérica de 'citas'
+  const dbId = appObj?.id && /^\d+$/.test(String(appObj.id))
+    ? parseInt(appObj.id, 10)
+    : (typeof citaObjOrId === 'number' ? citaObjOrId : null);
 
-      // Extract Google Event ID if present
-      const gcalId = appObj?.google_event_id || (typeof citaObjOrId === 'string' && !/^\d+$/.test(citaObjOrId) ? citaObjOrId : null);
+  // ID real del evento de Google Calendar
+  const gcalId = appObj?.google_event_id || (rawId && !/^\d+$/.test(rawId) ? rawId : null);
 
-      const payload = { tratamiento_receta: tratamientoReceta || null };
+  const payload = { tratamiento_receta: tratamientoReceta || null, updated_at: new Date().toISOString() };
 
-      // 1. Primary target: Update strictly by DB numeric 'id' (table 'citas')
-      if (dbId) {
-        const { data: updateById, error: errById } = await supabase
-          .from('citas')
-          .update(payload)
-          .eq('id', dbId)
-          .select();
-
-        if (errById) {
-          console.error('Error updating cita by id:', errById);
-          throw errById;
-        }
-
-        if (updateById && updateById.length > 0) {
-          return updateById[0];
-        }
-      }
-
-      // 2. Secondary target: Update strictly by 'google_event_id' (table 'citas')
-      if (gcalId) {
-        const { data: updateByGcal, error: errByGcal } = await supabase
-          .from('citas')
-          .update(payload)
-          .eq('google_event_id', gcalId)
-          .select();
-
-        if (errByGcal) {
-          console.error('Error updating cita by google_event_id:', errByGcal);
-          throw errByGcal;
-        }
-
-        if (updateByGcal && updateByGcal.length > 0) {
-          return updateByGcal[0];
-        }
-      }
-
-      // 3. Fallback: If no appointment row exists in 'citas' table yet, insert a NEW row for this specific appointment
-      let patientIdentifier = appObj?.identificador_paciente 
-                           || appObj?.telefono_paciente 
-                           || appObj?.phone_number 
-                           || appObj?.pacientes?.identificador_paciente 
-                           || appObj?.pacientes?.telefono_whatsapp
-                           || (rawId && (rawId.startsWith('+') || rawId.startsWith('@') || /^\d{7,}$/.test(rawId.replace(/\D/g,''))) ? rawId : null);
-
-      let patientName = appObj?.pacientes?.nombre_paciente 
-                     || (appObj?.summary ? appObj.summary.split(' - ')[0].trim() : '')
-                     || (appObj?.motivo_consulta ? appObj.motivo_consulta.split(' - ')[0].trim() : '');
-
-      if (!patientIdentifier && appObj) {
-        const textToSearch = `${appObj.description || ''} ${appObj.summary || ''} ${appObj.motivo_consulta || ''} ${appObj.detalles_notas_cita || ''}`;
-        const phoneMatch = textToSearch.match(/(\+?\d{7,15})/);
-        const handleMatch = textToSearch.match(/@[a-zA-Z0-9_\.-]+/);
-        if (phoneMatch) {
-          patientIdentifier = phoneMatch[0].trim();
-        } else if (handleMatch) {
-          patientIdentifier = handleMatch[0].trim();
-        }
-      }
-
-      if (!patientIdentifier && patientName && patientName !== 'Paciente GCal' && patientName !== 'Paciente') {
-        try {
-          const { data: pacByName } = await supabase
-            .from('pacientes')
-            .select('identificador_paciente')
-            .ilike('nombre_paciente', `%${patientName}%`)
-            .limit(1);
-
-          if (pacByName && pacByName.length > 0 && pacByName[0].identificador_paciente) {
-            patientIdentifier = pacByName[0].identificador_paciente;
-          }
-        } catch (e) {
-          console.warn('Warning querying patient by name:', e);
-        }
-      }
-
-      if (!patientIdentifier) {
-        patientIdentifier = patientName || rawId || 'PACIENTE_SIN_ID';
-      }
-
-      const cleanIdentifier = patientIdentifier.trim();
-
-      try {
-        const { data: existingPac } = await supabase
-          .from('pacientes')
-          .select('identificador_paciente')
-          .eq('identificador_paciente', cleanIdentifier);
-
-        if (!existingPac || existingPac.length === 0) {
-          const { error: pacInsErr } = await supabase
-            .from('pacientes')
-            .insert({
-              identificador_paciente: cleanIdentifier,
-              nombre_paciente: patientName || cleanIdentifier
-            });
-          if (pacInsErr) {
-            console.warn('Non-fatal warning inserting patient:', pacInsErr);
-          }
-        }
-      } catch (pacErr) {
-        console.warn('Patient table sync warning:', pacErr);
-      }
-
-      let validFecha = new Date().toISOString();
-      if (appObj?.fecha_hora_cita && !isNaN(new Date(appObj.fecha_hora_cita).getTime())) {
-        validFecha = new Date(appObj.fecha_hora_cita).toISOString();
-      } else if (appObj?.start?.dateTime && !isNaN(new Date(appObj.start.dateTime).getTime())) {
-        validFecha = new Date(appObj.start.dateTime).toISOString();
-      }
-
-      const newCitaPayload = {
-        identificador_paciente: cleanIdentifier,
-        fecha_hora_cita: validFecha,
-        motivo_consulta: appObj?.motivo_consulta || appObj?.summary || 'Consulta Médica',
-        estado_cita: appObj?.estado_cita || 'AGENDADA',
-        google_event_id: gcalId || `gcal-${Date.now()}`,
-        detalles_notas_cita: appObj?.detalles_notas_cita || appObj?.description || null,
-        correo_electronico: appObj?.correo_electronico || null,
-        tratamiento_receta: tratamientoReceta || null
-      };
-
-      const { data: insertedData, error: insertErr } = await supabase
-        .from('citas')
-        .insert(newCitaPayload)
-        .select();
-
-      if (insertErr) {
-        console.error('Error inserting new appointment with prescription:', insertErr);
-        throw insertErr;
-      }
-
-      return insertedData?.[0];
-    } catch (err) {
-      console.error('Error updating tratamiento_receta in Supabase:', err);
-      throw err;
-    }
+  // 1. Actualizar por id de la BD
+  if (dbId) {
+    const { data, error } = await supabase.from('citas').update(payload).eq('id', dbId).select();
+    if (error) throw dbError(error, 'guardar tratamiento');
+    if (data && data.length > 0) return data[0];
   }
-  return { google_event_id: typeof citaObjOrId === 'string' ? citaObjOrId : citaObjOrId?.google_event_id, tratamiento_receta: tratamientoReceta };
+
+  // 2. Actualizar por google_event_id
+  if (gcalId) {
+    const { data, error } = await supabase.from('citas').update(payload).eq('google_event_id', gcalId).select();
+    if (error) throw dbError(error, 'guardar tratamiento');
+    if (data && data.length > 0) return data[0];
+  }
+
+  // 3. La cita solo existe en Google Calendar: se registra en la BD, pero solo si
+  //    se identifica al paciente con certeza y el evento es real.
+  if (!gcalId) {
+    throw new Error('La cita no tiene un evento válido de Google Calendar; no se puede registrar.');
+  }
+  const identificador = await resolvePacienteIdentificador(appObj, rawId);
+  if (!identificador) {
+    throw new Error('No se pudo identificar al paciente de esta cita. Agrega su celular en la descripción del evento o regístrala desde el CRM.');
+  }
+
+  const patientName = appObj?.pacientes?.nombre_paciente
+    || (appObj?.summary ? appObj.summary.split(' - ')[0].trim() : '')
+    || identificador;
+  await ensurePaciente(identificador, patientName);
+
+  const fechaRaw = appObj?.fecha_hora_cita || appObj?.start?.dateTime;
+  if (!fechaRaw || isNaN(new Date(fechaRaw).getTime())) {
+    throw new Error('La cita no tiene una fecha válida.');
+  }
+
+  const { data, error } = await supabase
+    .from('citas')
+    .insert({
+      identificador_paciente: identificador,
+      fecha_hora_cita: new Date(fechaRaw).toISOString(),
+      motivo_consulta: appObj?.motivo_consulta || appObj?.summary || 'Consulta Médica',
+      estado_cita: appObj?.estado_cita || ESTADOS_CITA.AGENDADA,
+      google_event_id: gcalId,
+      detalles_notas_cita: appObj?.detalles_notas_cita || appObj?.description || null,
+      correo_electronico: appObj?.correo_electronico || null,
+      tratamiento_receta: tratamientoReceta || null,
+      recordatorio_enviado: false
+    })
+    .select();
+  if (error) throw dbError(error, 'registrar cita con tratamiento');
+  return data?.[0];
 };
 
 export const rescheduleAppointment = async (eventId, start, end) => {
-  const token = getGCalToken();
-  const calendarId = getCalendarId();
-
-  // 1. Google Calendar update
-  if (token) {
-    try {
-      const cal = encodeURIComponent(calendarId);
-      const getResponse = await fetch(
-        `https://www.googleapis.com/calendar/v3/calendars/${cal}/events/${eventId}`,
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
-      if (getResponse.ok) {
-        const event = await getResponse.json();
-        event.start = { dateTime: start };
-        event.end = { dateTime: end };
-
-        const putResponse = await fetch(
-          `https://www.googleapis.com/calendar/v3/calendars/${cal}/events/${eventId}`,
-          {
-            method: 'PUT',
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(event)
-          }
-        );
-        if (!putResponse.ok) throw new Error(`Google Calendar PUT error: ${putResponse.statusText}`);
-      } else {
-        throw new Error(`Google Calendar GET error: ${getResponse.statusText}`);
-      }
-    } catch (err) {
-      console.error('Error rescheduling appointment in Google Calendar:', err);
+  // 1. Google Calendar (PATCH solo cambia las fechas)
+  const token = requireGCalToken();
+  const response = await fetch(gcalEventsUrl(eventId), {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ start: { dateTime: start }, end: { dateTime: end } })
+  });
+  if (!response.ok) {
+    if (response.status === 404 || response.status === 410) {
+      throw new Error('El evento ya no existe en Google Calendar. Cancela esta cita y agenda una nueva.');
     }
+    throw await gcalError(response, 'reprogramar evento');
   }
 
-  // 2. Supabase DB update
-  if (supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('citas')
-        .update({ 
-          fecha_hora_cita: start,
-          estado_cita: 'AGENDADA' // Reset status on reschedule
-        })
-        .eq('google_event_id', eventId)
-        .select();
-        
-      if (error) throw error;
-      return data[0];
-    } catch (err) {
-      console.error('Error rescheduling appointment in Supabase:', err);
-      throw err;
-    }
-  }
-
-  // Offline simulation fallback
-  mockState.appointments = mockState.appointments.map(app => 
-    app.id === eventId ? { ...app, start: { dateTime: start }, end: { dateTime: end } } : app
-  );
-  return { google_event_id: eventId, fecha_hora_cita: start };
+  // 2. Supabase: mismo estado que usa n8n y se reactiva el recordatorio para la nueva fecha
+  const { data, error } = await supabase
+    .from('citas')
+    .update({
+      fecha_hora_cita: start,
+      estado_cita: ESTADOS_CITA.REPROGRAMADA,
+      recordatorio_enviado: false,
+      updated_at: new Date().toISOString()
+    })
+    .eq('google_event_id', eventId)
+    .select();
+  if (error) throw dbError(error, 'reprogramar cita');
+  return data?.[0];
 };

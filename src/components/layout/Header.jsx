@@ -44,7 +44,7 @@ function Header({ activeTab, handleRefresh, supabaseOnline, user, onLogout }) {
             boxShadow: supabaseOnline ? '0 0 8px var(--success)' : '0 0 8px var(--warning)'
           }}></div>
           <span style={{fontSize:'0.8rem', fontWeight:600, color:'var(--text-secondary)'}}>
-            {supabaseOnline ? 'Supabase ONLINE' : 'Modo Simulador'}
+            {supabaseOnline ? 'Supabase ONLINE' : 'Supabase sin configurar'}
           </span>
         </div>
 
