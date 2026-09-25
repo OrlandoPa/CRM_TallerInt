@@ -12,7 +12,11 @@ const creds = getSupabaseCredentials();
 
 // Initialize Supabase Client
 export const supabase = (creds.url && creds.key) 
-  ? createClient(creds.url, creds.key) 
+  ? createClient(creds.url, creds.key, {
+      // PKCE: el login vuelve con ?code= (que se canjea y se borra de la URL)
+      // en vez de exponer los tokens en el #fragmento
+      auth: { flowType: 'pkce' }
+    })
   : null;
 
 console.log('Supabase Connection Status:', supabase ? 'Configured dynamically' : 'Using Mock Data (no credentials)');
