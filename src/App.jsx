@@ -52,7 +52,9 @@ const getInitialParams = () => {
 const initialParams = getInitialParams();
 
 function App() {
-  const [user, setUser] = useState(() => authService.getCurrentUser());
+  const [user, setUser] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [authError, setAuthError] = useState('');
   const [activeTab, setActiveTab] = useState(initialParams.activeTab);
   const [theme, setTheme] = useState('dark');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -103,16 +105,10 @@ function App() {
     email: ''
   });
 
-  // Settings state (Persisted in LocalStorage)
+  // Settings (build-time env vars only)
   const [settings] = useState({
-    supabaseUrl: localStorage.getItem('crm_supabase_url') || import.meta.env.VITE_SUPABASE_URL || '',
-    supabaseAnonKey: localStorage.getItem('crm_supabase_anon_key') || import.meta.env.VITE_SUPABASE_ANON_KEY || '',
-    googleClientId: localStorage.getItem('crm_google_client_id') || import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
-    calendarId: localStorage.getItem('crm_calendar_id') || import.meta.env.VITE_CALENDAR_ID || 'primary',
-    chatwootAccountId: localStorage.getItem('crm_chatwoot_account_id') || import.meta.env.VITE_CHATWOOT_ACCOUNT_ID || '1',
-    chatwootBaseUrl: localStorage.getItem('crm_chatwoot_base_url') || import.meta.env.VITE_CHATWOOT_BASE_URL || 'https://app.chatwoot.com',
-    chatwootAccessToken: localStorage.getItem('crm_chatwoot_access_token') || import.meta.env.VITE_CHATWOOT_ACCESS_TOKEN || '',
-    requiredGCalGmail: localStorage.getItem('crm_required_gcal_gmail') || import.meta.env.VITE_REQUIRED_GCAL_GMAIL || ''
+    googleClientId: import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
+    requiredGCalGmail: import.meta.env.VITE_REQUIRED_GCAL_GMAIL || ''
   });
 
   const [gcalEmail, setGcalEmail] = useState(() => localStorage.getItem('gcal_user_email') || '');
@@ -142,7 +138,8 @@ function App() {
       const fetchedCitasDb = await api.getCitasDb();
       setPacientes(fetchedPacientes);
       setCitasDb(fetchedCitasDb);
-      
+      setGcalConnected(!!api.getGCalToken());
+
       if (fetchedLeads.length > 0 && !activeChatPhone && !isEmbedded) {
         setActiveChatPhone(fetchedLeads[0].phone_number);
       }
@@ -527,34 +524,60 @@ function App() {
     }
   }, [user]);
 
-  // Listener para sesión de Supabase Auth
+  // Sesión real de Supabase Auth: es la única fuente de verdad del login.
+  // La RLS de Supabase valida el JWT de esta sesión en cada consulta.
   useEffect(() => {
-    if (api.supabase && api.supabase.auth) {
-      const { data: authListener } = api.supabase.auth.onAuthStateChange((event, session) => {
-        if (session && session.user && session.user.email) {
-          const result = authService.validateAndLoginUser({
-            email: session.user.email,
-            name: session.user.user_metadata?.full_name || session.user.email.split('@')[0],
-            picture: session.user.user_metadata?.avatar_url
-          });
-          if (result.success) {
-            setUser(result.user);
-          } else {
-            setErrorMsg(result.error);
-            setUser(null);
-          }
-        }
-      });
-
-      return () => {
-        authListener?.subscription?.unsubscribe();
-      };
+    if (!api.supabase) {
+      setAuthError('Supabase no está configurado. Revisa las variables de entorno.');
+      setAuthReady(true);
+      return;
     }
+
+    const applySession = (session) => {
+      if (!session) {
+        setUser(null);
+        return;
+      }
+      const result = authService.userFromSession(session);
+      if (result.success) {
+        authService.storeGCalTokenFromSession(session);
+        setGcalConnected(!!api.getGCalToken());
+        setAuthError('');
+        setUser(result.user);
+      } else {
+        setAuthError(result.error);
+        setUser(null);
+        authService.logout();
+      }
+    };
+
+    authService.getSession().then((session) => {
+      applySession(session);
+      setAuthReady(true);
+    });
+
+    const { data: authListener } = api.supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'USER_UPDATED') {
+        applySession(session);
+      }
+    });
+
+    return () => {
+      authListener?.subscription?.unsubscribe();
+    };
   }, []);
+
+  if (!authReady) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)' }}>
+        <RefreshCw size={32} style={{ animation: 'spin 2s linear infinite', color: 'var(--primary)' }} />
+      </div>
+    );
+  }
 
   // Si no hay sesión de usuario activa, mostrar Auth Gate (LoginView)
   if (!user) {
-    return <LoginView onLoginSuccess={(loggedInUser) => setUser(loggedInUser)} />;
+    return <LoginView authError={authError} />;
   }
 
   return (
@@ -610,6 +633,28 @@ function App() {
             data-testid="btn-close-toast-error"
           >
             <X size={18} />
+          </button>
+        </div>
+      )}
+
+      {/* Google Calendar token expired / missing: offer reconnection */}
+      {!gcalConnected && (
+        <div style={{
+          position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)',
+          background: 'rgba(245, 158, 11, 0.95)', color: '#1f2937', padding: '10px 16px',
+          borderRadius: '8px', zIndex: 1900, fontWeight: 600, display: 'flex', alignItems: 'center',
+          gap: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+        }} data-testid="gcal-reconnect-banner">
+          <Calendar size={18} />
+          <span>Google Calendar desconectado</span>
+          <button
+            type="button"
+            onClick={handleGoogleLogin}
+            className="btn btn-primary"
+            style={{ padding: '6px 12px' }}
+            data-testid="btn-gcal-login"
+          >
+            Reconectar
           </button>
         </div>
       )}

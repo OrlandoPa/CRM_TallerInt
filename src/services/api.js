@@ -1,10 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 import { mockState } from './mockData.js';
 
-// Load Supabase credentials dynamically (prioritizing localStorage settings)
+// Supabase credentials come only from build-time env vars (never from localStorage)
 const getSupabaseCredentials = () => {
-  const url = localStorage.getItem('crm_supabase_url') || import.meta.env.VITE_SUPABASE_URL || '';
-  const key = localStorage.getItem('crm_supabase_anon_key') || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+  const url = import.meta.env.VITE_SUPABASE_URL || '';
+  const key = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
   return { url: url.trim(), key: key.trim() };
 };
 
@@ -32,16 +32,16 @@ export const getGCalToken = () => {
   return null;
 };
 
-// Get configured calendar ID from localStorage
+// Get configured calendar ID
 const getCalendarId = () => {
-  return localStorage.getItem('crm_calendar_id') || import.meta.env.VITE_CALENDAR_ID || 'primary';
+  return import.meta.env.VITE_CALENDAR_ID || 'primary';
 };
 
-// Helper to parse Chatwoot configuration and extract Account ID from full URLs
+// Helper to parse Chatwoot configuration and extract Account ID from full URLs.
+// No API token here: anything prefixed VITE_ is shipped in the public bundle.
 export const getChatwootConfig = () => {
-  const accountVal = localStorage.getItem('crm_chatwoot_account_id') || import.meta.env.VITE_CHATWOOT_ACCOUNT_ID || '';
-  const token = localStorage.getItem('crm_chatwoot_access_token') || import.meta.env.VITE_CHATWOOT_ACCESS_TOKEN || '';
-  const baseUrl = localStorage.getItem('crm_chatwoot_base_url') || import.meta.env.VITE_CHATWOOT_BASE_URL || 'https://app.chatwoot.com';
+  const accountVal = import.meta.env.VITE_CHATWOOT_ACCOUNT_ID || '';
+  const baseUrl = import.meta.env.VITE_CHATWOOT_BASE_URL || 'https://app.chatwoot.com';
   
   if (!accountVal) return null;
   
@@ -54,7 +54,6 @@ export const getChatwootConfig = () => {
   
   return {
     accountId,
-    token: token.trim(),
     baseUrl: baseUrl.trim().replace(/\/+$/, '') || 'https://app.chatwoot.com'
   };
 };

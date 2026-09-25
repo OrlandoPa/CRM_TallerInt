@@ -43,3 +43,11 @@ PRUEBAS_E2E_SELENIUM.md
 
 # E2E Chrome test user data profiles
 tests/e2e/.chrome-user-data*
+
+# Documentación local
+DIAGRAMA_INTEGRACION.md
+CLAUDE.md
+
+# Exportaciones de flujos n8n (se versionan en otro repositorio)
+Gesti*nCitas WhatsApp*.json
+Recordatorios Automaticos*.json

@@ -1,100 +1,24 @@
 import { useState } from 'react';
 import { ShieldCheck, AlertCircle, Lock, Calendar, MessageSquare, Activity, CheckCircle2 } from 'lucide-react';
-import { supabase } from '../../services/api';
-import { validateAndLoginUser, getAllowedEmail } from '../../services/authService';
+import { signInWithGoogle } from '../../services/authService';
 
-function LoginView({ onLoginSuccess }) {
+function LoginView({ authError = '' }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const allowedEmail = getAllowedEmail();
-  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+  const shownError = error || authError;
 
-  // Función única y unificada para iniciar sesión con Google
-  const handleGoogleLogin = () => {
+  // Inicio de sesión real con Google vía Supabase Auth (redirige a Google y vuelve a la app).
+  // No existe ningún modo "simulado": sin sesión de Supabase no hay acceso.
+  const handleGoogleLogin = async () => {
     setLoading(true);
     setError('');
-
-    // 1. Si Google Identity Services Client está cargado en el navegador, solicitar token con acceso a Calendar
-    if (googleClientId && window.google?.accounts?.oauth2) {
-      try {
-        const client = window.google.accounts.oauth2.initTokenClient({
-          client_id: googleClientId,
-          scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.email',
-          callback: async (tokenResponse) => {
-            if (tokenResponse.access_token) {
-              localStorage.setItem('gcal_access_token', tokenResponse.access_token);
-              localStorage.setItem('gcal_token_expiry', (Date.now() + tokenResponse.expires_in * 1000).toString());
-
-              try {
-                const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                  headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
-                });
-                if (res.ok) {
-                  const info = await res.json();
-                  const result = validateAndLoginUser({
-                    email: info.email,
-                    name: info.name,
-                    picture: info.picture
-                  });
-                  if (result.success) {
-                    if (onLoginSuccess) onLoginSuccess(result.user);
-                    return;
-                  } else {
-                    setError(result.error);
-                    setLoading(false);
-                    return;
-                  }
-                }
-              } catch (err) {
-                console.error('Error al obtener perfil:', err);
-              }
-            }
-            handleSimulatedLogin(allowedEmail);
-          }
-        });
-        client.requestAccessToken();
-        return;
-      } catch (err) {
-        console.warn('Error inicializando token de Google OAuth:', err);
-      }
+    try {
+      await signInWithGoogle();
+    } catch (err) {
+      console.error('Error al iniciar sesión con Google:', err);
+      setError(err?.message || 'No se pudo iniciar sesión con Google.');
+      setLoading(false);
     }
-
-    // 2. Si Supabase Auth OAuth está disponible y no es entorno de pruebas unitarias
-    const isUnitTest = import.meta.env.MODE === 'test' || (typeof window !== 'undefined' && !window.navigator?.userAgent);
-
-    if (supabase && supabase.auth && !isUnitTest) {
-      supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: window.location.origin,
-          scopes: 'https://www.googleapis.com/auth/calendar.events'
-        }
-      }).catch((err) => {
-        console.warn('Fallback a simulación de inicio de sesión:', err);
-        handleSimulatedLogin(allowedEmail);
-      });
-    } else {
-      handleSimulatedLogin(allowedEmail);
-    }
-  };
-
-  // Función de respaldo para pruebas unitarias / desarrollo offline
-  const handleSimulatedLogin = (emailToUse) => {
-    setLoading(true);
-    setError('');
-    const targetEmail = emailToUse || allowedEmail;
-    const result = validateAndLoginUser({
-      email: targetEmail,
-      name: targetEmail ? targetEmail.split('@')[0] : 'Administrador CRM',
-      picture: 'https://lh3.googleusercontent.com/a/default-user'
-    });
-
-    if (result.success) {
-      if (onLoginSuccess) onLoginSuccess(result.user);
-    } else {
-      setError(result.error);
-    }
-    setLoading(false);
   };
 
   return (
@@ -306,7 +230,7 @@ function LoginView({ onLoginSuccess }) {
           </p>
 
           {/* Notificación de Error */}
-          {error && (
+          {shownError && (
             <div
               data-testid="login-error-alert"
               style={{
@@ -325,7 +249,7 @@ function LoginView({ onLoginSuccess }) {
             >
               <AlertCircle size={18} style={{ flexShrink: 0, marginTop: '2px' }} />
               <div style={{ flex: 1, lineHeight: '1.4' }}>
-                {error}
+                {shownError}
               </div>
             </div>
           )}
