@@ -40,6 +40,7 @@ DOCUMENTACION_RAD_DESARROLLO.md
 CASOS_DE_PRUEBA.md
 PRUEBAS_CAJA_NEGRA.md
 PRUEBAS_E2E_SELENIUM.md
+REQUISITOS.md
 
 # E2E Chrome test user data profiles
 tests/e2e/.chrome-user-data*
@@ -51,3 +52,6 @@ CLAUDE.md
 # Exportaciones de flujos n8n (se versionan en otro repositorio)
 Gesti*nCitas WhatsApp*.json
 Recordatorios Automaticos*.json
+
+# Migraciones SQL (se ejecutan a mano en el SQL Editor de Supabase; no se versionan)
+supabase/
