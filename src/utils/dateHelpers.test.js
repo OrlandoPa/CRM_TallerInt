@@ -80,11 +80,11 @@ describe('UT-FRONT-03: Cálculo Dinámico de Hora de Fin (calculateEndTime)', ()
     expect(result).toBe('2026-07-15T09:30');
   });
 
-  it('Debería calcular hora de fin para blanqueamiento (+45 min)', () => {
+  it('Debería agendar el blanqueamiento en un bloque de 30 min (puede extenderse hasta 45 en consulta)', () => {
     const start = '2026-07-15T09:00';
     const result = calculateEndTime(start, 'blanqueamiento');
     console.log(`calculateEndTime('2026-07-15T09:00', 'blanqueamiento') => Retornó: '${result}'`);
-    expect(result).toBe('2026-07-15T09:45');
+    expect(result).toBe('2026-07-15T09:30');
   });
 
   it('Debería calcular hora de fin para cirugía (+60 min)', () => {

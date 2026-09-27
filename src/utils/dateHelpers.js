@@ -79,10 +79,8 @@ export const calculateEndTime = (startStr, treatmentKey) => {
     case 'restauracion':
     case 'endodoncia':
     case 'ortodoncia':
+    case 'blanqueamiento': // se agenda en 1 bloque; en consulta puede extenderse hasta 45 min
       durationMinutes = 30;
-      break;
-    case 'blanqueamiento':
-      durationMinutes = 45;
       break;
     case 'cirugia':
     case 'rehabilitacion':

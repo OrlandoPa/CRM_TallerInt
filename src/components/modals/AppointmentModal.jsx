@@ -179,7 +179,7 @@ function AppointmentModal({
                 <option value="restauracion">Restauración (30 min)</option>
                 <option value="endodoncia">Endodoncia (30 min)</option>
                 <option value="ortodoncia">Ortodoncia (30 min)</option>
-                <option value="blanqueamiento">Blanqueamiento dental (45 min)</option>
+                <option value="blanqueamiento">Blanqueamiento dental (30 min, puede extenderse hasta 45 min)</option>
                 <option value="cirugia">Cirugía (ej. cordales) (60 min)</option>
                 <option value="rehabilitacion">Rehabilitación oral (60 min)</option>
                 <option value="personalizado">Otro / Personalizado</option>

@@ -689,6 +689,7 @@ function App() {
                 onOpenDetail={handleOpenDetailFromGCal}
                 onDeleteAppointment={handleDeleteAppointment}
                 hasRequiredGCalGmail={hasRequiredGCalGmail}
+                onNavigate={setActiveTab}
               />
             )}
 

@@ -902,6 +902,26 @@ input[type='datetime-local']::-webkit-calendar-picker-indicator {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  text-align: left;
+  min-width: 0;
+}
+
+.kpi--link {
+  transition: background-color 0.12s ease;
+}
+
+.kpi--link:hover {
+  background: var(--surface-2);
+}
+
+.kpi-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--accent);
 }
 
 .kpi:first-child {
@@ -914,11 +934,10 @@ input[type='datetime-local']::-webkit-calendar-picker-indicator {
 }
 
 .kpi-value {
-  font-family: var(--font-serif);
-  font-size: 34px;
-  font-weight: 500;
+  font-size: 30px;
+  font-weight: 600;
   line-height: 1.1;
-  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
   margin: 6px 0 2px;
 }
 
@@ -936,6 +955,10 @@ input[type='datetime-local']::-webkit-calendar-picker-indicator {
   gap: 20px;
 }
 
+.dash-grid--reverse {
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+}
+
 .rate {
   display: flex;
   align-items: baseline;
@@ -943,11 +966,28 @@ input[type='datetime-local']::-webkit-calendar-picker-indicator {
 }
 
 .rate-value {
-  font-family: var(--font-serif);
-  font-size: 52px;
-  font-weight: 500;
+  font-size: 48px;
+  font-weight: 600;
   line-height: 1;
-  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+
+.delta.up svg { color: var(--ok); }
+.delta.down svg { color: var(--bad); }
+
+.chart-footnote {
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--ink-3);
 }
 
 .rate-caption {
@@ -957,20 +997,136 @@ input[type='datetime-local']::-webkit-calendar-picker-indicator {
 
 .stack-bar {
   display: flex;
-  height: 10px;
-  border-radius: 3px;
-  overflow: hidden;
+  gap: 2px;
+  height: 12px;
+  margin: 20px 0 14px;
   background: var(--sunken);
-  margin: 22px 0 14px;
+  border-radius: 4px;
 }
 
 .stack-bar > span {
   height: 100%;
-  transition: width 0.5s ease;
+  flex-basis: 0;
 }
 
-.stack-bar .seg-ok { background: var(--ok); }
-.stack-bar .seg-bad { background: var(--bad); }
+.stack-bar > span:first-child { border-radius: 4px 0 0 4px; }
+.stack-bar > span:last-child { border-radius: 0 4px 4px 0; }
+.stack-bar > span:only-child { border-radius: 4px; }
+
+/* Colores de datos validados (CVD y contraste) con el validador de la skill dataviz.
+   Asistió va en azul y no en verde: verde/rojo se confunden con daltonismo rojo-verde. */
+:root {
+  --chart-1: #1070b8;
+  --chart-neg: #b83a3a;
+  --chart-rest: #cbd5e0;
+}
+
+:root.dark {
+  --chart-1: #3a8ad0;
+  --chart-neg: #d4625a;
+  --chart-rest: #3b4f6b;
+}
+
+.seg-ok, .sw-ok { background: var(--chart-1); }
+.seg-bad, .sw-bad { background: var(--chart-neg); }
+.seg-muted, .sw-muted { background: var(--chart-rest); }
+.seg-past, .sw-accent { background: var(--chart-1); }
+/* Programadas: mismo azul con rayado diagonal (aún no ocurren) */
+.seg-scheduled, .sw-accent-light {
+  background: repeating-linear-gradient(135deg, var(--chart-1) 0 2px, transparent 2px 5px);
+  box-shadow: inset 0 0 0 1px var(--chart-1);
+}
+
+/* Columnas por semana */
+.week-chart {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 8px;
+  height: 190px;
+  margin-bottom: 14px;
+}
+
+.week-col {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  outline: none;
+}
+
+.week-plot {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.week-value {
+  font-size: 12px;
+  color: var(--ink-2);
+  margin-bottom: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.week-bar {
+  width: 100%;
+  max-width: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+}
+
+.week-bar > span {
+  flex-basis: 0;
+}
+
+.week-bar > span:first-child { border-radius: 4px 4px 0 0; }
+
+.week-label {
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--ink-3);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.week-col.is-current .week-label {
+  color: var(--title);
+  font-weight: 600;
+}
+
+.week-col::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% - 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 200px;
+  padding: 6px 9px;
+  border-radius: var(--radius);
+  background: var(--title);
+  color: var(--bg);
+  font-size: 12px;
+  line-height: 1.35;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  z-index: 5;
+}
+
+.week-col:hover::after,
+.week-col:focus-visible::after {
+  opacity: 1;
+}
+
+.week-col:first-child::after { left: 0; transform: none; }
+.week-col:last-child::after { left: auto; right: 0; transform: none; }
 
 .legend {
   display: flex;
@@ -987,8 +1143,8 @@ input[type='datetime-local']::-webkit-calendar-picker-indicator {
 }
 
 .legend-item i {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 2px;
 }
 
@@ -1012,8 +1168,8 @@ input[type='datetime-local']::-webkit-calendar-picker-indicator {
 }
 
 .dist-track {
-  height: 8px;
-  border-radius: 2px;
+  height: 10px;
+  border-radius: 4px;
   background: var(--sunken);
   overflow: hidden;
 }
@@ -1021,7 +1177,7 @@ input[type='datetime-local']::-webkit-calendar-picker-indicator {
 .dist-fill {
   height: 100%;
   background: var(--accent);
-  border-radius: 2px;
+  border-radius: 0 4px 4px 0;
   transition: width 0.5s ease;
 }
 
@@ -1845,6 +2001,7 @@ input[type='datetime-local']::-webkit-calendar-picker-indicator {
   }
 
   .dash-grid,
+  .dash-grid--reverse,
   .shift-grid {
     grid-template-columns: minmax(0, 1fr);
   }
