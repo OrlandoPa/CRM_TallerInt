@@ -1201,18 +1201,6 @@ input[type='datetime-local']::-webkit-calendar-picker-indicator {
   font-size: 13px;
 }
 
-.slot-free .btn {
-  opacity: 0;
-}
-
-.slot:hover .slot-free .btn,
-.slot-free .btn:focus-visible {
-  opacity: 1;
-}
-
-.slot--past .slot-free .btn {
-  display: none;
-}
 
 .slot-event {
   display: flex;
