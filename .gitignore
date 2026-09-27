@@ -45,6 +45,7 @@ PRUEBAS_CAJA_NEGRA.md
 PRUEBAS_E2E_SELENIUM.md
 REQUISITOS.md
 CAMBIOS_N8N.md
+DESPLIEGUE_*.md
 
 # E2E Chrome test user data profiles
 tests/e2e/.chrome-user-data*
