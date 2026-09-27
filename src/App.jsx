@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { 
-  CheckCircle2, 
-  AlertCircle, 
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
+import {
+  CheckCircle2,
+  AlertCircle,
   CalendarX2,
   X
 } from 'lucide-react';
@@ -9,6 +9,7 @@ import {
 import * as api from './services/api';
 import { isValidWorkingHours, calculateEndTime, toDateInput, toDateTimeInput } from './utils/dateHelpers';
 import { esPendiente } from './utils/estadosCita';
+import { AgendaConfigContext, CONFIG_POR_DEFECTO, normalizarConfig } from './utils/agendaConfig';
 
 // Layout components
 import Sidebar from './components/layout/Sidebar';
@@ -25,8 +26,11 @@ import AttendanceView from './components/views/AttendanceView';
 import ChatsView from './components/views/ChatsView';
 import CalendarView from './components/views/CalendarView';
 
+// Se cargan bajo demanda: recepción nunca descarga el módulo de Administración
+const PacientesView = lazy(() => import('./components/views/PacientesView'));
+const AdminView = lazy(() => import('./components/views/AdminView'));
+
 // Modals
-import LeadModal from './components/modals/LeadModal';
 import AppointmentModal from './components/modals/AppointmentModal';
 import DayAgendaModal from './components/modals/DayAgendaModal';
 import DetailModal from './components/modals/DetailModal';
@@ -46,9 +50,6 @@ const getInitialParams = () => {
 
 const initialParams = getInitialParams();
 
-// Configuración de build (variables públicas; nunca secretos)
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
-const REQUIRED_GCAL_GMAIL = import.meta.env.VITE_REQUIRED_GCAL_GMAIL || '';
 const SUPABASE_MISSING_MSG = 'Supabase no está configurado. Revisa las variables de entorno.';
 
 const MS_HORA = 60 * 60 * 1000;
@@ -65,10 +66,12 @@ function App() {
   const [appointments, setAppointments] = useState([]);
   const [pacientes, setPacientes] = useState([]);
   const [citasDb, setCitasDb] = useState([]);
+  const [agendaConfig, setAgendaConfig] = useState(CONFIG_POR_DEFECTO);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
-  const [gcalConnected, setGcalConnected] = useState(() => !!api.getGCalToken());
+  // Error al leer Google Calendar (vía Edge Function); vacío = disponible
+  const [calendarError, setCalendarError] = useState('');
 
   // Embedded mode state (e.g. inside Chatwoot iframe)
   const [isEmbedded] = useState(initialParams.isEmbedded);
@@ -76,11 +79,9 @@ function App() {
   const [activeConversationId] = useState(initialParams.convId);
 
   // Modals state
-  const [selectedLead, setSelectedLead] = useState(null);
-  const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
   const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
   const [selectedDayForAgenda, setSelectedDayForAgenda] = useState(null);
-  
+
   // Rescheduling states
   const [selectedCitaForReschedule, setSelectedCitaForReschedule] = useState(null);
   const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false);
@@ -106,13 +107,31 @@ function App() {
     email: ''
   });
 
-  const [gcalEmail, setGcalEmail] = useState(api.getGCalEmail);
-
   // Calendar month state
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedAgendaDate, setSelectedAgendaDate] = useState(new Date());
 
+  const esDoctor = user?.rol === authService.ROLES.DOCTOR;
+  const agendaDisponible = !calendarError;
   const chatwootDashboardUrl = api.getChatwootDashboardUrl(activeConversationId);
+
+  const toastTimeoutRef = useRef(null);
+
+  // Toast notifications helper (4 seconds duration)
+  const showToast = useCallback((msg, isSuccess = true) => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
+    if (isSuccess) {
+      setErrorMsg('');
+      setSuccessMsg(msg);
+      toastTimeoutRef.current = setTimeout(() => setSuccessMsg(''), 4000);
+    } else {
+      setSuccessMsg('');
+      setErrorMsg(msg);
+      toastTimeoutRef.current = setTimeout(() => setErrorMsg(''), 6000);
+    }
+  }, []);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -124,20 +143,23 @@ function App() {
       const timeMax = new Date(year, month + 1, 1).toISOString();
 
       // Cada fuente se carga por separado: si una falla, se informa y el resto se muestra igual
-      const [leadsRes, appointmentsRes, pacientesRes, citasRes] = await Promise.allSettled([
+      const [leadsRes, appointmentsRes, pacientesRes, citasRes, configRes] = await Promise.allSettled([
         api.getLeads(),
         api.getAppointments(timeMin, timeMax),
         api.getPacientes(),
-        api.getCitasDb()
+        api.getCitasDb(),
+        api.getAgendaConfig()
       ]);
 
       if (leadsRes.status === 'fulfilled') setLeads(leadsRes.value);
       if (appointmentsRes.status === 'fulfilled') setAppointments(appointmentsRes.value);
       if (pacientesRes.status === 'fulfilled') setPacientes(pacientesRes.value);
       if (citasRes.status === 'fulfilled') setCitasDb(citasRes.value);
-      setGcalConnected(!!api.getGCalToken());
+      if (configRes.status === 'fulfilled') setAgendaConfig(normalizarConfig(configRes.value));
+      setCalendarError(appointmentsRes.status === 'rejected' ? (appointmentsRes.reason?.message || 'Error desconocido') : '');
 
-      const errors = [leadsRes, appointmentsRes, pacientesRes, citasRes]
+      // El error de Calendar se muestra en su propio aviso persistente
+      const errors = [leadsRes, pacientesRes, citasRes, configRes]
         .filter(r => r.status === 'rejected')
         .map(r => r.reason?.message || String(r.reason));
       if (errors.length > 0) {
@@ -162,76 +184,8 @@ function App() {
     }
   }, [user, fetchData]);
 
-  // Obtener el correo de la cuenta de Google Calendar conectada
-  useEffect(() => {
-    const syncGCalEmail = async () => {
-      const token = api.getGCalToken();
-      if (!token) {
-        setGcalEmail('');
-        return;
-      }
-      const stored = api.getGCalEmail();
-      if (stored) {
-        setGcalEmail(stored);
-        return;
-      }
-      try {
-        const email = await api.fetchGoogleEmail(token);
-        if (email) {
-          api.storeGCalEmail(email);
-          setGcalEmail(email);
-        }
-      } catch (err) {
-        console.error('Error al obtener el correo de Google:', err);
-      }
-    };
-    syncGCalEmail();
-  }, [gcalConnected]);
-
-  const hasRequiredGCalGmail = !!(gcalConnected && gcalEmail && REQUIRED_GCAL_GMAIL && gcalEmail.toLowerCase() === REQUIRED_GCAL_GMAIL.toLowerCase());
-
-  // Google OAuth Login Flow (Client-side GIS)
-  const handleGoogleLogin = () => {
-    if (!GOOGLE_CLIENT_ID) {
-      showToast('Por favor, configura tu Google Client ID en las variables de entorno (.env).', false);
-      return;
-    }
-
-    if (!window.google) {
-      showToast('La biblioteca de Google no se ha cargado todavía. Reintente en un momento.', false);
-      return;
-    }
-
-    try {
-      const client = window.google.accounts.oauth2.initTokenClient({
-        client_id: GOOGLE_CLIENT_ID,
-        scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.email',
-        callback: async (tokenResponse) => {
-          if (tokenResponse.access_token) {
-            api.storeGCalToken(tokenResponse.access_token, tokenResponse.expires_in * 1000);
-
-            try {
-              const email = await api.fetchGoogleEmail(tokenResponse.access_token);
-              if (email) {
-                api.storeGCalEmail(email);
-                setGcalEmail(email);
-              }
-            } catch (err) {
-              console.error('Error al obtener el correo de Google:', err);
-            }
-
-            setGcalConnected(true);
-            showToast('Conexión con Google Calendar exitosa');
-            fetchData();
-          }
-        },
-      });
-      client.requestAccessToken();
-    } catch (err) {
-      console.error('GIS Error:', err);
-      showToast('Error al inicializar la autenticación de Google.', false);
-    }
-  };
+  // Si el rol cambia (o no es doctor) no se queda en una pestaña que no le corresponde
+  const tabVisible = activeTab === 'admin' && !esDoctor ? 'dashboard' : activeTab;
 
   // Toggle Theme
   const toggleTheme = () => {
@@ -246,113 +200,71 @@ function App() {
     showToast('Datos actualizados');
   };
 
-  const toastTimeoutRef = useRef(null);
-
-  // Toast notifications helper (4 seconds duration)
-  const showToast = (msg, isSuccess = true) => {
-    if (toastTimeoutRef.current) {
-      clearTimeout(toastTimeoutRef.current);
-    }
-    if (isSuccess) {
-      setErrorMsg('');
-      setSuccessMsg(msg);
-      toastTimeoutRef.current = setTimeout(() => setSuccessMsg(''), 4000);
-    } else {
-      setSuccessMsg('');
-      setErrorMsg(msg);
-      toastTimeoutRef.current = setTimeout(() => setErrorMsg(''), 4000);
-    }
-  };
-
-  // Update CRM Lead details
-  const handleUpdateLead = async (e) => {
-    e.preventDefault();
-    if (!selectedLead) return;
-
-    try {
-      const updated = await api.updateLead(selectedLead);
-      setLeads(prev => prev.map(l => l.phone_number === updated.phone_number ? updated : l));
-      setIsLeadModalOpen(false);
-      showToast('Lead actualizado correctamente');
-    } catch (err) {
-      console.error(err);
-      showToast(err.message || 'Error al actualizar lead', false);
-    }
-  };
-
   // Create calendar event
   const handleCreateAppointment = async (e) => {
     e.preventDefault();
     if (!newEvent.summary || !newEvent.start || !newEvent.end) return;
 
-    const validation = isValidWorkingHours(new Date(newEvent.start), new Date(newEvent.end));
+    const validation = isValidWorkingHours(new Date(newEvent.start), new Date(newEvent.end), agendaConfig);
     if (!validation.valid) {
       showToast(validation.reason, false);
       return;
     }
 
-    const phone = isNewPatient ? newPatientPhone.trim() : newEvent.phone_number;
     if (isNewPatient && (!newPatientName.trim() || !newPatientPhone.trim())) {
       showToast('Por favor, ingresa el nombre y celular del paciente nuevo.', false);
       return;
     }
+    const identificador = isNewPatient ? newPatientPhone.trim() : newEvent.phone_number;
+    const lead = leads.find(l => l.phone_number === newEvent.phone_number);
 
     try {
-      const desc = phone 
-        ? `${newEvent.description} | Contacto: ${phone}`
-        : newEvent.description;
-
-      await api.createAppointment(
-        newEvent.summary,
-        new Date(newEvent.start).toISOString(),
-        new Date(newEvent.end).toISOString(),
-        desc,
-        phone,
-        sendEmailReminder ? newEvent.email : '',
-        newEvent.tratamiento_receta || newEvent.receta_medica || ''
-      );
+      await api.createAppointment({
+        identificador,
+        nombre: isNewPatient ? newPatientName.trim() : (lead?.client_name || ''),
+        titulo: newEvent.summary,
+        inicio: new Date(newEvent.start).toISOString(),
+        fin: new Date(newEvent.end).toISOString(),
+        servicio_clave: treatmentType !== 'personalizado' ? treatmentType : null,
+        notas: newEvent.description,
+        correo: sendEmailReminder ? newEvent.email : '',
+        tratamiento: esDoctor ? (newEvent.tratamiento_receta || '') : ''
+      });
 
       fetchData();
       closeAppointmentModal();
       showToast('Cita agendada correctamente.');
     } catch (err) {
       console.error(err);
-      showToast(err.message || 'Error al agendar la cita en Google Calendar.', false);
+      showToast(err.message || 'Error al agendar la cita.', false);
     }
   };
 
   const handleSavePrescription = async (cita, recetaText) => {
     try {
       const result = await api.updateAppointmentPrescription(cita, recetaText);
-      
-      const gId = cita.google_event_id || result?.google_event_id;
-      const dbId = cita.id || result?.id;
-
-      setCitasDb(prev => {
-        let matched = false;
-        const next = prev.map(c => {
-          const isSameDbId = dbId && c.id && String(c.id) === String(dbId);
-          const isSameGcal = gId && c.google_event_id && c.google_event_id === gId;
-
-          if (isSameDbId || isSameGcal) {
-            matched = true;
-            return { ...c, ...result, tratamiento_receta: recetaText };
-          }
-          return c;
-        });
-        if (!matched && result) {
-          return [...next, result];
-        }
-        return next;
-      });
-
-      setSelectedAppointmentDetails(prev => prev ? { ...prev, tratamiento_receta: recetaText } : prev);
-      showToast('Tratamiento / Receta médica guardada en la Base de Datos.');
+      setCitasDb(prev => prev.map(c => (String(c.id) === String(result.id)
+        ? { ...c, tratamiento_receta: result.tratamiento_receta }
+        : c)));
+      setSelectedAppointmentDetails(prev => prev ? { ...prev, id: result.id, tratamiento_receta: result.tratamiento_receta } : prev);
+      showToast('Tratamiento guardado.');
     } catch (err) {
       console.error('Error saving prescription:', err);
-      const errMsg = err?.message || (typeof err === 'string' ? err : 'Error al guardar el tratamiento / receta en la BD.');
-      showToast(`Error al guardar en BD: ${errMsg}`, false);
+      showToast(err.message || 'Error al guardar el tratamiento.', false);
       throw err;
+    }
+  };
+
+  const handleActualizarPaciente = async (identificador, cambios) => {
+    try {
+      const actualizado = await api.updatePaciente(identificador, cambios);
+      setPacientes(prev => prev.map(p => p.identificador_paciente === identificador ? { ...p, ...actualizado } : p));
+      setCitasDb(prev => prev.map(c => c.identificador_paciente === identificador
+        ? { ...c, pacientes: { ...c.pacientes, ...actualizado } }
+        : c));
+      showToast('Datos del paciente actualizados.');
+    } catch (err) {
+      showToast(err.message, false);
     }
   };
 
@@ -369,7 +281,7 @@ function App() {
 
   // Delete appointment
   const handleDeleteAppointment = async (eventId) => {
-    if (!window.confirm('¿Estás seguro de cancelar esta cita en Google Calendar?')) return;
+    if (!window.confirm('¿Estás seguro de cancelar esta cita? Se quitará también de Google Calendar.')) return;
     try {
       await api.deleteAppointment(eventId);
       setAppointments(prev => prev.filter(app => app.id !== eventId));
@@ -400,7 +312,7 @@ function App() {
     e.preventDefault();
     if (!selectedCitaForReschedule || !range?.start || !range?.end) return;
 
-    const validation = isValidWorkingHours(range.start, range.end);
+    const validation = isValidWorkingHours(range.start, range.end, agendaConfig);
     if (!validation.valid) {
       showToast(validation.reason, false);
       return;
@@ -436,7 +348,7 @@ function App() {
     setNewEvent({
       summary: 'Paciente - Evaluación Inicial',
       start: startStr,
-      end: calculateEndTime(startStr, 'evaluacion'),
+      end: calculateEndTime(startStr, 'evaluacion', agendaConfig.servicios),
       description: '',
       phone_number: ''
     });
@@ -459,12 +371,18 @@ function App() {
   };
 
   const handleOpenDetailFromGCal = (app) => {
+    // Los bloqueos de agenda no son citas: se gestionan en Administración
+    if (app?.tipo === 'bloqueo') {
+      showToast(`${app.summary}. ${esDoctor ? 'Se gestiona en Administración > Bloqueos de agenda.' : ''}`.trim());
+      return;
+    }
+
     let detailObj;
     if (app && app.fecha_hora_cita && !app.start) {
       detailObj = app;
     } else {
       let dbCita = citasDb.find(c => (c.google_event_id && app.id && c.google_event_id === app.id) || (c.id && app.id && String(c.id) === String(app.id)));
-      
+
       const appStartTime = app.start?.dateTime || app.start?.date || app.fecha_hora_cita;
 
       // Fallback: match by patient name AND date if not matched by ID
@@ -502,7 +420,7 @@ function App() {
         };
       }
     }
-    
+
     setSelectedAppointmentDetails(detailObj);
     setIsDetailModalOpen(true);
   };
@@ -518,22 +436,20 @@ function App() {
   });
 
   // Sesión real de Supabase Auth: es la única fuente de verdad del login.
-  // La RLS de Supabase valida el JWT de esta sesión en cada consulta.
+  // El rol sale de usuarios_autorizados (mi_perfil) y la RLS lo aplica en cada consulta.
   useEffect(() => {
     if (!api.supabase) return;
+    let vigente = true;
 
-    const applySession = (session) => {
+    const applySession = async (session) => {
       if (!session) {
         setUser(null);
         return;
       }
-      const result = authService.userFromSession(session);
+      const result = await authService.cargarUsuario(session);
+      if (!vigente) return;
       if (result.success) {
-        authService.storeGCalTokenFromSession(session);
-        setGcalConnected(!!api.getGCalToken());
-        // La cuenta del CRM es la misma que la de Google Calendar
-        api.storeGCalEmail(result.user.email);
-        setGcalEmail(result.user.email);
+        authService.limpiarDatosAntiguos();
         setAuthError('');
         setUser(result.user);
       } else {
@@ -543,18 +459,20 @@ function App() {
       }
     };
 
-    authService.getSession().then((session) => {
-      applySession(session);
-      setAuthReady(true);
+    authService.getSession().then(async (session) => {
+      await applySession(session);
+      if (vigente) setAuthReady(true);
     });
 
     const { data: authListener } = api.supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'USER_UPDATED') {
-        applySession(session);
+        // Supabase recomienda no consultar la BD dentro de este callback: se difiere
+        setTimeout(() => applySession(session), 0);
       }
     });
 
     return () => {
+      vigente = false;
       authListener?.subscription?.unsubscribe();
     };
   }, []);
@@ -573,14 +491,15 @@ function App() {
   }
 
   return (
+    <AgendaConfigContext.Provider value={agendaConfig}>
     <div className={`app-container ${isEmbedded ? 'embedded-mode' : ''}`}>
       {/* Toast Notifications */}
       {successMsg && (
         <div className="toast toast--ok" role="status" data-testid="toast-success">
           <CheckCircle2 size={16} />
           <span>{successMsg}</span>
-          <button 
-            type="button" 
+          <button
+            type="button"
             onClick={() => setSuccessMsg('')}
             className="btn-icon"
             title="Cerrar notificación"
@@ -595,8 +514,8 @@ function App() {
         <div className="toast toast--bad" role="alert" data-testid="toast-error">
           <AlertCircle size={16} />
           <span>{errorMsg}</span>
-          <button 
-            type="button" 
+          <button
+            type="button"
             onClick={() => setErrorMsg('')}
             className="btn-icon"
             title="Cerrar notificación"
@@ -608,32 +527,33 @@ function App() {
         </div>
       )}
 
-      {/* Google Calendar token expired / missing: offer reconnection */}
-      {!gcalConnected && (
-        <div className="gcal-banner" data-testid="gcal-reconnect-banner">
+      {/* Google Calendar no respondió (Edge Function): se ofrece reintentar */}
+      {calendarError && (
+        <div className="gcal-banner" role="alert" data-testid="gcal-error-banner">
           <CalendarX2 size={16} />
-          <span>Google Calendar desconectado</span>
+          <span>Google Calendar no disponible: {calendarError}</span>
           <button
             type="button"
-            onClick={handleGoogleLogin}
+            onClick={handleRefresh}
             className="btn btn-primary btn-sm"
-            data-testid="btn-gcal-login"
+            data-testid="btn-gcal-retry"
           >
-            Reconectar
+            Reintentar
           </button>
         </div>
       )}
 
       {/* Sidebar Navigation - HIDE IF EMBEDDED */}
       {!isEmbedded && (
-        <Sidebar 
-          activeTab={activeTab} 
-          setActiveTab={setActiveTab} 
-          theme={theme} 
-          toggleTheme={toggleTheme} 
+        <Sidebar
+          activeTab={tabVisible}
+          setActiveTab={setActiveTab}
+          theme={theme}
+          toggleTheme={toggleTheme}
           pastAppointmentsToReview={pastAppointmentsToReview}
           isCollapsed={isSidebarCollapsed}
           setIsCollapsed={setIsSidebarCollapsed}
+          rol={user.rol}
         />
       )}
 
@@ -641,15 +561,13 @@ function App() {
       <main className="main-content">
         {/* Header bar - HIDE IF EMBEDDED */}
         {!isEmbedded && (
-          <Header 
-            activeTab={activeTab} 
-            handleRefresh={handleRefresh} 
+          <Header
+            activeTab={tabVisible}
+            handleRefresh={handleRefresh}
             supabaseOnline={!!api.supabase}
             user={user}
             onLogout={() => {
               authService.logout();
-              setGcalConnected(false);
-              setGcalEmail('');
               setUser(null);
             }}
           />
@@ -664,35 +582,34 @@ function App() {
         )}
 
         {!loading && (
-          <>
-            {activeTab === 'dashboard' && (
-              <DashboardView 
+          <Suspense fallback={<div className="loading-state" role="status"><div className="spinner" aria-hidden="true" /><p>Cargando…</p></div>}>
+            {tabVisible === 'dashboard' && (
+              <DashboardView
                 citasDb={citasDb}
                 appointments={appointments}
                 pacientes={pacientes}
-                gcalConnected={gcalConnected}
                 onOpenDetail={handleOpenDetailFromGCal}
                 onDeleteAppointment={handleDeleteAppointment}
-                hasRequiredGCalGmail={hasRequiredGCalGmail}
+                agendaDisponible={agendaDisponible}
                 onNavigate={setActiveTab}
               />
             )}
 
-            {activeTab === 'agenda' && (
-              <AgendaView 
+            {tabVisible === 'agenda' && (
+              <AgendaView
                 selectedAgendaDate={selectedAgendaDate}
                 setSelectedAgendaDate={setSelectedAgendaDate}
                 appointments={appointments}
                 citasDb={citasDb}
-                gcalConnected={gcalConnected}
+                agendaDisponible={agendaDisponible}
                 onOpenDetail={handleOpenDetailFromGCal}
                 onDeleteAppointment={handleDeleteAppointment}
                 onAddAppointmentFromSlot={(slot) => openAppointmentFromSlot(selectedAgendaDate, slot)}
               />
             )}
 
-            {activeTab === 'attendance' && (
-              <AttendanceView 
+            {tabVisible === 'attendance' && (
+              <AttendanceView
                 pastAppointmentsToReview={pastAppointmentsToReview}
                 onMarkAttendance={handleUpdateAppointmentStatus}
                 onOpenReschedule={(cita) => {
@@ -700,24 +617,34 @@ function App() {
                   tomorrow.setDate(tomorrow.getDate() + 1);
                   openReschedule(cita, tomorrow);
                 }}
-                hasRequiredGCalGmail={hasRequiredGCalGmail}
+                agendaDisponible={agendaDisponible}
               />
             )}
 
-            {activeTab === 'chats' && (
-              <ChatsView 
-                chatwootEmbedUrl={chatwootDashboardUrl} 
+            {tabVisible === 'pacientes' && (
+              <PacientesView
+                pacientes={pacientes}
+                citasDb={citasDb}
+                esDoctor={esDoctor}
+                onActualizarPaciente={handleActualizarPaciente}
+                onOpenDetail={handleOpenDetailFromGCal}
+              />
+            )}
+
+            {tabVisible === 'chats' && (
+              <ChatsView
+                chatwootEmbedUrl={chatwootDashboardUrl}
                 chatwootDashboardUrl={chatwootDashboardUrl}
               />
             )}
 
-            {activeTab === 'calendar' && (
-              <CalendarView 
+            {tabVisible === 'calendar' && (
+              <CalendarView
                 currentDate={currentDate}
                 setCurrentDate={setCurrentDate}
                 appointments={appointments}
                 citasDb={citasDb}
-                gcalConnected={gcalConnected}
+                agendaDisponible={agendaDisponible}
                 onOpenDetail={handleOpenDetailFromGCal}
                 onSelectDay={(day) => {
                   setSelectedDayForAgenda(day);
@@ -725,12 +652,21 @@ function App() {
                 onAddAppointment={handleAddNewAppointmentDirectly}
               />
             )}
-          </>
+
+            {tabVisible === 'admin' && esDoctor && (
+              <AdminView
+                usuario={user}
+                config={agendaConfig}
+                onConfigChanged={fetchData}
+                showToast={showToast}
+              />
+            )}
+          </Suspense>
         )}
       </main>
 
       {/* MODALS */}
-      <DatePickerModal 
+      <DatePickerModal
         isOpen={isDatePickerModalOpen}
         onClose={() => {
           setIsDatePickerModalOpen(false);
@@ -756,12 +692,12 @@ function App() {
         }}
       />
 
-      <DayAgendaModal 
+      <DayAgendaModal
         selectedDay={selectedDayForAgenda}
         onClose={() => setSelectedDayForAgenda(null)}
         citasDb={citasDb}
         appointments={appointments}
-        gcalConnected={gcalConnected}
+        agendaDisponible={agendaDisponible}
         onOpenDetail={handleOpenDetailFromGCal}
         onDeleteAppointment={handleDeleteAppointment}
         onAddAppointmentFromSlot={(slot) => {
@@ -770,22 +706,15 @@ function App() {
         }}
       />
 
-      <LeadModal 
-        isOpen={isLeadModalOpen}
-        onClose={() => setIsLeadModalOpen(false)}
-        lead={selectedLead}
-        onChange={setSelectedLead}
-        onSubmit={handleUpdateLead}
-      />
-
-      <DetailModal 
+      <DetailModal
         isOpen={isDetailModalOpen}
         onClose={() => setIsDetailModalOpen(false)}
         selectedAppointmentDetails={selectedAppointmentDetails}
         leads={leads}
         pacientes={pacientes}
         citasDb={citasDb}
-        hasRequiredGCalGmail={hasRequiredGCalGmail}
+        agendaDisponible={agendaDisponible}
+        esDoctor={esDoctor}
         onSavePrescription={handleSavePrescription}
         onDelete={(eventId) => {
           handleDeleteAppointment(eventId);
@@ -795,10 +724,9 @@ function App() {
           setIsDetailModalOpen(false);
           openReschedule(cita, cita.fecha_hora_cita ? new Date(cita.fecha_hora_cita) : new Date());
         }}
-        hasRequiredGCalGmail={hasRequiredGCalGmail}
       />
 
-      <RescheduleModal 
+      <RescheduleModal
         isOpen={isRescheduleModalOpen}
         onClose={() => {
           setIsRescheduleModalOpen(false);
@@ -811,7 +739,7 @@ function App() {
         onSubmit={handleRescheduleSubmit}
       />
 
-      <AppointmentModal 
+      <AppointmentModal
         isOpen={isAppointmentModalOpen}
         onClose={closeAppointmentModal}
         newEvent={newEvent}
@@ -826,13 +754,15 @@ function App() {
         setTreatmentType={setTreatmentType}
         sendEmailReminder={sendEmailReminder}
         setSendEmailReminder={setSendEmailReminder}
-        gcalConnected={gcalConnected}
+        agendaDisponible={agendaDisponible}
+        esDoctor={esDoctor}
         isTimeLocked={isTimeLocked}
         leads={leads}
         minDateTime={minDateTime}
         onSubmit={handleCreateAppointment}
       />
     </div>
+    </AgendaConfigContext.Provider>
   );
 }
 

@@ -1,6 +1,6 @@
 // Cálculo de los indicadores del Dashboard. Funciones puras: reciben los datos
 // y la fecha de referencia (`ahora`) para poder probarlas sin depender del reloj.
-import { getLimaDate, isPeruHoliday, JORNADAS, normalizarDuracion } from './dateHelpers';
+import { getLimaDate, isPeruHoliday, JORNADAS, jornadasDeFecha, normalizarDuracion } from './dateHelpers';
 import { ESTADOS_CITA, esPendiente } from './estadosCita';
 
 const DIA_MS = 24 * 60 * 60 * 1000;
@@ -11,6 +11,14 @@ export const BLOQUES_POR_DIA = JORNADAS.reduce((n, j) => n + (j.fin - j.inicio) 
 const inicioDelDia = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const mismoDia = (a, b) => inicioDelDia(a).getTime() === inicioDelDia(b).getTime();
 const esLaborable = (d) => d.getDay() !== 0 && !isPeruHoliday(d);
+
+// Bloques de 30 min que ofrece un día: según el horario y feriados de la BD si
+// se pasan, o el horario por defecto si no
+const bloquesDelDia = (dia, config) => {
+  if (!config) return esLaborable(dia) ? BLOQUES_POR_DIA : 0;
+  if (isPeruHoliday(dia, config.feriados)) return 0;
+  return jornadasDeFecha(dia, config.horario).reduce((n, j) => n + (j.fin - j.inicio) / 30, 0);
+};
 
 // Lunes de la semana de una fecha
 export const inicioDeSemana = (d) => {
@@ -31,7 +39,10 @@ export const prepararCitas = (citasDb, appointments = []) => {
     .map(c => ({
       ...c,
       fecha: getLimaDate(c.fecha_hora_cita),
-      duracion: duraciones.get(c.google_event_id) || 30
+      // La BD guarda la hora de fin desde 27/09/2026; antes se leía del evento
+      duracion: c.fecha_hora_fin
+        ? normalizarDuracion((new Date(c.fecha_hora_fin) - new Date(c.fecha_hora_cita)) / 60000)
+        : duraciones.get(c.google_event_id) || 30
     }))
     .filter(c => c.fecha);
 };
@@ -56,13 +67,14 @@ export const resultadoPeriodo = (citas, desde, hasta) => {
 };
 
 // Ocupación de los próximos `dias` días laborables (hoy incluido)
-export const ocupacion = (citas, ahora, dias = 7) => {
+export const ocupacion = (citas, ahora, dias = 7, config) => {
   let capacidad = 0;
   let ocupados = 0;
   for (let i = 0; i < dias; i++) {
     const dia = inicioDelDia(new Date(ahora.getTime() + i * DIA_MS));
-    if (!esLaborable(dia)) continue;
-    capacidad += BLOQUES_POR_DIA;
+    const bloques = bloquesDelDia(dia, config);
+    if (!bloques) continue;
+    capacidad += bloques;
     ocupados += citas
       .filter(c => esVigente(c) && mismoDia(c.fecha, dia))
       .reduce((n, c) => n + c.duracion / 30, 0);
@@ -125,7 +137,7 @@ export const tratamientosDesde = (citas, desde) => {
     .sort((a, b) => b.cantidad - a.cantidad);
 };
 
-export const calcularMetricas = ({ citasDb, pacientes, appointments, ahora = new Date() }) => {
+export const calcularMetricas = ({ citasDb, pacientes, appointments, ahora = new Date(), config }) => {
   const citas = prepararCitas(citasDb, appointments);
   const en48h = new Date(ahora.getTime() + 2 * DIA_MS);
   const hace30 = new Date(ahora.getTime() - 30 * DIA_MS);
@@ -158,7 +170,7 @@ export const calcularMetricas = ({ citasDb, pacientes, appointments, ahora = new
     pendientesAsistencia,
     pacientesNuevos,
     totalPacientes: pacientes.length,
-    ocupacion: ocupacion(citas, ahora, 7),
+    ocupacion: ocupacion(citas, ahora, 7, config),
     asistencia30: resultadoPeriodo(citas, hace30, ahora),
     asistenciaPrevia: resultadoPeriodo(citas, hace60, hace30),
     asistenciaHistorica: resultadoPeriodo(citas, new Date(0), ahora),

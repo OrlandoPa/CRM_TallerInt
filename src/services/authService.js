@@ -1,58 +1,47 @@
-import { supabase, storeGCalToken, storeGCalEmail, clearGCalSession } from './api';
+import { supabase, getPerfil } from './api';
 
-// Clave de la sesión simulada antigua (ya no se usa, solo se limpia)
-const LEGACY_SESSION_KEY = 'crm_user_session';
-const GCAL_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
+// Claves que usaban versiones anteriores (sesión simulada y token de Google
+// en el navegador). Ya no se usan: solo se limpian al iniciar o cerrar sesión.
+const CLAVES_ANTIGUAS = ['crm_user_session', 'gcal_access_token', 'gcal_token_expiry', 'gcal_user_email'];
 
-/**
- * Obtiene el correo electrónico autorizado para acceder al sistema.
- * Nota: este chequeo es solo de UX. La autorización real la aplica la RLS de
- * Supabase contra la tabla public.usuarios_autorizados.
- */
-export const getAllowedEmail = () => {
-  const envAllowed = import.meta.env.VITE_ALLOWED_EMAIL || import.meta.env.VITE_REQUIRED_GCAL_GMAIL || 'automatizadon8n@gmail.com';
-  return envAllowed.trim().toLowerCase();
+export const limpiarDatosAntiguos = () => {
+  CLAVES_ANTIGUAS.forEach(k => {
+    try {
+      localStorage.removeItem(k);
+    } catch {
+      // almacenamiento no disponible
+    }
+  });
+};
+
+export const ROLES = {
+  DOCTOR: 'doctor',
+  RECEPCION: 'recepcion'
+};
+
+export const ETIQUETAS_ROL = {
+  doctor: 'Doctor',
+  recepcion: 'Recepción'
 };
 
 /**
- * Verifica si un correo está en la lista de correo permitido.
- * @param {string} email
- * @returns {boolean}
- */
-export const isEmailAuthorized = (email) => {
-  if (!email || typeof email !== 'string') return false;
-  return email.trim().toLowerCase() === getAllowedEmail();
-};
-
-/**
- * Guarda el token de Google Calendar que devuelve Supabase tras el login con Google.
- * Supabase no refresca este token: dura ~1 hora y luego se reconecta desde la app.
- * @param {Object} session - Sesión de Supabase Auth
- */
-export const storeGCalTokenFromSession = (session) => {
-  if (!session?.provider_token) return;
-  storeGCalToken(session.provider_token, 55 * 60 * 1000);
-  if (session.user?.email) {
-    storeGCalEmail(session.user.email);
-  }
-};
-
-/**
- * Convierte una sesión de Supabase Auth en el usuario de la app.
+ * Convierte una sesión de Supabase Auth y el perfil de usuarios_autorizados en
+ * el usuario de la app. El acceso real lo decide la RLS; esto es solo UX.
  * @param {Object|null} session
+ * @param {{email, nombre, rol}|null} perfil
  * @returns {{ success: boolean, user?: Object, error?: string }}
  */
-export const userFromSession = (session) => {
+export const userFromSession = (session, perfil) => {
   const email = session?.user?.email;
   if (!email) {
     return { success: false, error: 'No hay una sesión válida de Google.' };
   }
 
   const normalizedEmail = email.trim().toLowerCase();
-  if (!isEmailAuthorized(normalizedEmail)) {
+  if (!perfil) {
     return {
       success: false,
-      error: `Acceso denegado: El correo (${normalizedEmail}) no está autorizado. Únicamente la cuenta (${getAllowedEmail()}) tiene acceso al sistema.`
+      error: `Acceso denegado: la cuenta ${normalizedEmail} no está autorizada o fue desactivada. Pide acceso al doctor.`
     };
   }
 
@@ -61,11 +50,23 @@ export const userFromSession = (session) => {
     success: true,
     user: {
       email: normalizedEmail,
-      name: meta.full_name || meta.name || normalizedEmail.split('@')[0],
+      name: perfil.nombre || meta.full_name || meta.name || normalizedEmail.split('@')[0],
       picture: meta.avatar_url || meta.picture || null,
+      rol: perfil.rol,
       loginAt: session.user.last_sign_in_at || new Date().toISOString()
     }
   };
+};
+
+/** Resuelve el usuario de una sesión consultando su perfil en la BD. */
+export const cargarUsuario = async (session) => {
+  if (!session) return { success: false, error: '' };
+  try {
+    return userFromSession(session, await getPerfil());
+  } catch (err) {
+    console.error('Error al leer el perfil:', err);
+    return { success: false, error: `No se pudo verificar tu acceso: ${err.message}` };
+  }
 };
 
 /**
@@ -84,7 +85,7 @@ export const getSession = async () => {
 
 /**
  * Inicia sesión con Google mediante Supabase Auth (redirección OAuth).
- * Solicita también el permiso de Google Calendar para obtener el provider_token.
+ * Google Calendar ya no se usa desde el navegador: basta con el correo.
  */
 export const signInWithGoogle = async () => {
   if (!supabase) {
@@ -94,8 +95,7 @@ export const signInWithGoogle = async () => {
     provider: 'google',
     options: {
       redirectTo: window.location.origin + window.location.pathname + window.location.search,
-      scopes: GCAL_SCOPE,
-      queryParams: { login_hint: getAllowedEmail() }
+      queryParams: { prompt: 'select_account' }
     }
   });
   if (error) throw error;
@@ -106,8 +106,7 @@ export const signInWithGoogle = async () => {
  */
 export const logout = async () => {
   try {
-    localStorage.removeItem(LEGACY_SESSION_KEY);
-    clearGCalSession();
+    limpiarDatosAntiguos();
     if (supabase) {
       await supabase.auth.signOut();
     }

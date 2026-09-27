@@ -14,7 +14,7 @@ describe('UT-FRONT-04: Renderizado de Mensaje Vacío en Citas Pasadas (Attendanc
         pastAppointmentsToReview={pastAppointmentsToReview}
         onMarkAttendance={() => {}}
         onOpenReschedule={() => {}}
-        hasRequiredGCalGmail={true}
+        agendaDisponible={true}
       />
     );
 
@@ -78,7 +78,7 @@ describe('UT-FRONT-06: Renderizado de identificador_paciente en DetailModal', ()
         selectedAppointmentDetails={mockAppointmentDetails}
         onDelete={() => {}}
         onReschedule={() => {}}
-        hasRequiredGCalGmail={true}
+        agendaDisponible={true}
       />
     );
 
@@ -107,7 +107,8 @@ describe('UT-FRONT-07: Visualización y Edición de tratamiento_receta en Detail
         onDelete={() => {}}
         onReschedule={() => {}}
         onSavePrescription={() => Promise.resolve()}
-        hasRequiredGCalGmail={true}
+        agendaDisponible={true}
+        esDoctor={true}
       />
     );
 
@@ -117,5 +118,56 @@ describe('UT-FRONT-07: Visualización y Edición de tratamiento_receta en Detail
 
     const saveBtns = screen.getAllByTestId('btn-save-prescription');
     expect(saveBtns[saveBtns.length - 1]).toBeTruthy();
+  });
+});
+
+describe('Permisos por rol en DetailModal', () => {
+  it('Recepción no ve el campo de tratamiento / receta', () => {
+    const { container } = render(
+      <DetailModal
+        isOpen={true}
+        onClose={() => {}}
+        selectedAppointmentDetails={{
+          id: 107,
+          identificador_paciente: '+51987654321',
+          fecha_hora_cita: new Date().toISOString(),
+          estado_cita: 'AGENDADA',
+          pacientes: { nombre_paciente: 'Rosa Recepción' }
+        }}
+        onDelete={() => {}}
+        onReschedule={() => {}}
+        agendaDisponible={true}
+        esDoctor={false}
+      />
+    );
+    expect(container.textContent).toContain('Rosa Recepción');
+    expect(container.querySelector('[data-testid="textarea-tratamiento-receta"]')).toBeNull();
+  });
+});
+
+describe('Navegación según el rol (Sidebar)', () => {
+  const renderSidebar = (rol) => render(
+    <Sidebar
+      activeTab="dashboard"
+      setActiveTab={() => {}}
+      theme="light"
+      toggleTheme={() => {}}
+      pastAppointmentsToReview={[]}
+      isCollapsed={false}
+      setIsCollapsed={() => {}}
+      rol={rol}
+    />
+  );
+
+  it('El doctor ve Administración y Pacientes', () => {
+    renderSidebar('doctor');
+    expect(screen.getAllByTestId('tab-admin').length).toBeGreaterThan(0);
+    expect(screen.getAllByTestId('tab-pacientes').length).toBeGreaterThan(0);
+  });
+
+  it('Recepción no ve Administración', () => {
+    const { container } = renderSidebar('recepcion');
+    expect(container.querySelector('[data-testid="tab-admin"]')).toBeNull();
+    expect(container.querySelector('[data-testid="tab-pacientes"]')).not.toBeNull();
   });
 });

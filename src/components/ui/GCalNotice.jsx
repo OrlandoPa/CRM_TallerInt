@@ -1,7 +1,7 @@
 import { AlertCircle } from 'lucide-react';
 
 export const GCAL_REQUIRED_MSG =
-  'Conecta la cuenta de Google Calendar autorizada para gestionar citas. Mientras tanto, agendar, reprogramar y marcar asistencia están deshabilitados.';
+  'Google Calendar no respondió. Mientras tanto, agendar, reprogramar y cancelar están deshabilitados; usa "Reintentar" o avisa al doctor.';
 
 function GCalNotice() {
   return (

@@ -60,7 +60,7 @@ function LoginView({ authError = '' }) {
       <main className="login-main">
         <div className="login-card">
           <h1>Gestión de Citas Odontológicas</h1>
-          <p>Inicia sesión con la cuenta de Google autorizada para continuar.</p>
+          <p>Inicia sesión con la cuenta de Google que el doctor registró para ti.</p>
 
           {shownError && (
             <div data-testid="login-error-alert" className="notice notice--bad" role="alert">
@@ -92,7 +92,7 @@ function LoginView({ authError = '' }) {
 
           <p className="login-restricted">
             <Lock size={13} />
-            Acceso restringido únicamente al correo autorizado
+            Acceso solo para el personal registrado por el doctor
           </p>
         </div>
       </main>

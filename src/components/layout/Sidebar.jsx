@@ -7,7 +7,9 @@ import {
   Moon,
   Clock3,
   PanelLeftClose,
-  PanelLeftOpen
+  PanelLeftOpen,
+  Users,
+  ShieldCheck
 } from 'lucide-react';
 import ToothIcon from '../ui/ToothIcon';
 
@@ -16,10 +18,13 @@ const NAV_ITEMS = [
   { id: 'agenda', label: 'Agenda del Día', icon: Clock3 },
   { id: 'attendance', label: 'Tomar Asistencia', icon: ClipboardCheck },
   { id: 'calendar', label: 'Calendario', icon: CalendarDays },
-  { id: 'chats', label: 'Chats WhatsApp', icon: MessageSquare }
+  { id: 'pacientes', label: 'Pacientes', icon: Users },
+  { id: 'chats', label: 'Chats WhatsApp', icon: MessageSquare },
+  // Solo el doctor ve Administración (la RLS lo impide a los demás igualmente)
+  { id: 'admin', label: 'Administración', icon: ShieldCheck, soloRol: 'doctor' }
 ];
 
-function Sidebar({ activeTab, setActiveTab, theme, toggleTheme, pastAppointmentsToReview, isCollapsed, setIsCollapsed }) {
+function Sidebar({ activeTab, setActiveTab, theme, toggleTheme, pastAppointmentsToReview, isCollapsed, setIsCollapsed, rol }) {
   const pendingCount = pastAppointmentsToReview.length;
 
   return (
@@ -35,7 +40,7 @@ function Sidebar({ activeTab, setActiveTab, theme, toggleTheme, pastAppointments
       </div>
 
       <nav className="nav" aria-label="Secciones">
-        {NAV_ITEMS.map(({ id, label, icon: Icon }) => {
+        {NAV_ITEMS.filter(item => !item.soloRol || item.soloRol === rol).map(({ id, label, icon: Icon }) => {
           const showCount = id === 'attendance' && pendingCount > 0;
           return (
             <button
@@ -44,6 +49,7 @@ function Sidebar({ activeTab, setActiveTab, theme, toggleTheme, pastAppointments
               className={`nav-item ${activeTab === id ? 'active' : ''}`}
               onClick={() => setActiveTab(id)}
               title={isCollapsed ? label : undefined}
+              aria-label={label}
               aria-current={activeTab === id ? 'page' : undefined}
             >
               <Icon size={18} strokeWidth={1.75} />
@@ -63,6 +69,7 @@ function Sidebar({ activeTab, setActiveTab, theme, toggleTheme, pastAppointments
           onClick={toggleTheme}
           className="nav-item"
           title={isCollapsed ? (theme === 'dark' ? 'Modo claro' : 'Modo oscuro') : undefined}
+          aria-label={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
         >
           {theme === 'dark' ? <Sun size={18} strokeWidth={1.75} /> : <Moon size={18} strokeWidth={1.75} />}
           {!isCollapsed && <span>{theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}</span>}
@@ -71,6 +78,8 @@ function Sidebar({ activeTab, setActiveTab, theme, toggleTheme, pastAppointments
           onClick={() => setIsCollapsed(!isCollapsed)}
           className="nav-item sidebar-toggle-btn"
           title={isCollapsed ? 'Desplegar menú' : 'Retraer menú'}
+          aria-label={isCollapsed ? 'Desplegar menú' : 'Retraer menú'}
+          aria-expanded={!isCollapsed}
         >
           {isCollapsed ? <PanelLeftOpen size={18} strokeWidth={1.75} /> : <PanelLeftClose size={18} strokeWidth={1.75} />}
           {!isCollapsed && <span>Retraer menú</span>}

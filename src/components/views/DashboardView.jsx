@@ -1,6 +1,7 @@
 import { ArrowUpRight, ArrowDownRight, Minus, ChevronRight } from 'lucide-react';
 import { formatHora, formatDiaCorto } from '../../utils/dateHelpers';
 import { calcularMetricas } from '../../utils/metricasDashboard';
+import { useAgendaConfig } from '../../utils/agendaConfig';
 import StatusBadge from '../ui/StatusBadge';
 import GCalNotice from '../ui/GCalNotice';
 
@@ -43,9 +44,10 @@ function DashboardView({
   appointments = [],
   onOpenDetail,
   onNavigate,
-  hasRequiredGCalGmail
+  agendaDisponible
 }) {
-  const m = calcularMetricas({ citasDb, pacientes, appointments });
+  const config = useAgendaConfig();
+  const m = calcularMetricas({ citasDb, pacientes, appointments, config });
   const a30 = m.asistencia30;
   const maxSemana = Math.max(...m.semanas.map(s => s.pasadas + s.programadas), 1);
   const maxTratamiento = Math.max(...m.tratamientos.map(t => t.cantidad), 1);
@@ -54,7 +56,7 @@ function DashboardView({
 
   return (
     <div className="page" data-testid="view-dashboard">
-      {!hasRequiredGCalGmail && <GCalNotice />}
+      {!agendaDisponible && <GCalNotice />}
 
       <section className="panel kpi-strip" aria-label="Indicadores">
         <Kpi

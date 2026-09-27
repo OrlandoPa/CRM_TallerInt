@@ -1,5 +1,6 @@
 import { AlertTriangle } from 'lucide-react';
 import { calculateEndTime, isPeruHoliday } from '../../utils/dateHelpers';
+import { useAgendaConfig } from '../../utils/agendaConfig';
 import ModalShell from '../ui/ModalShell';
 
 function AppointmentModal({ 
@@ -17,24 +18,23 @@ function AppointmentModal({
   setTreatmentType, 
   sendEmailReminder, 
   setSendEmailReminder, 
-  gcalConnected, 
-  isTimeLocked, 
+  agendaDisponible,
+  esDoctor = false,
+  isTimeLocked,  
   leads, 
   minDateTime, 
   onSubmit 
 }) {
+  const { servicios, feriados } = useAgendaConfig();
   if (!isOpen) return null;
 
+  // Catálogo de la BD (Administración > Servicios); los inactivos no se ofrecen
+  const serviciosActivos = servicios.filter(sv => sv.activo !== false);
   const treatmentLabels = {
-    evaluacion: 'Evaluación Inicial',
-    restauracion: 'Restauración',
-    endodoncia: 'Endodoncia',
-    ortodoncia: 'Ortodoncia',
-    blanqueamiento: 'Blanqueamiento Dental',
-    cirugia: 'Cirugía de Cordales',
-    rehabilitacion: 'Rehabilitación Oral',
+    ...Object.fromEntries(servicios.map(sv => [sv.clave, sv.nombre])),
     personalizado: 'Consulta'
   };
+  const esFeriado = !!newEvent.start && isPeruHoliday(new Date(newEvent.start), feriados);
 
   return (
     <ModalShell
@@ -48,8 +48,9 @@ function AppointmentModal({
         <form onSubmit={onSubmit}>
           <div className="modal-body">
             <div className="form-group">
-              <label>Título de la cita</label>
+              <label htmlFor="appointment-title">Título de la cita</label>
               <input 
+                id="appointment-title"
                 data-testid="input-appointment-title"
                 type="text" 
                 className="form-control" 
@@ -60,8 +61,9 @@ function AppointmentModal({
               />
             </div>
             <div className="form-group">
-              <label>¿Paciente nuevo?</label>
+              <label htmlFor="appointment-is-new">¿Paciente nuevo?</label>
               <select 
+                id="appointment-is-new"
                 data-testid="select-is-new-patient"
                 className="form-control"
                 value={isNewPatient ? 'si' : 'no'}
@@ -84,9 +86,10 @@ function AppointmentModal({
 
             {!isNewPatient ? (
               <div className="form-group">
-                <label>Paciente (registrado o contacto de WhatsApp)</label>
+                <label htmlFor="appointment-patient">Paciente (registrado o contacto de WhatsApp)</label>
                 <select 
-                  data-testid="select-whatsapp-patient"
+                  id="appointment-patient"
+                data-testid="select-whatsapp-patient"
                   className="form-control"
                   required
                   value={newEvent.phone_number}
@@ -116,9 +119,10 @@ function AppointmentModal({
             ) : (
               <>
                 <div className="form-group">
-                  <label>Nombre del paciente</label>
+                  <label htmlFor="appointment-patient-name">Nombre del paciente</label>
                   <input 
-                    data-testid="input-patient-name"
+                    id="appointment-patient-name"
+                data-testid="input-patient-name"
                     type="text" 
                     className="form-control" 
                     placeholder="Ej. Carlos Prado"
@@ -137,9 +141,10 @@ function AppointmentModal({
                   />
                 </div>
                 <div className="form-group">
-                  <label>Celular</label>
+                  <label htmlFor="appointment-patient-phone">Celular</label>
                   <input 
-                    data-testid="input-patient-phone"
+                    id="appointment-patient-phone"
+                data-testid="input-patient-phone"
                     type="tel" 
                     className="form-control" 
                     placeholder="Ej. +51 999 888 777"
@@ -152,8 +157,9 @@ function AppointmentModal({
             )}
 
             <div className="form-group">
-              <label>Tratamiento / motivo</label>
+              <label htmlFor="appointment-treatment">Tratamiento / motivo</label>
               <select 
+                id="appointment-treatment"
                 data-testid="select-treatment"
                 className="form-control"
                 value={treatmentType}
@@ -166,7 +172,7 @@ function AppointmentModal({
                   const newSummary = `${patientName} - ${label}`;
                   
                   setNewEvent(prev => {
-                    const newEnd = val !== 'personalizado' ? calculateEndTime(prev.start, val) : prev.end;
+                    const newEnd = val !== 'personalizado' ? calculateEndTime(prev.start, val, servicios) : prev.end;
                     return {
                       ...prev,
                       summary: newSummary,
@@ -175,20 +181,19 @@ function AppointmentModal({
                   });
                 }}
               >
-                <option value="evaluacion">Evaluación inicial / Revisión general (30 min)</option>
-                <option value="restauracion">Restauración (30 min)</option>
-                <option value="endodoncia">Endodoncia (30 min)</option>
-                <option value="ortodoncia">Ortodoncia (30 min)</option>
-                <option value="blanqueamiento">Blanqueamiento dental (30 min, puede extenderse hasta 45 min)</option>
-                <option value="cirugia">Cirugía (ej. cordales) (60 min)</option>
-                <option value="rehabilitacion">Rehabilitación oral (60 min)</option>
+                {serviciosActivos.map(sv => (
+                  <option key={sv.clave} value={sv.clave}>
+                    {sv.nombre} ({sv.duracion_min === 60 ? '1 h' : '30 min'}{sv.nota ? `; ${sv.nota.replace(/\.$/, '')}` : ''})
+                  </option>
+                ))}
                 <option value="personalizado">Otro / Personalizado</option>
               </select>
             </div>
             <div className="form-row">
             <div className="form-group">
-              <label>Inicio</label>
+              <label htmlFor="appointment-start">Inicio</label>
               <input 
+                id="appointment-start"
                 data-testid="input-start-time"
                 type="datetime-local" 
                 className="form-control" 
@@ -196,7 +201,7 @@ function AppointmentModal({
                 onChange={(e) => {
                   const val = e.target.value;
                   setNewEvent(prev => {
-                    const newEnd = treatmentType !== 'personalizado' ? calculateEndTime(val, treatmentType) : prev.end;
+                    const newEnd = treatmentType !== 'personalizado' ? calculateEndTime(val, treatmentType, servicios) : prev.end;
                     return {
                       ...prev,
                       start: val,
@@ -210,8 +215,9 @@ function AppointmentModal({
               />
             </div>
             <div className="form-group">
-              <label>Fin</label>
+              <label htmlFor="appointment-end">Fin</label>
               <input 
+                id="appointment-end"
                 data-testid="input-end-time"
                 type="datetime-local" 
                 className="form-control" 
@@ -242,8 +248,9 @@ function AppointmentModal({
 
             {sendEmailReminder && (
               <div className="form-group">
-                <label>Correo del paciente</label>
-                <input 
+                <label htmlFor="appointment-email">Correo del paciente</label>
+                <input
+                  id="appointment-email"
                   type="email" 
                   className="form-control" 
                   placeholder="Ej. paciente@correo.com"
@@ -255,8 +262,9 @@ function AppointmentModal({
             )}
 
             <div className="form-group">
-              <label>Notas de la cita</label>
-              <textarea 
+              <label htmlFor="appointment-notes">Notas de la cita</label>
+              <textarea
+                id="appointment-notes"
                 className="form-control"
                 rows={2}
                 placeholder="Observaciones de la cita o del paciente..."
@@ -265,35 +273,28 @@ function AppointmentModal({
               />
             </div>
 
-            <div className="form-group">
-              <label>Tratamiento / receta (opcional)</label>
-              <textarea 
-                className="form-control"
-                rows={3}
-                placeholder="Ej. Amoxicilina 500mg c/8h por 7 días, Paracetamol 500mg si hay dolor. Reposo 24 horas."
-                value={newEvent.tratamiento_receta || newEvent.receta_medica || ''}
-                onChange={(e) => {
-                  const recetaText = e.target.value;
-                  setNewEvent(prev => {
-                    const cleanDesc = (prev.description || '').replace(/\n\n\[Receta Médica\][\s\S]*/, '');
-                    const updatedDesc = recetaText.trim() 
-                      ? `${cleanDesc}\n\n[Receta Médica]\n${recetaText.trim()}`
-                      : cleanDesc;
-                    return {
-                      ...prev,
-                      tratamiento_receta: recetaText,
-                      receta_medica: recetaText,
-                      description: updatedDesc
-                    };
-                  });
-                }}
-              />
-            </div>
+            {/* Solo el doctor registra tratamientos; se guardan en la BD, no en Google Calendar */}
+            {esDoctor && (
+              <div className="form-group">
+                <label htmlFor="appointment-tratamiento">Tratamiento / receta (opcional)</label>
+                <textarea
+                  id="appointment-tratamiento"
+                  className="form-control"
+                  rows={3}
+                  placeholder="Ej. Amoxicilina 500mg c/8h por 7 días, Paracetamol 500mg si hay dolor. Reposo 24 horas."
+                  value={newEvent.tratamiento_receta || ''}
+                  onChange={(e) => {
+                    const recetaText = e.target.value;
+                    setNewEvent(prev => ({ ...prev, tratamiento_receta: recetaText }));
+                  }}
+                />
+              </div>
+            )}
 
-            {newEvent.start && isPeruHoliday(new Date(newEvent.start)) && (
+            {esFeriado && (
               <div className="notice notice--bad" role="alert">
                 <AlertTriangle size={16} />
-                <span>No se pueden agendar citas en feriados nacionales de Perú.</span>
+                <span>No se pueden agendar citas en feriados.</span>
               </div>
             )}
           </div>
@@ -305,7 +306,7 @@ function AppointmentModal({
               data-testid="btn-submit-appointment"
               type="submit" 
               className="btn btn-primary" 
-              disabled={!gcalConnected || (newEvent.start && isPeruHoliday(new Date(newEvent.start)))}
+              disabled={!agendaDisponible || esFeriado}
             >
               Agendar Cita
             </button>

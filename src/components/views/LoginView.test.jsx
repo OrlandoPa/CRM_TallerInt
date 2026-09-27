@@ -5,17 +5,15 @@ import LoginView from './LoginView';
 import * as authService from '../../services/authService';
 import { supabase } from '../../services/api';
 
-const sessionFor = (email, extra = {}) => ({
-  provider_token: 'google-token-123',
+const sessionFor = (email) => ({
   user: {
     email,
     last_sign_in_at: '2026-09-24T10:00:00Z',
     user_metadata: { full_name: 'Administrador Taller', avatar_url: 'https://example.com/pic.jpg' }
-  },
-  ...extra
+  }
 });
 
-describe('UT-FRONT-LOGIN: Módulo de Autenticación y Login monousuario', () => {
+describe('UT-FRONT-LOGIN: Autenticación y roles', () => {
   beforeEach(() => {
     localStorage.clear();
     document.body.innerHTML = '';
@@ -28,44 +26,39 @@ describe('UT-FRONT-LOGIN: Módulo de Autenticación y Login monousuario', () => 
   });
 
   describe('authService Unit Tests', () => {
-    it('Debe identificar correctamente el correo autorizado', () => {
-      const allowed = authService.getAllowedEmail();
-      expect(allowed).toBe('automatizadon8n@gmail.com');
-      expect(authService.isEmailAuthorized('automatizadon8n@gmail.com')).toBe(true);
-      expect(authService.isEmailAuthorized('AUTOMATIZADON8N@GMAIL.COM')).toBe(true);
+    it('userFromSession acepta solo sesiones con perfil activo en usuarios_autorizados', () => {
+      const sinPerfil = authService.userFromSession(sessionFor('desconocido@gmail.com'), null);
+      expect(sinPerfil.success).toBe(false);
+      expect(sinPerfil.error).toContain('Acceso denegado');
+
+      expect(authService.userFromSession(null, null).success).toBe(false);
+
+      const doctor = authService.userFromSession(
+        sessionFor('Automatizadon8n@gmail.com'),
+        { email: 'automatizadon8n@gmail.com', nombre: 'Dr. Clínica', rol: 'doctor' }
+      );
+      expect(doctor.success).toBe(true);
+      expect(doctor.user.email).toBe('automatizadon8n@gmail.com');
+      expect(doctor.user.rol).toBe('doctor');
+      expect(doctor.user.name).toBe('Dr. Clínica');
     });
 
-    it('Debe rechazar correos no autorizados', () => {
-      expect(authService.isEmailAuthorized('otro.usuario@gmail.com')).toBe(false);
-      expect(authService.isEmailAuthorized('hack@domain.com')).toBe(false);
-      expect(authService.isEmailAuthorized('')).toBe(false);
-      expect(authService.isEmailAuthorized(null)).toBe(false);
+    it('El rol de recepción se conserva y el nombre cae al de Google si el perfil no lo tiene', () => {
+      const r = authService.userFromSession(
+        sessionFor('rosa@gmail.com'),
+        { email: 'rosa@gmail.com', nombre: null, rol: 'recepcion' }
+      );
+      expect(r.user.rol).toBe('recepcion');
+      expect(r.user.name).toBe('Administrador Taller');
     });
 
-    it('userFromSession debe aceptar únicamente sesiones del correo autorizado', () => {
-      const invalidRes = authService.userFromSession(sessionFor('desconocido@gmail.com'));
-      expect(invalidRes.success).toBe(false);
-      expect(invalidRes.error).toContain('Acceso denegado');
-
-      expect(authService.userFromSession(null).success).toBe(false);
-
-      const validRes = authService.userFromSession(sessionFor('Automatizadon8n@gmail.com'));
-      expect(validRes.success).toBe(true);
-      expect(validRes.user.email).toBe('automatizadon8n@gmail.com');
-      expect(validRes.user.name).toBe('Administrador Taller');
-    });
-
-    it('storeGCalTokenFromSession debe guardar el provider_token de Google', () => {
-      authService.storeGCalTokenFromSession(sessionFor('automatizadon8n@gmail.com'));
-      expect(localStorage.getItem('gcal_access_token')).toBe('google-token-123');
-      expect(Number(localStorage.getItem('gcal_token_expiry'))).toBeGreaterThan(Date.now());
-    });
-
-    it('logout debe eliminar los tokens locales', async () => {
+    it('logout elimina los datos que dejaban versiones anteriores', async () => {
       localStorage.setItem('gcal_access_token', 'x');
+      localStorage.setItem('gcal_user_email', 'a@b.c');
       localStorage.setItem('crm_user_session', '{"email":"automatizadon8n@gmail.com"}');
       await authService.logout();
       expect(localStorage.getItem('gcal_access_token')).toBeNull();
+      expect(localStorage.getItem('gcal_user_email')).toBeNull();
       expect(localStorage.getItem('crm_user_session')).toBeNull();
     });
   });
@@ -76,7 +69,7 @@ describe('UT-FRONT-LOGIN: Módulo de Autenticación y Login monousuario', () => 
 
       expect(screen.getByTestId('login-view')).toBeTruthy();
       expect(screen.getByText(/Gestión de Citas Odontológicas/i)).toBeTruthy();
-      expect(screen.getByText(/Acceso restringido únicamente al correo autorizado/i)).toBeTruthy();
+      expect(screen.getByText(/Acceso solo para el personal registrado por el doctor/i)).toBeTruthy();
     });
 
     it('Debe mostrar el error de autorización recibido', () => {
@@ -84,7 +77,7 @@ describe('UT-FRONT-LOGIN: Módulo de Autenticación y Login monousuario', () => 
       expect(screen.getByTestId('login-error-alert').textContent).toContain('Acceso denegado: prueba');
     });
 
-    it('Debe iniciar el OAuth de Google vía Supabase (sin login simulado)', async () => {
+    it('Debe iniciar el OAuth de Google vía Supabase sin pedir permisos de Calendar', async () => {
       if (!supabase) return; // sin credenciales en el entorno de test
       const spy = vi.spyOn(supabase.auth, 'signInWithOAuth').mockResolvedValue({ data: {}, error: null });
       render(<LoginView />);
@@ -94,6 +87,7 @@ describe('UT-FRONT-LOGIN: Módulo de Autenticación y Login monousuario', () => 
       await waitFor(() => {
         expect(spy).toHaveBeenCalledWith(expect.objectContaining({ provider: 'google' }));
       });
+      expect(spy.mock.calls[0][0].options.scopes).toBeUndefined();
       expect(localStorage.getItem('crm_user_session')).toBeNull();
     });
   });

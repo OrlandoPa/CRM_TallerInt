@@ -14,7 +14,8 @@ function DetailModal({
   onDelete,
   onReschedule,
   onSavePrescription,
-  hasRequiredGCalGmail,
+  agendaDisponible,
+  esDoctor = false,
   leads = [],
   pacientes = [],
   citasDb = []
@@ -49,7 +50,7 @@ function DetailModal({
   const date = cita.fecha_hora_cita ? getLimaDate(cita.fecha_hora_cita) : null;
 
   const requireGCal = (action) => () => {
-    if (!hasRequiredGCalGmail) {
+    if (!agendaDisponible) {
       alert(GCAL_REQUIRED_MSG);
       return;
     }
@@ -97,6 +98,8 @@ function DetailModal({
           )}
         </dl>
 
+        {/* Solo el doctor ve y edita el tratamiento (la RLS tampoco se lo entrega a recepción) */}
+        {esDoctor && (
         <div className="form-group">
           <div className="field-head">
             <label htmlFor="tratamiento-receta" className="field-label">Tratamiento / receta</label>
@@ -138,6 +141,7 @@ function DetailModal({
             </button>
           </div>
         </div>
+        )}
       </div>
 
       <footer className="modal-footer split">
@@ -148,7 +152,7 @@ function DetailModal({
               data-testid="btn-cancel-appointment"
               onClick={requireGCal(() => onDelete(cita.google_event_id))}
               className="btn btn-danger"
-              disabled={!hasRequiredGCalGmail}
+              disabled={!agendaDisponible}
             >
               <Trash2 size={14} /> Cancelar cita
             </button>
@@ -162,7 +166,7 @@ function DetailModal({
               data-testid="btn-reschedule-appointment"
               onClick={requireGCal(() => onReschedule(cita))}
               className="btn btn-secondary"
-              disabled={!hasRequiredGCalGmail}
+              disabled={!agendaDisponible}
             >
               <CalendarClock size={14} /> Reprogramar
             </button>

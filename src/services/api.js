@@ -1,5 +1,4 @@
 import { createClient } from '@supabase/supabase-js';
-import { ESTADOS_CITA } from '../utils/estadosCita.js';
 import { normalizarIdentificador } from '../utils/contactHelpers.js';
 
 // Supabase credentials come only from build-time env vars (never from localStorage)
@@ -12,7 +11,7 @@ const getSupabaseCredentials = () => {
 const creds = getSupabaseCredentials();
 
 // Initialize Supabase Client
-export const supabase = (creds.url && creds.key) 
+export const supabase = (creds.url && creds.key)
   ? createClient(creds.url, creds.key, {
       // PKCE: el login vuelve con ?code= (que se canjea y se borra de la URL)
       // en vez de exponer los tokens en el #fragmento
@@ -24,75 +23,21 @@ if (!supabase) {
   console.error('Supabase no está configurado: define VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY.');
 }
 
-// Claves de localStorage de la conexión con Google Calendar
-const GCAL_TOKEN_KEY = 'gcal_access_token';
-const GCAL_EXPIRY_KEY = 'gcal_token_expiry';
-const GCAL_EMAIL_KEY = 'gcal_user_email';
-
-const clearGCalToken = () => {
-  localStorage.removeItem(GCAL_TOKEN_KEY);
-  localStorage.removeItem(GCAL_EXPIRY_KEY);
-};
-
-/** Guarda el token de Google Calendar y su vencimiento (expiresInMs desde ahora). */
-export const storeGCalToken = (token, expiresInMs) => {
-  localStorage.setItem(GCAL_TOKEN_KEY, token);
-  localStorage.setItem(GCAL_EXPIRY_KEY, (Date.now() + expiresInMs).toString());
-};
-
-export const getGCalEmail = () => localStorage.getItem(GCAL_EMAIL_KEY) || '';
-export const storeGCalEmail = (email) => localStorage.setItem(GCAL_EMAIL_KEY, email);
-
-/** Borra el token, su vencimiento y el correo de la cuenta de Google Calendar. */
-export const clearGCalSession = () => {
-  clearGCalToken();
-  localStorage.removeItem(GCAL_EMAIL_KEY);
-};
-
-/** Correo de la cuenta dueña del token de Google (null si no se pudo obtener). */
-export const fetchGoogleEmail = async (token) => {
-  const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  if (!res.ok) return null;
-  const info = await res.json();
-  return info.email || null;
-};
-
-// Helper to check and get Google Calendar access token
-export const getGCalToken = () => {
-  const token = localStorage.getItem(GCAL_TOKEN_KEY);
-  const expiry = localStorage.getItem(GCAL_EXPIRY_KEY);
-  if (token && expiry && Date.now() < parseInt(expiry)) {
-    return token;
-  }
-  // Clear expired token
-  if (token) {
-    clearGCalToken();
-  }
-  return null;
-};
-
-// Get configured calendar ID
-const getCalendarId = () => {
-  return import.meta.env.VITE_CALENDAR_ID || 'primary';
-};
-
 // Helper to parse Chatwoot configuration and extract Account ID from full URLs.
 // No API token here: anything prefixed VITE_ is shipped in the public bundle.
 export const getChatwootConfig = () => {
   const accountVal = import.meta.env.VITE_CHATWOOT_ACCOUNT_ID || '';
   const baseUrl = import.meta.env.VITE_CHATWOOT_BASE_URL || 'https://app.chatwoot.com';
-  
+
   if (!accountVal) return null;
-  
+
   // Extract number if they paste the full URL (e.g., https://app.chatwoot.com/app/accounts/164153/)
   let accountId = accountVal.trim();
   const match = accountId.match(/accounts\/(\d+)/);
   if (match) {
     accountId = match[1];
   }
-  
+
   return {
     accountId,
     baseUrl: baseUrl.trim().replace(/\/+$/, '') || 'https://app.chatwoot.com'
@@ -110,56 +55,50 @@ export const getChatwootDashboardUrl = (conversationId = null) => {
 
 // --- API METHODS ---
 //
-// Regla general: cualquier error de Supabase o Google Calendar se propaga a la UI.
+// Regla general: cualquier error de Supabase o de la agenda se propaga a la UI.
+// Los permisos (doctor / recepción) los aplica la RLS de Supabase; el front solo
+// oculta lo que el rol no puede usar.
 
-const GCAL_BASE = 'https://www.googleapis.com/calendar/v3/calendars';
-
-const gcalEventsUrl = (eventId = '') => {
-  const cal = encodeURIComponent(getCalendarId());
-  return `${GCAL_BASE}/${cal}/events${eventId ? `/${encodeURIComponent(eventId)}` : ''}`;
+const dbError = (err, action) => {
+  if (err?.code === '23P01') {
+    const msg = String(err.message || '').includes('citas_sin_choques')
+      ? 'Ese horario ya está ocupado por otra cita.'
+      : err.message;
+    return new Error(msg, { cause: err });
+  }
+  if (err?.code === '42501') {
+    return new Error('No tienes permiso para esta acción.', { cause: err });
+  }
+  return new Error(`Base de datos (${action}): ${err?.message || JSON.stringify(err)}`, { cause: err });
 };
 
-const requireGCalToken = () => {
-  const token = getGCalToken();
-  if (!token) {
-    throw new Error('Google Calendar no está conectado. Usa "Reconectar" e inténtalo de nuevo.');
-  }
-  return token;
+const exigir = ({ data, error }, action) => {
+  if (error) throw dbError(error, action);
+  return data;
 };
 
-const gcalError = async (response, action) => {
-  if (response.status === 401) {
-    clearGCalToken();
-    return new Error(`La sesión de Google Calendar expiró (${action}). Reconecta y vuelve a intentarlo.`);
+// Edge Function "agenda": única puerta hacia Google Calendar (ver supabase/functions/agenda)
+const agenda = async (accion, datos = {}) => {
+  if (!supabase) throw new Error('Supabase no está configurado.');
+  const { data, error } = await supabase.functions.invoke('agenda', { body: { accion, ...datos } });
+  if (error) {
+    let mensaje = error.message;
+    try {
+      const cuerpo = await error.context?.json();
+      if (cuerpo?.error) mensaje = cuerpo.error;
+    } catch {
+      // respuesta sin JSON
+    }
+    throw new Error(mensaje, { cause: error });
   }
-  let detail = response.statusText;
-  try {
-    const body = await response.json();
-    detail = body?.error?.message || detail;
-  } catch {
-    // respuesta sin JSON
-  }
-  return new Error(`Google Calendar (${action}): ${detail || response.status}`);
+  return data?.data;
 };
 
-const dbError = (err, action) =>
-  new Error(`Base de datos (${action}): ${err?.message || JSON.stringify(err)}`, { cause: err });
-
-// Crea el paciente si no existe (evita violar la FK de citas)
-const ensurePaciente = async (identificador, nombre) => {
-  const { data: existing, error: selErr } = await supabase
-    .from('pacientes')
-    .select('identificador_paciente')
-    .eq('identificador_paciente', identificador)
-    .limit(1);
-  if (selErr) throw dbError(selErr, 'buscar paciente');
-
-  if (!existing || existing.length === 0) {
-    const { error: insErr } = await supabase
-      .from('pacientes')
-      .insert({ identificador_paciente: identificador, nombre_paciente: nombre || identificador });
-    if (insErr) throw dbError(insErr, 'registrar paciente');
-  }
+// 0. SESIÓN Y PERFIL
+/** Perfil del usuario de la sesión según usuarios_autorizados: { email, nombre, rol } o null. */
+export const getPerfil = async () => {
+  const data = exigir(await supabase.rpc('mi_perfil'), 'leer perfil');
+  return Array.isArray(data) ? (data[0] || null) : data;
 };
 
 // 1. CRM LEADS
@@ -230,135 +169,22 @@ export const updateLead = async (lead) => {
   };
 };
 
-// 2. WHATSAPP CHATS
-// Note: WhatsApp message history/sending methods were removed as they are handled directly via Chatwoot embed.
+// 2. GOOGLE CALENDAR (vía Edge Function)
+export const getAppointments = async (timeMin, timeMax) =>
+  (await agenda('listar_eventos', { timeMin, timeMax })) || [];
 
-// 3. GOOGLE CALENDAR APPOINTMENTS - DIRECT CLIENT API CONNECTION
-export const getAppointments = async (timeMin, timeMax) => {
-  const token = getGCalToken();
+/**
+ * Crea la cita en la BD y en Google Calendar (la Edge Function revierte si algo falla).
+ * @param {{identificador, nombre, titulo, inicio, fin, servicio_clave?, notas?, correo?, tratamiento?}} cita
+ */
+export const createAppointment = (cita) => agenda('crear_cita', cita);
 
-  if (!token) {
-    // Sin conexión a Google Calendar: la UI muestra el aviso "Reconectar"
-    return [];
-  }
+export const deleteAppointment = (eventId) => agenda('cancelar_cita', { google_event_id: eventId });
 
-  const tMin = timeMin || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-  const tMax = timeMax || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-  const params = new URLSearchParams({
-    maxResults: '250',
-    timeMin: tMin,
-    timeMax: tMax,
-    singleEvents: 'true',
-    orderBy: 'startTime'
-  });
+export const rescheduleAppointment = (eventId, start, end) =>
+  agenda('reprogramar_cita', { google_event_id: eventId, inicio: start, fin: end });
 
-  const response = await fetch(`${gcalEventsUrl()}?${params}`, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  if (!response.ok) throw await gcalError(response, 'leer eventos');
-
-  const data = await response.json();
-  return (data.items || []).map(item => ({
-    id: item.id,
-    summary: item.summary || 'Cita Odontológica',
-    description: item.description || '',
-    start: { dateTime: item.start?.dateTime || item.start?.date },
-    end: { dateTime: item.end?.dateTime || item.end?.date },
-    status: item.status || 'confirmed',
-    correo_electronico: item.attendees?.[0]?.email || ''
-  }));
-};
-
-export const createAppointment = async (summary, start, end, description = '', phone = '', email = '', tratamiento_receta = '') => {
-  const identificador = normalizarIdentificador(phone);
-
-  if (!identificador) {
-    throw new Error('Selecciona o registra al paciente (celular o usuario de WhatsApp) antes de agendar.');
-  }
-
-  // 1. Google Calendar es obligatorio: n8n consulta la disponibilidad allí
-  const token = requireGCalToken();
-  const eventBody = {
-    summary,
-    description,
-    start: { dateTime: start },
-    end: { dateTime: end }
-  };
-  if (email) {
-    eventBody.attendees = [{ email }];
-  }
-
-  const response = await fetch(`${gcalEventsUrl()}${email ? '?sendUpdates=all' : ''}`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(eventBody)
-  });
-  if (!response.ok) throw await gcalError(response, 'crear evento');
-  const gcalEvent = await response.json();
-
-  // 2. Registro en Supabase. Si falla, se revierte el evento para no dejar datos a medias.
-  try {
-    const patientName = summary.split(' - ')[0].trim() || 'Paciente WhatsApp';
-    await ensurePaciente(identificador, patientName);
-
-    const { error } = await supabase
-      .from('citas')
-      .insert({
-        identificador_paciente: identificador,
-        fecha_hora_cita: start,
-        motivo_consulta: summary,
-        estado_cita: ESTADOS_CITA.AGENDADA,
-        google_event_id: gcalEvent.id,
-        detalles_notas_cita: description || null,
-        correo_electronico: email || null,
-        tratamiento_receta: tratamiento_receta || null,
-        recordatorio_enviado: false
-      });
-    if (error) throw dbError(error, 'guardar cita');
-  } catch (err) {
-    await fetch(gcalEventsUrl(gcalEvent.id), {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` }
-    }).catch(() => {});
-    throw new Error(`No se guardó la cita (se revirtió en Google Calendar). ${err.message}`, { cause: err });
-  }
-
-  return {
-    id: gcalEvent.id,
-    summary,
-    description: description || 'Creada manualmente desde el CRM',
-    start: { dateTime: start },
-    end: { dateTime: end },
-    status: gcalEvent.status || 'confirmed',
-    correo_electronico: email || null
-  };
-};
-
-export const deleteAppointment = async (eventId) => {
-  // 1. Eliminar de Google Calendar (404/410 = ya no existe, se continúa)
-  const token = requireGCalToken();
-  const response = await fetch(gcalEventsUrl(eventId), {
-    method: 'DELETE',
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  if (!response.ok && response.status !== 404 && response.status !== 410) {
-    throw await gcalError(response, 'cancelar evento');
-  }
-
-  // 2. Soft delete en Supabase
-  const { error } = await supabase
-    .from('citas')
-    .update({ estado_cita: ESTADOS_CITA.CANCELADA, updated_at: new Date().toISOString() })
-    .eq('google_event_id', eventId);
-  if (error) throw dbError(error, 'cancelar cita');
-
-  return true;
-};
-
-// 4. SUPABASE CUSTOM CLINIC TABLES
+// 3. CITAS Y PACIENTES (Supabase)
 export const getPacientes = async () => {
   const { data, error } = await supabase
     .from('pacientes')
@@ -367,13 +193,35 @@ export const getPacientes = async () => {
   return data || [];
 };
 
+export const updatePaciente = async (identificador, cambios) => {
+  const permitidos = {};
+  if (typeof cambios.nombre_paciente === 'string') {
+    const nombre = cambios.nombre_paciente.trim();
+    if (!nombre) throw new Error('El nombre del paciente no puede quedar vacío.');
+    permitidos.nombre_paciente = nombre;
+  }
+  const data = exigir(
+    await supabase.from('pacientes').update(permitidos).eq('identificador_paciente', identificador).select(),
+    'actualizar paciente'
+  );
+  if (!data?.length) throw new Error('No se encontró el paciente.');
+  return data[0];
+};
+
+// La receta vive en tratamientos_cita (solo el doctor la ve: RLS). Se aplana
+// a `tratamiento_receta` para que la UI no dependa de la tabla.
+const aplanarCita = ({ tratamientos_cita: trat, ...c }) => ({
+  ...c,
+  tratamiento_receta: (Array.isArray(trat) ? trat[0]?.texto : trat?.texto) || ''
+});
+
 export const getCitasDb = async () => {
   const { data, error } = await supabase
     .from('citas')
-    .select('*, pacientes(*)')
+    .select('*, pacientes(*), tratamientos_cita(texto)')
     .order('fecha_hora_cita', { ascending: true });
   if (error) throw dbError(error, 'leer citas');
-  return data || [];
+  return (data || []).map(aplanarCita);
 };
 
 export const updateAppointmentStatus = async (googleEventId, status) => {
@@ -389,132 +237,98 @@ export const updateAppointmentStatus = async (googleEventId, status) => {
   return data[0];
 };
 
-// Busca el identificador real del paciente de una cita que solo existe en Google Calendar
-const resolvePacienteIdentificador = async (appObj, rawId) => {
-  const direct = appObj?.identificador_paciente
-    || appObj?.telefono_paciente
-    || appObj?.phone_number
-    || appObj?.pacientes?.identificador_paciente
-    || (rawId && /^\+?[\d\s-]{7,}$/.test(rawId) ? rawId : null);
-  if (direct) return normalizarIdentificador(direct);
-
-  if (appObj) {
-    const text = `${appObj.description || ''} ${appObj.summary || ''} ${appObj.motivo_consulta || ''} ${appObj.detalles_notas_cita || ''}`;
-    const phoneMatch = text.match(/\+?\d[\d\s-]{6,16}\d/);
-    if (phoneMatch) return normalizarIdentificador(phoneMatch[0]);
+/** Guarda la receta/tratamiento de una cita registrada (solo el doctor). */
+export const updateAppointmentPrescription = async (cita, tratamientoReceta) => {
+  let citaId = cita?.id;
+  if (!citaId && cita?.google_event_id) {
+    const encontrada = exigir(
+      await supabase.from('citas').select('id').eq('google_event_id', cita.google_event_id).maybeSingle(),
+      'buscar cita'
+    );
+    citaId = encontrada?.id;
   }
-
-  // Coincidencia EXACTA por nombre (nunca parcial, para no asignar la cita a otra persona)
-  const patientName = appObj?.pacientes?.nombre_paciente
-    || (appObj?.summary ? appObj.summary.split(' - ')[0].trim() : '');
-  if (patientName && !['Paciente', 'Paciente GCal', 'Paciente sin nombre'].includes(patientName)) {
-    const { data, error } = await supabase
-      .from('pacientes')
-      .select('identificador_paciente')
-      .ilike('nombre_paciente', patientName)
-      .limit(2);
-    if (error) throw dbError(error, 'buscar paciente por nombre');
-    if (data && data.length === 1) return data[0].identificador_paciente;
+  if (!citaId) {
+    throw new Error('La cita no está registrada en la base de datos; no se puede guardar el tratamiento.');
   }
-
-  return null;
+  exigir(
+    await supabase.from('tratamientos_cita').upsert({ cita_id: citaId, texto: (tratamientoReceta || '').trim() }),
+    'guardar tratamiento'
+  );
+  return { id: citaId, tratamiento_receta: (tratamientoReceta || '').trim() };
 };
 
-export const updateAppointmentPrescription = async (citaObjOrId, tratamientoReceta) => {
-  const appObj = typeof citaObjOrId === 'object' && citaObjOrId !== null ? citaObjOrId : null;
-  const rawId = typeof citaObjOrId === 'string' ? citaObjOrId : null;
-
-  // Primary Key numérica de 'citas'
-  const dbId = appObj?.id && /^\d+$/.test(String(appObj.id))
-    ? parseInt(appObj.id, 10)
-    : (typeof citaObjOrId === 'number' ? citaObjOrId : null);
-
-  // ID real del evento de Google Calendar
-  const gcalId = appObj?.google_event_id || (rawId && !/^\d+$/.test(rawId) ? rawId : null);
-
-  const payload = { tratamiento_receta: tratamientoReceta || null, updated_at: new Date().toISOString() };
-
-  // 1. Actualizar por id de la BD
-  if (dbId) {
-    const { data, error } = await supabase.from('citas').update(payload).eq('id', dbId).select();
-    if (error) throw dbError(error, 'guardar tratamiento');
-    if (data && data.length > 0) return data[0];
-  }
-
-  // 2. Actualizar por google_event_id
-  if (gcalId) {
-    const { data, error } = await supabase.from('citas').update(payload).eq('google_event_id', gcalId).select();
-    if (error) throw dbError(error, 'guardar tratamiento');
-    if (data && data.length > 0) return data[0];
-  }
-
-  // 3. La cita solo existe en Google Calendar: se registra en la BD, pero solo si
-  //    se identifica al paciente con certeza y el evento es real.
-  if (!gcalId) {
-    throw new Error('La cita no tiene un evento válido de Google Calendar; no se puede registrar.');
-  }
-  const identificador = await resolvePacienteIdentificador(appObj, rawId);
-  if (!identificador) {
-    throw new Error('No se pudo identificar al paciente de esta cita. Agrega su celular en la descripción del evento o regístrala desde el CRM.');
-  }
-
-  const patientName = appObj?.pacientes?.nombre_paciente
-    || (appObj?.summary ? appObj.summary.split(' - ')[0].trim() : '')
-    || identificador;
-  await ensurePaciente(identificador, patientName);
-
-  const fechaRaw = appObj?.fecha_hora_cita || appObj?.start?.dateTime;
-  if (!fechaRaw || isNaN(new Date(fechaRaw).getTime())) {
-    throw new Error('La cita no tiene una fecha válida.');
-  }
-
-  const { data, error } = await supabase
-    .from('citas')
-    .insert({
-      identificador_paciente: identificador,
-      fecha_hora_cita: new Date(fechaRaw).toISOString(),
-      motivo_consulta: appObj?.motivo_consulta || appObj?.summary || 'Consulta Médica',
-      estado_cita: appObj?.estado_cita || ESTADOS_CITA.AGENDADA,
-      google_event_id: gcalId,
-      detalles_notas_cita: appObj?.detalles_notas_cita || appObj?.description || null,
-      correo_electronico: appObj?.correo_electronico || null,
-      tratamiento_receta: tratamientoReceta || null,
-      recordatorio_enviado: false
-    })
-    .select();
-  if (error) throw dbError(error, 'registrar cita con tratamiento');
-  return data?.[0];
+// 4. CONFIGURACIÓN DE LA AGENDA (catálogo, horario, feriados, bloqueos)
+export const getAgendaConfig = async () => {
+  const hoy = new Date();
+  hoy.setDate(hoy.getDate() - 1);
+  const [servicios, horario, feriados, bloqueos] = await Promise.all([
+    supabase.from('servicios').select('*').order('orden').order('nombre'),
+    supabase.from('horario_atencion').select('*').order('dia_semana').order('inicio'),
+    supabase.from('feriados').select('*').order('fecha'),
+    supabase.from('bloqueos_agenda').select('*').eq('activo', true).gte('fin', hoy.toISOString()).order('inicio')
+  ]);
+  return {
+    servicios: exigir(servicios, 'leer servicios') || [],
+    horario: exigir(horario, 'leer horario') || [],
+    feriados: exigir(feriados, 'leer feriados') || [],
+    bloqueos: exigir(bloqueos, 'leer bloqueos') || []
+  };
 };
 
-export const rescheduleAppointment = async (eventId, start, end) => {
-  // 1. Google Calendar (PATCH solo cambia las fechas)
-  const token = requireGCalToken();
-  const response = await fetch(gcalEventsUrl(eventId), {
-    method: 'PATCH',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ start: { dateTime: start }, end: { dateTime: end } })
-  });
-  if (!response.ok) {
-    if (response.status === 404 || response.status === 410) {
-      throw new Error('El evento ya no existe en Google Calendar. Cancela esta cita y agenda una nueva.');
-    }
-    throw await gcalError(response, 'reprogramar evento');
+export const guardarServicio = async ({ id, clave, nombre, duracion_min, nota, activo, orden }) => {
+  const fila = {
+    nombre: String(nombre || '').trim(),
+    duracion_min: Number(duracion_min),
+    nota: String(nota || '').trim() || null,
+    activo: activo !== false,
+    orden: Number(orden) || 0
+  };
+  if (!fila.nombre) throw new Error('El servicio necesita un nombre.');
+  if (id) {
+    return exigir(await supabase.from('servicios').update(fila).eq('id', id).select().single(), 'actualizar servicio');
   }
+  const claveLimpia = String(clave || fila.nombre)
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  return exigir(await supabase.from('servicios').insert({ ...fila, clave: claveLimpia }).select().single(), 'crear servicio');
+};
 
-  // 2. Supabase: mismo estado que usa n8n y se reactiva el recordatorio para la nueva fecha
-  const { data, error } = await supabase
-    .from('citas')
-    .update({
-      fecha_hora_cita: start,
-      estado_cita: ESTADOS_CITA.REPROGRAMADA,
-      recordatorio_enviado: false,
-      updated_at: new Date().toISOString()
-    })
-    .eq('google_event_id', eventId)
-    .select();
-  if (error) throw dbError(error, 'reprogramar cita');
-  return data?.[0];
+export const agregarJornada = async ({ dia_semana, inicio, fin }) =>
+  exigir(await supabase.from('horario_atencion').insert({ dia_semana, inicio, fin }).select().single(), 'agregar jornada');
+
+export const quitarJornada = async (id) =>
+  exigir(await supabase.from('horario_atencion').delete().eq('id', id), 'quitar jornada');
+
+export const agregarFeriado = async ({ fecha, nombre }) =>
+  exigir(await supabase.from('feriados').insert({ fecha, nombre: String(nombre || '').trim() || 'Feriado' }).select().single(), 'agregar feriado');
+
+export const quitarFeriado = async (fecha) =>
+  exigir(await supabase.from('feriados').delete().eq('fecha', fecha), 'quitar feriado');
+
+export const crearBloqueo = ({ inicio, fin, motivo }) => agenda('crear_bloqueo', { inicio, fin, motivo });
+
+export const quitarBloqueo = (id) => agenda('quitar_bloqueo', { id });
+
+// 5. USUARIOS (solo el doctor: RLS)
+export const getUsuarios = async () =>
+  exigir(await supabase.from('usuarios_autorizados').select('*').order('rol').order('email'), 'leer usuarios') || [];
+
+export const crearUsuario = async ({ email, nombre, rol }) => {
+  const correo = String(email || '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) throw new Error('Ingresa un correo válido.');
+  return exigir(
+    await supabase.from('usuarios_autorizados').insert({ email: correo, nombre: String(nombre || '').trim() || null, rol }).select().single(),
+    'crear usuario'
+  );
+};
+
+export const actualizarUsuario = async (email, cambios) => {
+  const fila = {};
+  if ('nombre' in cambios) fila.nombre = String(cambios.nombre || '').trim() || null;
+  if ('rol' in cambios) fila.rol = cambios.rol;
+  if ('activo' in cambios) fila.activo = !!cambios.activo;
+  return exigir(
+    await supabase.from('usuarios_autorizados').update(fila).eq('email', email).select().single(),
+    'actualizar usuario'
+  );
 };

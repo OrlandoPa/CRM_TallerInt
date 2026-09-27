@@ -1,11 +1,14 @@
 import { LogOut, RefreshCw } from 'lucide-react';
+import { ETIQUETAS_ROL } from '../../services/authService';
 
 const PAGE_TITLES = {
   dashboard: 'Dashboard',
   agenda: 'Agenda del Día',
   attendance: 'Tomar Asistencia',
   calendar: 'Calendario',
-  chats: 'Chats WhatsApp'
+  pacientes: 'Pacientes',
+  chats: 'Chats WhatsApp',
+  admin: 'Administración'
 };
 
 function Header({ activeTab, handleRefresh, supabaseOnline, user, onLogout }) {
@@ -35,7 +38,7 @@ function Header({ activeTab, handleRefresh, supabaseOnline, user, onLogout }) {
             )}
             <div className="user-meta">
               <strong>{user.name || 'Usuario'}</strong>
-              <span>{user.email}</span>
+              <span>{ETIQUETAS_ROL[user.rol] ? `${ETIQUETAS_ROL[user.rol]} · ` : ''}{user.email}</span>
             </div>
             {onLogout && (
               <button

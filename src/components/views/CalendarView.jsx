@@ -9,7 +9,7 @@ function CalendarView({
   setCurrentDate,
   appointments,
   citasDb,
-  gcalConnected,
+  agendaDisponible,
   onOpenDetail,
   onSelectDay,
   onAddAppointment
@@ -43,16 +43,16 @@ function CalendarView({
         </div>
 
         <div className="toolbar-group">
-          {!gcalConnected && (
+          {!agendaDisponible && (
             <span className="badge badge--warn">
-              <AlertCircle size={13} /> Google Calendar desconectado
+              <AlertCircle size={13} /> Google Calendar no disponible
             </span>
           )}
           <button
             onClick={onAddAppointment}
             className="btn btn-primary"
-            disabled={!gcalConnected}
-            title={!gcalConnected ? 'Debes conectar Google Calendar primero' : ''}
+            disabled={!agendaDisponible}
+            title={!agendaDisponible ? 'Google Calendar no está disponible' : ''}
           >
             <Plus size={16} /> Agendar Cita
           </button>

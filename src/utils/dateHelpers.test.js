@@ -43,7 +43,7 @@ describe('UT-FRONT-02: Validación de Horas de Trabajo (isValidWorkingHours)', (
     console.log(`isValidWorkingHours(Feriado 1 de Mayo) => Retornó:`, JSON.stringify(result));
     expect(result).toEqual({
       valid: false,
-      reason: 'No se pueden agendar citas en feriados nacionales de Perú.'
+      reason: 'No se pueden agendar citas en feriados.'
     });
   });
 

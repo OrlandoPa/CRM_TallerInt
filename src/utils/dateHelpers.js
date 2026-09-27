@@ -1,3 +1,5 @@
+import { validarRangoCita, jornadasDelDia, bloquesDeJornadas } from '@compartido/reglasAgenda.js';
+
 export const getPeruHolidays = (year) => {
   return [
     `${year}-01-01`, // Año Nuevo
@@ -17,62 +19,60 @@ export const getPeruHolidays = (year) => {
   ];
 };
 
-export const isPeruHoliday = (date) => {
+const fechaLocal = (date) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
-  const dateStr = `${year}-${month}-${day}`;
-  
-  return getPeruHolidays(year).includes(dateStr);
+  return `${year}-${month}-${day}`;
 };
 
-export const isValidWorkingHours = (startDate, endDate) => {
-  // Check day of week (Sunday is 0)
-  if (startDate.getDay() === 0 || endDate.getDay() === 0) {
-    return { valid: false, reason: 'No se pueden agendar citas los domingos.' };
+/**
+ * ¿La fecha es feriado? Con `feriados` (filas {fecha} de la BD o 'YYYY-MM-DD')
+ * usa esa lista; sin ella, los feriados nacionales fijos de Perú.
+ */
+export const isPeruHoliday = (date, feriados) => {
+  const dateStr = fechaLocal(date);
+  if (feriados) {
+    return feriados.some(f => (typeof f === 'string' ? f : f.fecha) === dateStr);
   }
-
-  // Check Peru Holiday
-  if (isPeruHoliday(startDate) || isPeruHoliday(endDate)) {
-    return { valid: false, reason: 'No se pueden agendar citas en feriados nacionales de Perú.' };
-  }
-
-  // Check if start and end are on the same day
-  if (startDate.toDateString() !== endDate.toDateString()) {
-    return { valid: false, reason: 'La cita debe empezar y terminar el mismo día.' };
-  }
-
-  // Check time ranges
-  const startHour = startDate.getHours();
-  const startMin = startDate.getMinutes();
-  const endHour = endDate.getHours();
-  const endMin = endDate.getMinutes();
-
-  const startVal = startHour * 60 + startMin;
-  const endVal = endHour * 60 + endMin;
-
-  const morningStart = 8 * 60;   // 8:00 AM
-  const morningEnd = 12 * 60;   // 12:00 PM
-  const afternoonStart = 16 * 60; // 4:00 PM (16:00)
-  const afternoonEnd = 21 * 60;   // 9:00 PM (21:00)
-
-  const inMorning = startVal >= morningStart && endVal <= morningEnd;
-  const inAfternoon = startVal >= afternoonStart && endVal <= afternoonEnd;
-
-  if (!inMorning && !inAfternoon) {
-    return { 
-      valid: false, 
-      reason: 'El horario debe estar dentro de las jornadas laborales: Mañanas (8:00 AM - 12:00 PM) o Tardes (4:00 PM - 9:00 PM).' 
-    };
-  }
-
-  return { valid: true };
+  return getPeruHolidays(date.getFullYear()).includes(dateStr);
 };
 
-export const calculateEndTime = (startStr, treatmentKey) => {
+// Horario por defecto (lunes a sábado, mañana y tarde), en el formato de la BD
+const HORARIO_BASE = [1, 2, 3, 4, 5, 6].flatMap(dia => [
+  { dia_semana: dia, inicio: '08:00', fin: '12:00' },
+  { dia_semana: dia, inicio: '16:00', fin: '21:00' }
+]);
+
+/**
+ * Valida horario de atención, feriados y bloqueos con las mismas reglas que la
+ * Edge Function (supabase/functions/_shared/reglasAgenda.js). Sin `config` usa
+ * el horario y los feriados por defecto. No valida "en el pasado": el formulario
+ * ya lo impide y la Edge Function lo vuelve a comprobar.
+ */
+export const isValidWorkingHours = (startDate, endDate, config) => {
+  const años = [startDate.getFullYear(), endDate.getFullYear()];
+  const reglas = {
+    horario: config?.horario || HORARIO_BASE,
+    feriados: config?.feriados || años.flatMap(getPeruHolidays),
+    bloqueos: config?.bloqueos || []
+  };
+  return validarRangoCita({ inicio: startDate, fin: endDate }, reglas, null);
+};
+
+/** Jornadas (en minutos) de la fecha dada según el horario de la BD. */
+export const jornadasDeFecha = (date, horario = HORARIO_BASE) => jornadasDelDia(horario, date.getDay());
+
+/** Hora de fin (datetime-local) según la duración del servicio; `servicios` viene del catálogo de la BD. */
+export const calculateEndTime = (startStr, treatmentKey, servicios) => {
   if (!startStr) return '';
   const startDate = new Date(startStr);
   let durationMinutes;
+
+  const servicio = servicios?.find(sv => sv.clave === treatmentKey);
+  if (servicio) {
+    return toDateTimeInput(new Date(startDate.getTime() + servicio.duracion_min * 60000));
+  }
 
   switch (treatmentKey) {
     case 'evaluacion':
@@ -154,15 +154,13 @@ export const JORNADAS = [
 // Las citas duran un bloque (30 min) o dos bloques (1 h)
 export const DURACIONES_CITA = [30, 60];
 
-const aHHMM = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
-
 // Horas de inicio válidas (cada 30 min) para una cita de la duración dada, por jornada
-export const getBloquesInicio = (duracionMin) =>
-  JORNADAS.map(j => {
-    const bloques = [];
-    for (let t = j.inicio; t + duracionMin <= j.fin; t += 30) bloques.push(aHHMM(t));
-    return { nombre: j.nombre, bloques };
-  });
+export const getBloquesInicio = (duracionMin, jornadas = JORNADAS) =>
+  bloquesDeJornadas(jornadas, duracionMin);
 
 // Duración normalizada a bloques: 1 h si dura 60 min o más, si no 30 min
 export const normalizarDuracion = (minutos) => (minutos >= 60 ? 60 : 30);
+
+/** Bloqueo de agenda que cubre el instante dado (o undefined). */
+export const bloqueoEn = (bloqueos, instante) =>
+  (bloqueos || []).find(b => instante >= new Date(b.inicio) && instante < new Date(b.fin));

@@ -6,16 +6,22 @@ import {
   getBloquesInicio,
   normalizarDuracion,
   DURACIONES_CITA,
-  toDateInput
+  toDateInput,
+  jornadasDeFecha
 } from '../../utils/dateHelpers';
+import { useAgendaConfig } from '../../utils/agendaConfig';
 import ModalShell from '../ui/ModalShell';
 const minutosDe = (hhmm) => {
   const [h, m] = hhmm.split(':').map(Number);
   return h * 60 + m;
 };
 
-// Duración de una cita según su evento de Google Calendar (30 min si no se conoce)
+// Duración de una cita: por su hora de fin en la BD o, si no la tiene, por su
+// evento de Google Calendar (30 min si no se conoce)
 const duracionDeCita = (cita, appointments) => {
+  if (cita.fecha_hora_fin && cita.fecha_hora_cita) {
+    return normalizarDuracion((new Date(cita.fecha_hora_fin) - new Date(cita.fecha_hora_cita)) / 60000);
+  }
   const evt = appointments.find(a => a.id === cita.google_event_id);
   if (evt?.start?.dateTime && evt?.end?.dateTime) {
     return normalizarDuracion((new Date(evt.end.dateTime) - new Date(evt.start.dateTime)) / 60000);
@@ -31,19 +37,24 @@ function RescheduleForm({
   appointments,
   onSubmit
 }) {
+  const { horario, feriados, bloqueos } = useAgendaConfig();
+
   // Valores iniciales: la fecha propuesta por quien abre el modal; la hora solo si cae en un bloque
   const [fecha, setFecha] = useState(() => (rescheduleEvent.start || '').slice(0, 10) || toDateInput(new Date()));
   const [duracion, setDuracion] = useState(() => duracionDeCita(cita, appointments));
   const [hora, setHora] = useState(() => {
     const h = (rescheduleEvent.start || '').slice(11, 16);
-    const valida = getBloquesInicio(duracionDeCita(cita, appointments)).some(j => j.bloques.includes(h));
+    const dia0 = new Date(`${(rescheduleEvent.start || '').slice(0, 10)}T00:00`);
+    const jornadas0 = isNaN(dia0) ? [] : jornadasDeFecha(dia0, horario);
+    const valida = getBloquesInicio(duracionDeCita(cita, appointments), jornadas0).some(j => j.bloques.includes(h));
     return valida ? h : '';
   });
 
   const dia = fecha ? new Date(`${fecha}T00:00`) : null;
-  const esDomingo = dia?.getDay() === 0;
-  const esFeriado = dia ? isPeruHoliday(dia) : false;
-  const diaNoLaborable = esDomingo || esFeriado;
+  const jornadasDia = dia ? jornadasDeFecha(dia, horario) : [];
+  const esFeriado = dia ? isPeruHoliday(dia, feriados) : false;
+  const sinAtencion = !!dia && jornadasDia.length === 0;
+  const diaNoLaborable = esFeriado || sinAtencion;
   const ahora = new Date();
 
   // Otras citas vigentes de ese día, como rangos en minutos
@@ -62,11 +73,14 @@ function RescheduleForm({
     const fin = ini + duracion;
     if (dia && new Date(`${fecha}T${hhmm}`) <= ahora) return 'pasado';
     if (ocupados.some(o => ini < o.fin && fin > o.ini)) return 'ocupado';
+    const desde = new Date(`${fecha}T${hhmm}`);
+    const hasta = new Date(desde.getTime() + duracion * 60000);
+    if (bloqueos.some(b => desde < new Date(b.fin) && new Date(b.inicio) < hasta)) return 'bloqueado';
     return null;
   };
 
   // Si al cambiar fecha o duración la hora elegida deja de ser válida, se descarta
-  const bloquesPorJornada = getBloquesInicio(duracion);
+  const bloquesPorJornada = getBloquesInicio(duracion, jornadasDia);
   const horaValida = hora
     && bloquesPorJornada.some(j => j.bloques.includes(hora))
     && !estadoBloque(hora)
@@ -162,9 +176,11 @@ function RescheduleForm({
             <div className="notice notice--bad" role="alert">
               <AlertTriangle size={16} />
               <span>
-                {esDomingo
-                  ? 'No se atiende los domingos. Elige otra fecha.'
-                  : 'No se puede reprogramar en feriados nacionales de Perú.'}
+                {esFeriado
+                  ? 'No se puede reprogramar en feriados. Elige otra fecha.'
+                  : dia?.getDay() === 0
+                    ? 'No se atiende los domingos. Elige otra fecha.'
+                    : 'No hay atención ese día de la semana. Elige otra fecha.'}
               </span>
             </div>
           )}

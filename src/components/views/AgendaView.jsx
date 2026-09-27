@@ -1,5 +1,7 @@
 import { ChevronLeft, ChevronRight, Trash2, Plus, AlertTriangle } from 'lucide-react';
-import { getLimaDate, formatHora, formatFechaLarga, toDateInput } from '../../utils/dateHelpers';
+import { getLimaDate, formatHora, formatFechaLarga, toDateInput, getBloquesInicio, jornadasDeFecha, isPeruHoliday, bloqueoEn } from '../../utils/dateHelpers';
+import { aHHMM } from '@compartido/reglasAgenda.js';
+import { useAgendaConfig } from '../../utils/agendaConfig';
 import { resolveContactIdentifier } from '../../utils/contactHelpers';
 import { esAtendida } from '../../utils/estadosCita';
 import StatusBadge from '../ui/StatusBadge';
@@ -7,32 +9,20 @@ import StatusBadge from '../ui/StatusBadge';
 function AgendaView({
   selectedAgendaDate,
   setSelectedAgendaDate,
-  appointments,
+  appointments: eventos,
   citasDb,
-  gcalConnected,
+  agendaDisponible,
   onOpenDetail,
   onDeleteAppointment,
   onAddAppointmentFromSlot
 }) {
-  const getMorningSlots = () => {
-    const slots = [];
-    for (let hour = 8; hour <= 11; hour++) {
-      const hStr = String(hour).padStart(2, '0');
-      slots.push(`${hStr}:00`);
-      slots.push(`${hStr}:30`);
-    }
-    return slots;
-  };
+  const { horario, feriados, bloqueos } = useAgendaConfig();
 
-  const getAfternoonSlots = () => {
-    const slots = [];
-    for (let hour = 16; hour <= 20; hour++) {
-      const hStr = String(hour).padStart(2, '0');
-      slots.push(`${hStr}:00`);
-      slots.push(`${hStr}:30`);
-    }
-    return slots;
-  };
+  // Los bloqueos llegan como eventos de Calendar; se muestran desde la configuración
+  const appointments = eventos.filter(e => e.tipo !== 'bloqueo');
+  const feriado = isPeruHoliday(selectedAgendaDate, feriados);
+  // Jornadas del día según el horario de la BD, con sus bloques de 30 min
+  const jornadas = feriado ? [] : getBloquesInicio(30, jornadasDeFecha(selectedAgendaDate, horario));
 
   const getEventsForTimeSlot = (slotString, dayDate) => {
     const [hours, minutes] = slotString.split(':').map(Number);
@@ -88,7 +78,7 @@ function AgendaView({
              appStart.getFullYear() === dayDate.getFullYear();
     });
 
-    const slots = getMorningSlots().concat(getAfternoonSlots());
+    const slots = jornadas.flatMap(j => j.bloques);
 
     return dayEvents.filter(app => {
       const dbCita = citasDb.find(c => c.google_event_id === app.id);
@@ -133,6 +123,7 @@ function AgendaView({
       minutes
     );
     const isSlotPast = slotTime < new Date();
+    const bloqueo = bloqueoEn(bloqueos, slotTime);
 
     return (
       <div key={slot} className={`slot agenda-time-slot ${hasEvents ? 'slot--booked' : ''} ${isSlotPast ? 'slot--past' : ''}`}>
@@ -198,6 +189,10 @@ function AgendaView({
                 </div>
               );
             })
+          ) : bloqueo ? (
+            <div className="slot-free slot-free--blocked">
+              <span>Bloqueado · {bloqueo.motivo}</span>
+            </div>
           ) : (
             <div className="slot-free">
               <span>Libre</span>
@@ -206,7 +201,7 @@ function AgendaView({
                 data-testid={`btn-slot-add-${slot.replace(':', '-')}`}
                 onClick={() => onAddAppointmentFromSlot(slot)}
                 className="btn btn-secondary btn-sm"
-                disabled={!gcalConnected || isSlotPast}
+                disabled={!agendaDisponible || isSlotPast}
                 title={isSlotPast ? 'No se pueden agendar citas en el pasado' : ''}
               >
                 <Plus size={14} /> Agendar
@@ -298,23 +293,24 @@ function AgendaView({
         </div>
       )}
 
-      <div className="shift-grid">
-        <section className="panel">
-          <header className="panel-head">
-            <h3 className="panel-title">Mañana</h3>
-            <span className="shift-range">08:00 – 12:00</span>
-          </header>
-          {getMorningSlots().map(slot => renderSlotRow(slot))}
-        </section>
-
-        <section className="panel">
-          <header className="panel-head">
-            <h3 className="panel-title">Tarde</h3>
-            <span className="shift-range">16:00 – 21:00</span>
-          </header>
-          {getAfternoonSlots().map(slot => renderSlotRow(slot))}
-        </section>
-      </div>
+      {jornadas.length === 0 ? (
+        <div className="notice notice--info" data-testid="agenda-sin-atencion">
+          <AlertTriangle size={16} />
+          <span>{feriado ? 'Feriado: no se atiende este día.' : 'No hay atención este día de la semana.'}</span>
+        </div>
+      ) : (
+        <div className="shift-grid">
+          {jornadas.map(j => (
+            <section className="panel" key={j.inicio}>
+              <header className="panel-head">
+                <h3 className="panel-title">{j.nombre}</h3>
+                <span className="shift-range">{aHHMM(j.inicio)} – {aHHMM(j.fin)}</span>
+              </header>
+              {j.bloques.map(slot => renderSlotRow(slot))}
+            </section>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

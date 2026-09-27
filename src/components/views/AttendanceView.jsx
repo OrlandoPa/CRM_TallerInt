@@ -6,10 +6,11 @@ function AttendanceView({
   pastAppointmentsToReview,
   onMarkAttendance,
   onOpenReschedule,
-  hasRequiredGCalGmail
+  agendaDisponible
 }) {
+  // Marcar asistencia solo toca la BD; reprogramar necesita Google Calendar
   const requireGCal = (action) => () => {
-    if (!hasRequiredGCalGmail) {
+    if (!agendaDisponible) {
       alert(GCAL_REQUIRED_MSG);
       return;
     }
@@ -20,7 +21,7 @@ function AttendanceView({
 
   return (
     <div className="page attendance-view" data-testid="view-attendance">
-      {!hasRequiredGCalGmail && <GCalNotice />}
+      {!agendaDisponible && <GCalNotice />}
 
       <p className="lead">
         Citas cuya hora ya pasó y que siguen sin resolver. Marca si el paciente asistió o no, o reprográmala.
@@ -66,23 +67,21 @@ function AttendanceView({
                 <div className="review-actions">
                   <button
                     data-testid="btn-mark-attended"
-                    onClick={requireGCal(() => onMarkAttendance(cita.google_event_id, 'ASISTIO'))}
+                    onClick={() => onMarkAttendance(cita.google_event_id, 'ASISTIO')}
                     className="btn btn-ok btn-sm"
-                    disabled={!hasRequiredGCalGmail}
                   >
                     <Check size={14} /> Asistió
                   </button>
                   <button
-                    onClick={requireGCal(() => onMarkAttendance(cita.google_event_id, 'NO_ASISTIO'))}
+                    onClick={() => onMarkAttendance(cita.google_event_id, 'NO_ASISTIO')}
                     className="btn btn-danger btn-sm"
-                    disabled={!hasRequiredGCalGmail}
                   >
                     <X size={14} /> No Asistió
                   </button>
                   <button
                     onClick={requireGCal(() => onOpenReschedule(cita))}
                     className="btn btn-secondary btn-sm"
-                    disabled={!hasRequiredGCalGmail}
+                    disabled={!agendaDisponible}
                   >
                     <CalendarClock size={14} /> Reprogramar
                   </button>

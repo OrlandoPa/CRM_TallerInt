@@ -1,5 +1,7 @@
 import { Trash2, Plus, AlertTriangle } from 'lucide-react';
-import { getLimaDate, formatHora, formatFechaLarga } from '../../utils/dateHelpers';
+import { getLimaDate, formatHora, formatFechaLarga, getBloquesInicio, jornadasDeFecha, isPeruHoliday, bloqueoEn } from '../../utils/dateHelpers';
+import { aHHMM } from '@compartido/reglasAgenda.js';
+import { useAgendaConfig } from '../../utils/agendaConfig';
 import { esAtendida } from '../../utils/estadosCita';
 import ModalShell from '../ui/ModalShell';
 import StatusBadge from '../ui/StatusBadge';
@@ -8,33 +10,26 @@ function DayAgendaModal({
   selectedDay, 
   onClose, 
   citasDb, 
-  appointments, 
-  gcalConnected, 
+  appointments: eventos, 
+  agendaDisponible,  
   onOpenDetail, 
   onDeleteAppointment, 
   onAddAppointmentFromSlot 
 }) {
+  const { horario, feriados, bloqueos } = useAgendaConfig();
   if (!selectedDay) return null;
 
-  const getTimeSlots = () => {
-    const slots = [];
-    // Morning: 8:00 AM to 12:00 PM
-    for (let hour = 8; hour <= 11; hour++) {
-      const hStr = String(hour).padStart(2, '0');
-      slots.push(`${hStr}:00`);
-      slots.push(`${hStr}:30`);
-    }
-    slots.push('RECESO');
-    // Afternoon: 4:00 PM to 9:00 PM (16:00 to 21:00)
-    for (let hour = 16; hour <= 20; hour++) {
-      slots.push(`${hour}:00`);
-      slots.push(`${hour}:30`);
-    }
-    return slots;
-  };
+  // Los bloqueos llegan como eventos de Calendar; se muestran desde la configuración
+  const appointments = eventos.filter(e => e.tipo !== 'bloqueo');
+  const feriado = isPeruHoliday(selectedDay, feriados);
+  const jornadas = feriado ? [] : jornadasDeFecha(selectedDay, horario);
+
+  // Bloques de 30 min de cada jornada del día, con un separador "RECESO|desde|hasta" entre jornadas
+  const getTimeSlots = () => getBloquesInicio(30, jornadas).flatMap((j, i, todas) =>
+    i === 0 ? j.bloques : [`RECESO|${aHHMM(todas[i - 1].fin)}|${aHHMM(j.inicio)}`, ...j.bloques]);
 
   const getEventsForTimeSlot = (slotString, dayDate) => {
-    if (slotString === 'RECESO') return [];
+    if (slotString.startsWith('RECESO')) return [];
     
     const [hours, minutes] = slotString.split(':').map(Number);
     const slotTime = new Date(dayDate.getFullYear(), dayDate.getMonth(), dayDate.getDate(), hours, minutes);
@@ -111,7 +106,7 @@ function DayAgendaModal({
       const appEndResolved = new Date(appStart.getTime() + durationMs);
       
       const matchedByASlot = slots.some(slot => {
-        if (slot === 'RECESO') return false;
+        if (slot.startsWith('RECESO')) return false;
         const [hours, minutes] = slot.split(':').map(Number);
         const slotTime = new Date(dayDate.getFullYear(), dayDate.getMonth(), dayDate.getDate(), hours, minutes);
         return slotTime >= appStart && slotTime < appEndResolved;
@@ -180,12 +175,22 @@ function DayAgendaModal({
           </div>
         )}
 
+        {jornadas.length === 0 && (
+          <div className="modal-section">
+            <div className="notice notice--info">
+              <AlertTriangle size={16} />
+              <span>{feriado ? 'Feriado: no se atiende este día.' : 'No hay atención este día de la semana.'}</span>
+            </div>
+          </div>
+        )}
+
         <div>
           {getTimeSlots().map((slot, index) => {
-            if (slot === 'RECESO') {
+            if (slot.startsWith('RECESO')) {
+              const [, desde, hasta] = slot.split('|');
               return (
                 <div key={`receso-${index}`} className="break-row">
-                  Receso · <span className="mono">12:00 – 16:00</span>
+                  Receso · <span className="mono">{desde} – {hasta}</span>
                 </div>
               );
             }
@@ -200,6 +205,7 @@ function DayAgendaModal({
               minutes
             );
             const isSlotPast = slotTime < new Date();
+            const bloqueo = bloqueoEn(bloqueos, slotTime);
             
             return (
               <div key={slot} className={`slot ${slotEvents.length > 0 ? 'slot--booked' : ''} ${isSlotPast ? 'slot--past' : ''}`}>
@@ -238,6 +244,10 @@ function DayAgendaModal({
                         </div>
                       );
                     })
+                  ) : bloqueo ? (
+                    <div className="slot-free slot-free--blocked">
+                      <span>Bloqueado · {bloqueo.motivo}</span>
+                    </div>
                   ) : (
                     <div className="slot-free">
                       <span>Libre</span>
@@ -245,7 +255,7 @@ function DayAgendaModal({
                         type="button"
                         onClick={() => onAddAppointmentFromSlot(slot)}
                         className="btn btn-secondary btn-sm" 
-                        disabled={!gcalConnected || isSlotPast}
+                        disabled={!agendaDisponible || isSlotPast}
                         title={isSlotPast ? 'No se pueden agendar citas en el pasado' : ''}
                       >
                         <Plus size={14} /> Agendar
