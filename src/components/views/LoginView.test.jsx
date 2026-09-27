@@ -76,7 +76,7 @@ describe('UT-FRONT-LOGIN: Módulo de Autenticación y Login monousuario', () => 
       render(<LoginView />);
 
       expect(screen.getByTestId('login-view')).toBeTruthy();
-      expect(screen.getByText(/Gestión de Citas Odontologicas/i)).toBeTruthy();
+      expect(screen.getByText(/Gestión de Citas Odontológicas/i)).toBeTruthy();
       expect(screen.getByText(/Acceso restringido únicamente al correo autorizado/i)).toBeTruthy();
     });
 

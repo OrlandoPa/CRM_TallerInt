@@ -1,62 +1,55 @@
 import { ChevronLeft, ChevronRight, AlertCircle, Plus } from 'lucide-react';
 import { getLimaDate } from '../../utils/dateHelpers';
+import { tonoEstado } from '../../utils/estadosCita';
 
-function CalendarView({ 
-  currentDate, 
-  setCurrentDate, 
-  appointments, 
-  citasDb, 
-  gcalConnected, 
-  onOpenDetail, 
+const WEEKDAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+
+function CalendarView({
+  currentDate,
+  setCurrentDate,
+  appointments,
+  citasDb,
+  gcalConnected,
+  onOpenDetail,
   onSelectDay,
-  onAddAppointment 
+  onAddAppointment
 }) {
   const calendarYear = currentDate.getFullYear();
   const calendarMonth = currentDate.getMonth();
   const calendarStartOffset = new Date(calendarYear, calendarMonth, 1).getDay();
   const calendarDaysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
   const calendarTotalCells = Math.ceil((calendarStartOffset + calendarDaysInMonth) / 7) * 7;
+  const today = new Date();
 
   return (
-    <div className="calendar-view animate-fade-in">
-      <div className="calendar-header">
-        <div style={{display:'flex', alignItems:'center', gap:'16px'}}>
-          <button 
-            onClick={() => setCurrentDate(new Date(calendarYear, calendarMonth - 1, 1))} 
-            className="btn-icon" 
-            style={{width:'32px', height:'32px'}}
+    <div className="page calendar-view">
+      <div className="toolbar">
+        <div className="date-nav">
+          <button
+            onClick={() => setCurrentDate(new Date(calendarYear, calendarMonth - 1, 1))}
+            className="btn-icon bordered"
+            title="Mes anterior"
           >
             <ChevronLeft size={16} />
           </button>
-          <h2 style={{fontSize: '1.25rem', fontWeight: 600}}>
-            {currentDate.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }).toUpperCase()}
-          </h2>
-          <button 
-            onClick={() => setCurrentDate(new Date(calendarYear, calendarMonth + 1, 1))} 
-            className="btn-icon" 
-            style={{width:'32px', height:'32px'}}
+          <button
+            onClick={() => setCurrentDate(new Date(calendarYear, calendarMonth + 1, 1))}
+            className="btn-icon bordered"
+            title="Mes siguiente"
           >
             <ChevronRight size={16} />
           </button>
+          <h2>{currentDate.toLocaleDateString('es-PE', { month: 'long', year: 'numeric' })}</h2>
         </div>
-        
-        <div style={{display: 'flex', gap: '12px'}}>
+
+        <div className="toolbar-group">
           {!gcalConnected && (
-            <div style={{
-              fontSize: '0.85rem', 
-              color: 'var(--warning)', 
-              background: 'rgba(245, 158, 11, 0.1)', 
-              padding: '6px 12px', 
-              borderRadius: '8px', 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '6px'
-            }}>
-              <AlertCircle size={14} /> Usando datos offline. Conecta GCal arriba.
-            </div>
+            <span className="badge badge--warn">
+              <AlertCircle size={13} /> Google Calendar desconectado
+            </span>
           )}
-          <button 
-            onClick={onAddAppointment} 
+          <button
+            onClick={onAddAppointment}
             className="btn btn-primary"
             disabled={!gcalConnected}
             title={!gcalConnected ? 'Debes conectar Google Calendar primero' : ''}
@@ -66,21 +59,19 @@ function CalendarView({
         </div>
       </div>
 
-      <div className="calendar-grid-container">
-        <div className="calendar-days-header">
-          <span>DOM</span>
-          <span>LUN</span>
-          <span>MAR</span>
-          <span>MIÉ</span>
-          <span>JUE</span>
-          <span>VIE</span>
-          <span>SÁB</span>
+      <div className="panel cal">
+        <div className="cal-weekdays">
+          {WEEKDAYS.map(d => <span key={d}>{d}</span>)}
         </div>
-        <div className="calendar-grid">
+        <div className="cal-grid">
           {Array.from({ length: calendarTotalCells }).map((_, idx) => {
             const dayNumber = idx - calendarStartOffset + 1;
             const isValidDay = dayNumber > 0 && dayNumber <= calendarDaysInMonth;
-            
+
+            if (!isValidDay) {
+              return <div key={idx} className="cal-cell is-empty" />;
+            }
+
             // Calculate events for this day
             const dayEvents = appointments.filter(app => {
               const dbCita = citasDb.find(c => c.google_event_id === app.id);
@@ -92,52 +83,51 @@ function CalendarView({
                 appDate = getLimaDate(app.start?.dateTime || app.start?.date);
               }
               if (!appDate) return false;
-              return appDate.getDate() === dayNumber && 
-                     appDate.getMonth() === calendarMonth && 
+              return appDate.getDate() === dayNumber &&
+                     appDate.getMonth() === calendarMonth &&
                      appDate.getFullYear() === calendarYear;
             });
 
-            const today = new Date();
-            const isToday = isValidDay && 
-                            today.getDate() === dayNumber && 
-                            today.getMonth() === calendarMonth && 
+            const isToday = today.getDate() === dayNumber &&
+                            today.getMonth() === calendarMonth &&
                             today.getFullYear() === calendarYear;
 
             return (
-              <div 
-                key={idx} 
-                className={`calendar-cell ${!isValidDay ? 'other-month' : ''} ${isToday ? 'today' : ''}`}
-                style={{cursor: isValidDay ? 'pointer' : 'default'}}
-                onClick={() => {
-                  if (isValidDay) {
+              <div
+                key={idx}
+                role="button"
+                tabIndex={0}
+                aria-label={`Ver agenda del ${dayNumber}`}
+                className={`cal-cell is-day ${isToday ? 'is-today' : ''}`}
+                onClick={() => onSelectDay(new Date(calendarYear, calendarMonth, dayNumber))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
                     onSelectDay(new Date(calendarYear, calendarMonth, dayNumber));
                   }
                 }}
               >
-                {isValidDay && (
-                  <>
-                    <div className="calendar-cell-number">{dayNumber}</div>
-                    <div className="calendar-events">
-                       {dayEvents.map(evt => {
-                         const dbCita = citasDb.find(c => c.google_event_id === evt.id);
-                         const displayName = dbCita?.pacientes?.nombre_paciente || evt.summary.split(' - ')[0];
-                         return (
-                           <div 
-                             key={evt.id} 
-                             className="calendar-event confirmed" 
-                             title={`${dbCita ? dbCita.pacientes?.nombre_paciente + " - " + dbCita.motivo_consulta : evt.summary}: ${evt.description}`}
-                             onClick={(e) => {
-                               e.stopPropagation(); // Avoid opening day details modal when clicking event
-                               onOpenDetail(evt);
-                             }}
-                           >
-                             {displayName}
-                           </div>
-                         );
-                       })}
-                     </div>
-                  </>
-                )}
+                <span className="cal-daynum">{dayNumber}</span>
+                <div className="cal-events">
+                  {dayEvents.map(evt => {
+                    const dbCita = citasDb.find(c => c.google_event_id === evt.id);
+                    const displayName = dbCita?.pacientes?.nombre_paciente || evt.summary.split(' - ')[0];
+                    return (
+                      <button
+                        type="button"
+                        key={evt.id}
+                        className={`cal-event tone-${tonoEstado(dbCita?.estado_cita)}`}
+                        title={`${dbCita ? dbCita.pacientes?.nombre_paciente + ' - ' + dbCita.motivo_consulta : evt.summary}${evt.description ? `: ${evt.description}` : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation(); // Avoid opening day details modal when clicking event
+                          onOpenDetail(evt);
+                        }}
+                      >
+                        {displayName}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             );
           })}

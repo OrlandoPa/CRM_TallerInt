@@ -1,13 +1,10 @@
+import ModalShell from '../ui/ModalShell';
+
 function LeadModal({ isOpen, onClose, lead, onChange, onSubmit }) {
   if (!isOpen || !lead) return null;
 
   return (
-    <div className="modal-overlay" style={{ zIndex: 130 }}>
-      <div className="modal-content animate-slide-up">
-        <header className="modal-header">
-          <span className="modal-title">Detalles del Lead CRM</span>
-          <button onClick={onClose} className="btn-icon" style={{width:'32px', height:'32px'}}>✕</button>
-        </header>
+    <ModalShell title="Datos del contacto" onClose={onClose} zIndex={130}>
         <form onSubmit={onSubmit}>
           <div className="modal-body">
             <div className="form-group">
@@ -74,8 +71,7 @@ function LeadModal({ isOpen, onClose, lead, onChange, onSubmit }) {
             </button>
           </footer>
         </form>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 

@@ -132,3 +132,13 @@ export const getLimaDate = (dateOrStr) => {
     return date; // fallback to original date object if Intl fails
   }
 };
+
+// Formatos de presentación (24 h, español de Perú)
+export const formatHora = (date) =>
+  date ? date.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: false }) : '';
+
+export const formatDiaCorto = (date) =>
+  date ? date.toLocaleDateString('es-PE', { weekday: 'short', day: 'numeric', month: 'short' }) : '';
+
+export const formatFechaLarga = (date) =>
+  date ? date.toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '';

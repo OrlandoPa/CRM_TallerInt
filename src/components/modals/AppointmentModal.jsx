@@ -1,4 +1,6 @@
+import { AlertTriangle } from 'lucide-react';
 import { calculateEndTime, isPeruHoliday } from '../../utils/dateHelpers';
+import ModalShell from '../ui/ModalShell';
 
 function AppointmentModal({ 
   isOpen, 
@@ -35,16 +37,18 @@ function AppointmentModal({
   };
 
   return (
-    <div className="modal-overlay" style={{ zIndex: 150 }} data-testid="modal-appointment">
-      <div className="modal-content animate-slide-up">
-        <header className="modal-header">
-          <span className="modal-title">Agendar Cita en Google Calendar</span>
-          <button onClick={onClose} className="btn-icon" style={{width:'32px', height:'32px'}} data-testid="btn-close-appointment-modal">✕</button>
-        </header>
+    <ModalShell
+      title="Agendar cita"
+      subtitle="Se crea en Google Calendar y en la base de datos"
+      onClose={onClose}
+      zIndex={150}
+      testId="modal-appointment"
+      closeTestId="btn-close-appointment-modal"
+    >
         <form onSubmit={onSubmit}>
           <div className="modal-body">
             <div className="form-group">
-              <label>Título de la Cita</label>
+              <label>Título de la cita</label>
               <input 
                 data-testid="input-appointment-title"
                 type="text" 
@@ -101,7 +105,7 @@ function AppointmentModal({
                     setSendEmailReminder(!!patientEmail);
                   }}
                 >
-                  <option value="">-- Selecciona un paciente --</option>
+                  <option value="">Selecciona un paciente</option>
                   {leads.map(l => (
                     <option key={l.phone_number} value={l.phone_number}>
                       {l.client_name} ({l.phone_number})
@@ -112,7 +116,7 @@ function AppointmentModal({
             ) : (
               <>
                 <div className="form-group">
-                  <label>Nombre del Paciente Nuevo</label>
+                  <label>Nombre del paciente</label>
                   <input 
                     data-testid="input-patient-name"
                     type="text" 
@@ -133,7 +137,7 @@ function AppointmentModal({
                   />
                 </div>
                 <div className="form-group">
-                  <label>Número de Celular</label>
+                  <label>Celular</label>
                   <input 
                     data-testid="input-patient-phone"
                     type="tel" 
@@ -148,7 +152,7 @@ function AppointmentModal({
             )}
 
             <div className="form-group">
-              <label>Tipo de Tratamiento / Motivo</label>
+              <label>Tratamiento / motivo</label>
               <select 
                 data-testid="select-treatment"
                 className="form-control"
@@ -181,8 +185,9 @@ function AppointmentModal({
                 <option value="personalizado">Otro / Personalizado</option>
               </select>
             </div>
+            <div className="form-row">
             <div className="form-group">
-              <label>Fecha y Hora de Inicio</label>
+              <label>Inicio</label>
               <input 
                 data-testid="input-start-time"
                 type="datetime-local" 
@@ -205,7 +210,7 @@ function AppointmentModal({
               />
             </div>
             <div className="form-group">
-              <label>Fecha y Hora de Fin</label>
+              <label>Fin</label>
               <input 
                 data-testid="input-end-time"
                 type="datetime-local" 
@@ -217,8 +222,9 @@ function AppointmentModal({
                 disabled={isTimeLocked}
               />
             </div>
+            </div>
 
-            <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
+            <label className="check" htmlFor="sendEmailReminder">
               <input 
                 type="checkbox" 
                 id="sendEmailReminder" 
@@ -230,16 +236,13 @@ function AppointmentModal({
                     setNewEvent(prev => ({ ...prev, email: '' }));
                   }
                 }}
-                style={{ width: '18px', height: '18px', accentColor: 'var(--primary)', cursor: 'pointer' }}
               />
-              <label htmlFor="sendEmailReminder" style={{ cursor: 'pointer', margin: 0 }}>
-                ¿Enviar recordatorio por correo electrónico?
-              </label>
-            </div>
+              Enviar recordatorio por correo electrónico
+            </label>
 
             {sendEmailReminder && (
-              <div className="form-group animate-slide-up">
-                <label>Correo Electrónico para Recordatorio</label>
+              <div className="form-group">
+                <label>Correo del paciente</label>
                 <input 
                   type="email" 
                   className="form-control" 
@@ -252,7 +255,7 @@ function AppointmentModal({
             )}
 
             <div className="form-group">
-              <label>Detalles / Notas Clínicas de la Cita</label>
+              <label>Notas de la cita</label>
               <textarea 
                 className="form-control"
                 rows={2}
@@ -263,7 +266,7 @@ function AppointmentModal({
             </div>
 
             <div className="form-group">
-              <label>Tratamiento / Receta Médica (Opcional)</label>
+              <label>Tratamiento / receta (opcional)</label>
               <textarea 
                 className="form-control"
                 rows={3}
@@ -288,19 +291,9 @@ function AppointmentModal({
             </div>
 
             {newEvent.start && isPeruHoliday(new Date(newEvent.start)) && (
-              <div className="alert alert-danger" style={{ 
-                background: 'rgba(var(--danger-rgb, 239, 68, 68), 0.1)', 
-                color: 'var(--danger, #ef4444)', 
-                border: '1px solid rgba(var(--danger-rgb, 239, 68, 68), 0.2)',
-                padding: '10px', 
-                borderRadius: '8px', 
-                fontSize: '0.85rem', 
-                marginTop: '12px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}>
-                <span>⚠️ No se pueden agendar citas en feriados nacionales de Perú.</span>
+              <div className="notice notice--bad" role="alert">
+                <AlertTriangle size={16} />
+                <span>No se pueden agendar citas en feriados nacionales de Perú.</span>
               </div>
             )}
           </div>
@@ -318,8 +311,7 @@ function AppointmentModal({
             </button>
           </footer>
         </form>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 

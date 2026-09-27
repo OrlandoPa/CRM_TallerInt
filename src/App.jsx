@@ -1,11 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { 
-  Check, 
+  CheckCircle2, 
   AlertCircle, 
-  RefreshCw,
-  Plus,
-  ArrowUp,
-  Calendar,
+  CalendarX2,
   X
 } from 'lucide-react';
 
@@ -57,7 +54,7 @@ function App() {
   const [authReady, setAuthReady] = useState(false);
   const [authError, setAuthError] = useState('');
   const [activeTab, setActiveTab] = useState(initialParams.activeTab);
-  const [theme, setTheme] = useState('dark');
+  const [theme, setTheme] = useState('light');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [leads, setLeads] = useState([]);
   const [appointments, setAppointments] = useState([]);
@@ -271,11 +268,7 @@ function App() {
   const toggleTheme = () => {
     const newTheme = theme === 'dark' ? 'light' : 'dark';
     setTheme(newTheme);
-    if (newTheme === 'light') {
-      document.documentElement.classList.add('light');
-    } else {
-      document.documentElement.classList.remove('light');
-    }
+    document.documentElement.classList.toggle('dark', newTheme === 'dark');
   };
 
   // Refresh data helper
@@ -575,8 +568,8 @@ function App() {
 
   if (!authReady) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)' }}>
-        <RefreshCw size={32} style={{ animation: 'spin 2s linear infinite', color: 'var(--primary)' }} />
+      <div className="boot-screen">
+        <div className="spinner" role="status" aria-label="Cargando" />
       </div>
     );
   }
@@ -589,75 +582,46 @@ function App() {
   return (
     <div className={`app-container ${isEmbedded ? 'embedded-mode' : ''}`}>
       {/* Toast Notifications */}
-      {/* Toast Notifications */}
       {successMsg && (
-        <div style={{
-          position: 'fixed', top: '20px', right: '20px', background: 'rgba(16, 185, 129, 0.95)', 
-          color: 'white', padding: '12px 16px 12px 20px', borderRadius: '8px', zIndex: 2000, 
-          fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          gap: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', minWidth: '260px', maxWidth: '420px'
-        }} className="animate-fade-in" data-testid="toast-success">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Check size={18} style={{ flexShrink: 0 }} /> <span>{successMsg}</span>
-          </div>
+        <div className="toast toast--ok" role="status" data-testid="toast-success">
+          <CheckCircle2 size={16} />
+          <span>{successMsg}</span>
           <button 
             type="button" 
             onClick={() => setSuccessMsg('')}
-            style={{
-              background: 'transparent', border: 'none', color: 'white', 
-              cursor: 'pointer', display: 'flex', alignItems: 'center', 
-              justifyContent: 'center', padding: '2px', marginLeft: '6px',
-              borderRadius: '4px', opacity: 0.9
-            }}
+            className="btn-icon"
             title="Cerrar notificación"
             data-testid="btn-close-toast-success"
           >
-            <X size={18} />
+            <X size={14} />
           </button>
         </div>
       )}
       {errorMsg && (
-        <div style={{
-          position: 'fixed', top: '20px', right: '20px', background: 'rgba(239, 68, 68, 0.95)', 
-          color: 'white', padding: '12px 16px 12px 20px', borderRadius: '8px', zIndex: 2000, 
-          fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          gap: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', minWidth: '260px', maxWidth: '420px'
-        }} className="animate-fade-in" data-testid="toast-error">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <AlertCircle size={18} style={{ flexShrink: 0 }} /> <span>{errorMsg}</span>
-          </div>
+        <div className="toast toast--bad" role="alert" data-testid="toast-error">
+          <AlertCircle size={16} />
+          <span>{errorMsg}</span>
           <button 
             type="button" 
             onClick={() => setErrorMsg('')}
-            style={{
-              background: 'transparent', border: 'none', color: 'white', 
-              cursor: 'pointer', display: 'flex', alignItems: 'center', 
-              justifyContent: 'center', padding: '2px', marginLeft: '6px',
-              borderRadius: '4px', opacity: 0.9
-            }}
+            className="btn-icon"
             title="Cerrar notificación"
             data-testid="btn-close-toast-error"
           >
-            <X size={18} />
+            <X size={14} />
           </button>
         </div>
       )}
 
       {/* Google Calendar token expired / missing: offer reconnection */}
       {!gcalConnected && (
-        <div style={{
-          position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)',
-          background: 'rgba(245, 158, 11, 0.95)', color: '#1f2937', padding: '10px 16px',
-          borderRadius: '8px', zIndex: 1900, fontWeight: 600, display: 'flex', alignItems: 'center',
-          gap: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-        }} data-testid="gcal-reconnect-banner">
-          <Calendar size={18} />
+        <div className="gcal-banner" data-testid="gcal-reconnect-banner">
+          <CalendarX2 size={16} />
           <span>Google Calendar desconectado</span>
           <button
             type="button"
             onClick={handleGoogleLogin}
-            className="btn btn-primary"
-            style={{ padding: '6px 12px' }}
+            className="btn btn-primary btn-sm"
             data-testid="btn-gcal-login"
           >
             Reconectar
@@ -701,9 +665,9 @@ function App() {
 
         {/* LOADING SHIMMER */}
         {loading && (
-          <div style={{display: 'flex', flexGrow: 1, alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '16px'}}>
-            <RefreshCw className="animate-pulse" size={40} style={{animation: 'spin 2s linear infinite', color: 'var(--primary)'}} />
-            <p style={{color: 'var(--text-secondary)'}}>Sincronizando con Google Calendar y Supabase...</p>
+          <div className="loading-state">
+            <div className="spinner" />
+            <p>Sincronizando con Google Calendar y Supabase…</p>
           </div>
         )}
 

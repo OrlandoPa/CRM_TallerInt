@@ -1,62 +1,39 @@
-import { Calendar as CalendarIcon } from 'lucide-react';
+import ModalShell from '../ui/ModalShell';
 
-function DatePickerModal({ 
-  isOpen, 
-  onClose, 
-  targetDateInput, 
-  setTargetDateInput, 
-  onSubmit 
+function DatePickerModal({
+  isOpen,
+  onClose,
+  targetDateInput,
+  setTargetDateInput,
+  onSubmit
 }) {
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay" style={{ zIndex: 120 }}>
-      <div className="modal-content animate-slide-up" style={{ maxWidth: '400px', width: '90%' }}>
-        <header className="modal-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <CalendarIcon size={20} style={{ color: 'var(--primary)' }} />
-            <span className="modal-title">Seleccionar Fecha de Cita</span>
-          </div>
-          <button 
-            type="button"
-            onClick={onClose} 
-            className="btn-icon" 
-            style={{width:'32px', height:'32px'}}
-          >
-            ✕
-          </button>
-        </header>
-        <div className="modal-body">
-          <div className="form-group">
-            <label>Elige la fecha para la cita</label>
-            <input 
-              type="date" 
-              className="form-control" 
-              value={targetDateInput}
-              onChange={(e) => setTargetDateInput(e.target.value)}
-              min={new Date().toISOString().split('T')[0]}
-              required
-            />
-          </div>
+    <ModalShell title="Nueva cita" subtitle="Elige el día para ver sus horarios libres" onClose={onClose} size="sm" zIndex={120}>
+      <div className="modal-body">
+        <div className="form-group">
+          <label htmlFor="target-date">Fecha</label>
+          <input
+            id="target-date"
+            type="date"
+            className="form-control"
+            value={targetDateInput}
+            onChange={(e) => setTargetDateInput(e.target.value)}
+            min={new Date().toISOString().split('T')[0]}
+            required
+          />
         </div>
-        <footer className="modal-footer">
-          <button 
-            type="button" 
-            onClick={onClose} 
-            className="btn btn-secondary"
-          >
-            Cancelar
-          </button>
-          <button 
-            type="button" 
-            onClick={onSubmit} 
-            className="btn btn-primary"
-          >
-            Ir a la Agenda de ese Día
-          </button>
-        </footer>
       </div>
-    </div>
+      <footer className="modal-footer">
+        <button type="button" onClick={onClose} className="btn btn-secondary">
+          Cancelar
+        </button>
+        <button type="button" onClick={onSubmit} className="btn btn-primary">
+          Ver horarios del día
+        </button>
+      </footer>
+    </ModalShell>
   );
 }
 

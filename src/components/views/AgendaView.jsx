@@ -1,17 +1,18 @@
-import { ChevronLeft, ChevronRight, Trash } from 'lucide-react';
-import { getLimaDate } from '../../utils/dateHelpers';
+import { ChevronLeft, ChevronRight, Trash2, Plus, AlertTriangle } from 'lucide-react';
+import { getLimaDate, formatHora, formatFechaLarga } from '../../utils/dateHelpers';
 import { resolveContactIdentifier } from '../../utils/contactHelpers';
 import { esAtendida } from '../../utils/estadosCita';
+import StatusBadge from '../ui/StatusBadge';
 
-function AgendaView({ 
-  selectedAgendaDate, 
-  setSelectedAgendaDate, 
-  appointments, 
-  citasDb, 
-  gcalConnected, 
-  onOpenDetail, 
-  onDeleteAppointment, 
-  onAddAppointmentFromSlot 
+function AgendaView({
+  selectedAgendaDate,
+  setSelectedAgendaDate,
+  appointments,
+  citasDb,
+  gcalConnected,
+  onOpenDetail,
+  onDeleteAppointment,
+  onAddAppointmentFromSlot
 }) {
   const getMorningSlots = () => {
     const slots = [];
@@ -39,7 +40,7 @@ function AgendaView({
 
     return appointments.filter(app => {
       const dbCita = citasDb.find(c => c.google_event_id === app.id);
-      
+
       let appStart = null;
       if (dbCita && dbCita.fecha_hora_cita) {
         appStart = getLimaDate(dbCita.fecha_hora_cita);
@@ -48,29 +49,29 @@ function AgendaView({
         appStart = getLimaDate(app.start?.dateTime || app.start?.date);
       }
       if (!appStart) return false;
-      
+
       let durationMs = 30 * 60000;
       if (app.end?.dateTime && app.start?.dateTime) {
         durationMs = new Date(app.end.dateTime).getTime() - new Date(app.start.dateTime).getTime();
       } else if (app.end?.date && app.start?.date) {
         durationMs = new Date(app.end.date).getTime() - new Date(app.start.date).getTime();
       }
-      
+
       const appEndResolved = new Date(appStart.getTime() + durationMs);
-      
-      const sameDay = appStart.getDate() === dayDate.getDate() && 
-                      appStart.getMonth() === dayDate.getMonth() && 
+
+      const sameDay = appStart.getDate() === dayDate.getDate() &&
+                      appStart.getMonth() === dayDate.getMonth() &&
                       appStart.getFullYear() === dayDate.getFullYear();
-      
+
       if (!sameDay) return false;
-      
+
       return slotTime >= appStart && slotTime < appEndResolved;
     });
   };
 
   const getUnmatchedEvents = (dayDate) => {
     if (!dayDate) return [];
-    
+
     const dayEvents = appointments.filter(app => {
       const dbCita = citasDb.find(c => c.google_event_id === app.id);
       let appStart = null;
@@ -81,14 +82,14 @@ function AgendaView({
         appStart = getLimaDate(app.start?.dateTime || app.start?.date);
       }
       if (!appStart) return false;
-      
-      return appStart.getDate() === dayDate.getDate() && 
-             appStart.getMonth() === dayDate.getMonth() && 
+
+      return appStart.getDate() === dayDate.getDate() &&
+             appStart.getMonth() === dayDate.getMonth() &&
              appStart.getFullYear() === dayDate.getFullYear();
     });
 
     const slots = getMorningSlots().concat(getAfternoonSlots());
-    
+
     return dayEvents.filter(app => {
       const dbCita = citasDb.find(c => c.google_event_id === app.id);
       let appStart = null;
@@ -99,7 +100,7 @@ function AgendaView({
         appStart = getLimaDate(app.start?.dateTime || app.start?.date);
       }
       if (!appStart) return false;
-      
+
       let durationMs = 30 * 60000;
       if (app.end?.dateTime && app.start?.dateTime) {
         durationMs = new Date(app.end.dateTime).getTime() - new Date(app.start.dateTime).getTime();
@@ -107,13 +108,13 @@ function AgendaView({
         durationMs = new Date(app.end.date).getTime() - new Date(app.start.date).getTime();
       }
       const appEndResolved = new Date(appStart.getTime() + durationMs);
-      
+
       const matchedByASlot = slots.some(slot => {
         const [hours, minutes] = slot.split(':').map(Number);
         const slotTime = new Date(dayDate.getFullYear(), dayDate.getMonth(), dayDate.getDate(), hours, minutes);
         return slotTime >= appStart && slotTime < appEndResolved;
       });
-      
+
       return !matchedByASlot;
     });
   };
@@ -132,49 +133,21 @@ function AgendaView({
       minutes
     );
     const isSlotPast = slotTime < new Date();
-    
-    return (
-      <div key={slot} className="agenda-time-slot" style={{
-        display: 'flex', alignItems: 'center', padding: '12px 16px', 
-        background: hasEvents ? 'rgba(var(--primary-rgb), 0.03)' : 'var(--bg-tertiary)', 
-        borderRadius: '10px', 
-        border: hasEvents ? '1px solid rgba(var(--primary-rgb), 0.15)' : '1px solid var(--border-color)', 
-        minHeight: '60px',
-        transition: 'all var(--transition-fast)'
-      }}>
-        {/* Hour Indicator */}
-        <div style={{
-          width: '64px', fontWeight: 600, fontSize: '0.85rem', 
-          color: hasEvents ? 'var(--primary)' : 'var(--text-secondary)', 
-          borderRight: '1px solid var(--border-color)',
-          marginRight: '16px',
-          display: 'flex',
-          alignItems: 'center'
-        }}>
-          {slot}
-        </div>
 
-        {/* Overlapping Event Card or Empty slot */}
-        <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+    return (
+      <div key={slot} className={`slot agenda-time-slot ${hasEvents ? 'slot--booked' : ''} ${isSlotPast ? 'slot--past' : ''}`}>
+        <div className="slot-time">{slot}</div>
+
+        <div className="slot-body">
           {hasEvents ? (
             slotEvents.map(activeEvent => {
               const dbCitaResolved = citasDb.find(c => c.google_event_id === activeEvent.id);
               return (
-                <div 
-                  key={activeEvent.id} 
-                  style={{
-                    display: 'flex', 
-                    justifyContent: 'space-between', 
-                    alignItems: 'center', 
-                    width: '100%',
-                    background: slotEvents.length > 1 ? 'rgba(245, 158, 11, 0.05)' : 'transparent',
-                    borderLeft: slotEvents.length > 1 ? '3px solid #fbbf24' : 'none',
-                    padding: slotEvents.length > 1 ? '4px 6px' : '0px',
-                    borderRadius: slotEvents.length > 1 ? '4px' : '0px'
-                  }}
-                >
-                  <div 
+                <div key={activeEvent.id} className={`slot-event ${slotEvents.length > 1 ? 'overlap' : ''}`}>
+                  <button
+                    type="button"
                     data-testid="appointment-card"
+                    className="slot-event-main"
                     onClick={() => {
                       if (dbCitaResolved) {
                         onOpenDetail(dbCitaResolved);
@@ -192,50 +165,33 @@ function AgendaView({
                         });
                       }
                     }}
-                    style={{ overflow: 'hidden', paddingRight: '10px', cursor: 'pointer', flexGrow: 1 }}
                   >
-                    <span style={{
-                      fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-primary)',
-                      display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
-                    }}>
-                      {dbCitaResolved ? `${dbCitaResolved.pacientes?.nombre_paciente || 'Paciente'} - ${dbCitaResolved.motivo_consulta || 'Cita'}` : activeEvent.summary}
+                    <span className="slot-event-title">
+                      {dbCitaResolved ? `${dbCitaResolved.pacientes?.nombre_paciente || 'Paciente'} · ${dbCitaResolved.motivo_consulta || 'Cita'}` : activeEvent.summary}
                     </span>
                     {dbCitaResolved ? (
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {resolveContactIdentifier(dbCitaResolved, [], [], citasDb) || 'Sin teléfono/ID'} | {dbCitaResolved.detalles_notas_cita || 'Sin notas'}
+                      <span className="slot-event-sub">
+                        <span className="mono">{resolveContactIdentifier(dbCitaResolved, [], [], citasDb) || 'Sin teléfono'}</span>
+                        {dbCitaResolved.detalles_notas_cita && <> · {dbCitaResolved.detalles_notas_cita}</>}
                       </span>
                     ) : activeEvent.description && (
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {activeEvent.description}
-                      </span>
+                      <span className="slot-event-sub">{activeEvent.description}</span>
                     )}
-                  </div>
-                  
-                  <div style={{ display: 'flex', gap: '6px', flexShrink: 0, alignItems: 'center' }}>
-                    {dbCitaResolved?.estado_cita && (
-                       <span style={{
-                         fontSize: '0.65rem',
-                         fontWeight: 600,
-                         padding: '2px 6px',
-                         borderRadius: '4px',
-                         background: esAtendida(dbCitaResolved.estado_cita) ? 'rgba(var(--success-rgb), 0.15)' : 'rgba(var(--danger-rgb), 0.15)',
-                         color: esAtendida(dbCitaResolved.estado_cita) ? 'var(--success)' : 'var(--danger)'
-                       }}>
-                         {dbCitaResolved.estado_cita}
-                       </span>
-                     )}
-                    
+                  </button>
+
+                  <div className="slot-event-actions">
+                    {dbCitaResolved?.estado_cita && <StatusBadge estado={dbCitaResolved.estado_cita} />}
                     {!(esAtendida(dbCitaResolved?.estado_cita)) && (
-                      <button 
+                      <button
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           onDeleteAppointment(activeEvent.id);
                         }}
-                        className="btn-icon" 
-                        style={{ color: 'var(--danger)', width: '28px', height: '28px', border:'none', background:'none', cursor:'pointer' }}
-                        title="Cancelar Cita"
+                        className="btn-icon danger"
+                        title="Cancelar cita"
                       >
-                        <Trash size={12} />
+                        <Trash2 size={14} />
                       </button>
                     )}
                   </div>
@@ -243,19 +199,17 @@ function AgendaView({
               );
             })
           ) : (
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-              <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontStyle: 'italic' }}>
-                Disponible
-              </span>
-              <button 
+            <div className="slot-free">
+              <span>Libre</span>
+              <button
+                type="button"
                 data-testid={`btn-slot-add-${slot.replace(':', '-')}`}
                 onClick={() => onAddAppointmentFromSlot(slot)}
-                className="btn btn-secondary" 
-                style={{ padding: '4px 10px', fontSize: '0.7rem', height: '28px', opacity: isSlotPast ? 0.5 : 1 }}
+                className="btn btn-secondary btn-sm"
                 disabled={!gcalConnected || isSlotPast}
                 title={isSlotPast ? 'No se pueden agendar citas en el pasado' : ''}
               >
-                + Agendar
+                <Plus size={14} /> Agendar
               </button>
             </div>
           )}
@@ -264,46 +218,32 @@ function AgendaView({
     );
   };
 
+  const shiftDay = (delta) => {
+    const newD = new Date(selectedAgendaDate);
+    newD.setDate(newD.getDate() + delta);
+    setSelectedAgendaDate(newD);
+  };
+
   return (
-    <div className="agenda-view animate-fade-in" data-testid="view-agenda">
-      <div className="glass-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '24px', padding: '16px 24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <button 
-            data-testid="btn-prev-day"
-            onClick={() => {
-              const newD = new Date(selectedAgendaDate);
-              newD.setDate(newD.getDate() - 1);
-              setSelectedAgendaDate(newD);
-            }} 
-            className="btn-icon" 
-            style={{ width: '32px', height: '32px' }}
-          >
+    <div className="page agenda-view" data-testid="view-agenda">
+      <div className="toolbar">
+        <div className="date-nav">
+          <button data-testid="btn-prev-day" onClick={() => shiftDay(-1)} className="btn-icon bordered" title="Día anterior">
             <ChevronLeft size={16} />
           </button>
-          <h2 data-testid="agenda-date-heading" style={{ fontSize: '1.25rem', fontWeight: 600, margin: 0 }}>
-            {selectedAgendaDate.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase()}
-          </h2>
-          <button 
-            data-testid="btn-next-day"
-            onClick={() => {
-              const newD = new Date(selectedAgendaDate);
-              newD.setDate(newD.getDate() + 1);
-              setSelectedAgendaDate(newD);
-            }} 
-            className="btn-icon" 
-            style={{ width: '32px', height: '32px' }}
-          >
+          <button data-testid="btn-next-day" onClick={() => shiftDay(1)} className="btn-icon bordered" title="Día siguiente">
             <ChevronRight size={16} />
           </button>
+          <h2 data-testid="agenda-date-heading">{formatFechaLarga(selectedAgendaDate)}</h2>
         </div>
-        
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Seleccionar Fecha:</span>
-          <input 
+
+        <div className="toolbar-group">
+          <label htmlFor="agenda-date" className="sr-only">Seleccionar fecha</label>
+          <input
+            id="agenda-date"
             data-testid="input-agenda-date"
-            type="date" 
-            className="form-control" 
-            style={{ width: 'auto', padding: '6px 12px', margin: 0 }}
+            type="date"
+            className="form-control"
             value={selectedAgendaDate.toLocaleString('sv-SE').slice(0, 10)}
             onChange={(e) => {
               if (e.target.value) {
@@ -312,77 +252,68 @@ function AgendaView({
               }
             }}
           />
-          <button 
-            data-testid="btn-today"
-            onClick={() => setSelectedAgendaDate(new Date())} 
-            className="btn btn-secondary"
-            style={{ padding: '6px 12px', fontSize: '0.85rem' }}
-          >
+          <button data-testid="btn-today" onClick={() => setSelectedAgendaDate(new Date())} className="btn btn-secondary">
             Hoy
           </button>
         </div>
       </div>
 
       {unmatched.length > 0 && (
-        <div style={{background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.2)', padding: '14px', borderRadius: '10px'}}>
-          <h4 style={{margin: '0 0 8px 0', color: 'var(--warning)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px'}}>
-            ⚠️ Citas Fuera de Horario Laboral o en Receso ({unmatched.length})
-          </h4>
-          <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
-            {unmatched.map(evt => {
-              const dbCita = citasDb.find(c => c.google_event_id === evt.id);
-              let start = null;
-              if (dbCita && dbCita.fecha_hora_cita) {
-                start = getLimaDate(dbCita.fecha_hora_cita);
-              }
-              if (!start) {
-                start = getLimaDate(evt.start?.dateTime || evt.start?.date);
-              }
-              let durationMs = 30 * 60000;
-              if (evt.end?.dateTime && evt.start?.dateTime) {
-                durationMs = new Date(evt.end.dateTime).getTime() - new Date(evt.start.dateTime).getTime();
-              } else if (evt.end?.date && evt.start?.date) {
-                durationMs = new Date(evt.end.date).getTime() - new Date(evt.start.date).getTime();
-              }
-              const end = new Date(start.getTime() + durationMs);
-              const displayName = dbCita ? `${dbCita.pacientes?.nombre_paciente || 'Paciente'} - ${dbCita.motivo_consulta || 'Cita'}` : evt.summary;
-              return (
-                <div key={evt.id} onClick={() => onOpenDetail(evt)} style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--bg-tertiary)', borderRadius: '8px', borderLeft: '4px solid var(--warning)', cursor: 'pointer'}}>
-                  <div>
-                    <span style={{fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-primary)'}}>{displayName}</span>
-                    <span style={{fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block'}}>
-                      Hora: {start?.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})} - {end?.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
+        <div className="notice notice--warn">
+          <AlertTriangle size={16} />
+          <div className="notice-content">
+            <p className="notice-title">
+              {unmatched.length === 1 ? '1 cita fuera del horario de atención' : `${unmatched.length} citas fuera del horario de atención`}
+            </p>
+            <div className="offhours-list">
+              {unmatched.map(evt => {
+                const dbCita = citasDb.find(c => c.google_event_id === evt.id);
+                let start = null;
+                if (dbCita && dbCita.fecha_hora_cita) {
+                  start = getLimaDate(dbCita.fecha_hora_cita);
+                }
+                if (!start) {
+                  start = getLimaDate(evt.start?.dateTime || evt.start?.date);
+                }
+                let durationMs = 30 * 60000;
+                if (evt.end?.dateTime && evt.start?.dateTime) {
+                  durationMs = new Date(evt.end.dateTime).getTime() - new Date(evt.start.dateTime).getTime();
+                } else if (evt.end?.date && evt.start?.date) {
+                  durationMs = new Date(evt.end.date).getTime() - new Date(evt.start.date).getTime();
+                }
+                const end = new Date(start.getTime() + durationMs);
+                const displayName = dbCita ? `${dbCita.pacientes?.nombre_paciente || 'Paciente'} · ${dbCita.motivo_consulta || 'Cita'}` : evt.summary;
+                return (
+                  <button type="button" key={evt.id} onClick={() => onOpenDetail(evt)} className="offhours-item">
+                    <span>
+                      <strong>{displayName}</strong>
+                      <span className="mono muted">{formatHora(start)} – {formatHora(end)}</span>
                     </span>
-                  </div>
-                  <span style={{fontSize: '0.75rem', color: 'var(--warning)', background: 'rgba(var(--warning-rgb), 0.1)', padding: '2px 8px', borderRadius: '4px', fontWeight: 600}}>Revisar Horario</span>
-                </div>
-              );
-            })}
+                    <span className="badge badge--warn">Revisar horario</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
 
-      {/* Two-Column Agenda Layout */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '24px' }}>
-        {/* Morning Column */}
-        <div className="glass-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <h3 style={{ fontSize: '1.1rem', fontWeight: 600, margin: 0, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
-            <span>☀️</span> Turno Mañana (8:00 AM - 12:00 PM)
-          </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {getMorningSlots().map(slot => renderSlotRow(slot))}
-          </div>
-        </div>
+      <div className="shift-grid">
+        <section className="panel">
+          <header className="panel-head">
+            <h3 className="panel-title">Mañana</h3>
+            <span className="shift-range">08:00 – 12:00</span>
+          </header>
+          {getMorningSlots().map(slot => renderSlotRow(slot))}
+        </section>
 
-        {/* Afternoon Column */}
-        <div className="glass-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <h3 style={{ fontSize: '1.1rem', fontWeight: 600, margin: 0, color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
-            <span>🌙</span> Turno Tarde/Noche (4:00 PM - 9:00 PM)
-          </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {getAfternoonSlots().map(slot => renderSlotRow(slot))}
-          </div>
-        </div>
+        <section className="panel">
+          <header className="panel-head">
+            <h3 className="panel-title">Tarde</h3>
+            <span className="shift-range">16:00 – 21:00</span>
+          </header>
+          {getAfternoonSlots().map(slot => renderSlotRow(slot))}
+        </section>
       </div>
     </div>
   );
