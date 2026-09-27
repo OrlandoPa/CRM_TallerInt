@@ -1,4 +1,4 @@
-import { supabase } from './api';
+import { supabase, storeGCalToken, storeGCalEmail, clearGCalSession } from './api';
 
 // Clave de la sesión simulada antigua (ya no se usa, solo se limpia)
 const LEGACY_SESSION_KEY = 'crm_user_session';
@@ -31,10 +31,9 @@ export const isEmailAuthorized = (email) => {
  */
 export const storeGCalTokenFromSession = (session) => {
   if (!session?.provider_token) return;
-  localStorage.setItem('gcal_access_token', session.provider_token);
-  localStorage.setItem('gcal_token_expiry', (Date.now() + 55 * 60 * 1000).toString());
+  storeGCalToken(session.provider_token, 55 * 60 * 1000);
   if (session.user?.email) {
-    localStorage.setItem('gcal_user_email', session.user.email);
+    storeGCalEmail(session.user.email);
   }
 };
 
@@ -108,9 +107,7 @@ export const signInWithGoogle = async () => {
 export const logout = async () => {
   try {
     localStorage.removeItem(LEGACY_SESSION_KEY);
-    localStorage.removeItem('gcal_access_token');
-    localStorage.removeItem('gcal_token_expiry');
-    localStorage.removeItem('gcal_user_email');
+    clearGCalSession();
     if (supabase) {
       await supabase.auth.signOut();
     }

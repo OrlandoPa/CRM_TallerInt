@@ -5,11 +5,10 @@ import {
   getLimaDate,
   getBloquesInicio,
   normalizarDuracion,
-  DURACIONES_CITA
+  DURACIONES_CITA,
+  toDateInput
 } from '../../utils/dateHelpers';
 import ModalShell from '../ui/ModalShell';
-
-const toDateInput = (date) => date.toLocaleString('sv-SE').slice(0, 10);
 const minutosDe = (hhmm) => {
   const [h, m] = hhmm.split(':').map(Number);
   return h * 60 + m;

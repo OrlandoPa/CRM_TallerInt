@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   CheckCircle2, 
   AlertCircle, 
@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 
 import * as api from './services/api';
-import { isValidWorkingHours, calculateEndTime } from './utils/dateHelpers';
+import { isValidWorkingHours, calculateEndTime, toDateInput, toDateTimeInput } from './utils/dateHelpers';
 import { esPendiente } from './utils/estadosCita';
 
 // Layout components
@@ -34,25 +34,30 @@ import RescheduleModal from './components/modals/RescheduleModal';
 import DatePickerModal from './components/modals/DatePickerModal';
 
 const getInitialParams = () => {
-  if (typeof window === 'undefined') return { isEmbedded: false, activeTab: 'dashboard', phone: null, convId: null };
+  if (typeof window === 'undefined') return { isEmbedded: false, activeTab: 'dashboard', convId: null };
   const params = new URLSearchParams(window.location.search);
   const isEmbedded = params.get('embed') === 'true';
-  const phoneParam = params.get('phone') || params.get('phone_number');
-  const conversationIdParam = params.get('conversation_id');
   return {
     isEmbedded,
     activeTab: isEmbedded ? 'chats' : 'dashboard',
-    phone: phoneParam ? decodeURIComponent(phoneParam).trim() : null,
-    convId: conversationIdParam || null
+    convId: params.get('conversation_id') || null
   };
 };
 
 const initialParams = getInitialParams();
 
+// Configuración de build (variables públicas; nunca secretos)
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+const REQUIRED_GCAL_GMAIL = import.meta.env.VITE_REQUIRED_GCAL_GMAIL || '';
+const SUPABASE_MISSING_MSG = 'Supabase no está configurado. Revisa las variables de entorno.';
+
+const MS_HORA = 60 * 60 * 1000;
+
 function App() {
   const [user, setUser] = useState(null);
-  const [authReady, setAuthReady] = useState(false);
-  const [authError, setAuthError] = useState('');
+  // Sin Supabase no hay sesión que esperar: se muestra el error directamente
+  const [authReady, setAuthReady] = useState(!api.supabase);
+  const [authError, setAuthError] = useState(api.supabase ? '' : SUPABASE_MISSING_MSG);
   const [activeTab, setActiveTab] = useState(initialParams.activeTab);
   const [theme, setTheme] = useState('light');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -68,8 +73,6 @@ function App() {
   // Embedded mode state (e.g. inside Chatwoot iframe)
   const [isEmbedded] = useState(initialParams.isEmbedded);
 
-  // Active chat state
-  const [activeChatPhone, setActiveChatPhone] = useState(initialParams.phone);
   const [activeConversationId] = useState(initialParams.convId);
 
   // Modals state
@@ -103,22 +106,15 @@ function App() {
     email: ''
   });
 
-  // Settings (build-time env vars only)
-  const [settings] = useState({
-    googleClientId: import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
-    requiredGCalGmail: import.meta.env.VITE_REQUIRED_GCAL_GMAIL || ''
-  });
-
-  const [gcalEmail, setGcalEmail] = useState(() => localStorage.getItem('gcal_user_email') || '');
+  const [gcalEmail, setGcalEmail] = useState(api.getGCalEmail);
 
   // Calendar month state
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedAgendaDate, setSelectedAgendaDate] = useState(new Date());
 
   const chatwootDashboardUrl = api.getChatwootDashboardUrl(activeConversationId);
-  const chatwootEmbedUrl = chatwootDashboardUrl;
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     setErrorMsg('');
     try {
@@ -148,20 +144,15 @@ function App() {
         console.error('Errores al sincronizar:', errors);
         setErrorMsg(`Error al sincronizar: ${[...new Set(errors)].join(' · ')}`);
       }
-
-      const fetchedLeads = leadsRes.status === 'fulfilled' ? leadsRes.value : [];
-      if (fetchedLeads.length > 0 && !activeChatPhone && !isEmbedded) {
-        setActiveChatPhone(fetchedLeads[0].phone_number);
-      }
     } catch (err) {
       console.error(err);
       setErrorMsg(`Error al sincronizar datos: ${err.message}`);
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentDate]);
 
-  // Sincronizar datos automáticamente al montar, cambiar usuario, configuración o fecha de calendario
+  // Sincronizar datos al iniciar sesión y al cambiar el mes del calendario
   useEffect(() => {
     if (user) {
       const timer = setTimeout(() => {
@@ -169,43 +160,39 @@ function App() {
       }, 0);
       return () => clearTimeout(timer);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, settings, currentDate]);
+  }, [user, fetchData]);
 
-  // Fetch Google User Email if authenticated
+  // Obtener el correo de la cuenta de Google Calendar conectada
   useEffect(() => {
-    const fetchUserEmail = async () => {
+    const syncGCalEmail = async () => {
       const token = api.getGCalToken();
-      if (token && !localStorage.getItem('gcal_user_email')) {
-        try {
-          const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          if (res.ok) {
-            const info = await res.json();
-            if (info.email) {
-              localStorage.setItem('gcal_user_email', info.email);
-              setGcalEmail(info.email);
-            }
-          }
-        } catch (err) {
-          console.error('Error fetching user email on mount:', err);
-        }
-      } else if (token) {
-        setGcalEmail(localStorage.getItem('gcal_user_email') || '');
-      } else {
+      if (!token) {
         setGcalEmail('');
+        return;
+      }
+      const stored = api.getGCalEmail();
+      if (stored) {
+        setGcalEmail(stored);
+        return;
+      }
+      try {
+        const email = await api.fetchGoogleEmail(token);
+        if (email) {
+          api.storeGCalEmail(email);
+          setGcalEmail(email);
+        }
+      } catch (err) {
+        console.error('Error al obtener el correo de Google:', err);
       }
     };
-    fetchUserEmail();
+    syncGCalEmail();
   }, [gcalConnected]);
 
-  const requiredGmail = settings.requiredGCalGmail || import.meta.env.VITE_REQUIRED_GCAL_GMAIL || '';
-  const hasRequiredGCalGmail = !!(gcalConnected && gcalEmail && requiredGmail && gcalEmail.toLowerCase() === requiredGmail.toLowerCase());
+  const hasRequiredGCalGmail = !!(gcalConnected && gcalEmail && REQUIRED_GCAL_GMAIL && gcalEmail.toLowerCase() === REQUIRED_GCAL_GMAIL.toLowerCase());
 
   // Google OAuth Login Flow (Client-side GIS)
   const handleGoogleLogin = () => {
-    if (!settings.googleClientId) {
+    if (!GOOGLE_CLIENT_ID) {
       showToast('Por favor, configura tu Google Client ID en las variables de entorno (.env).', false);
       return;
     }
@@ -217,27 +204,20 @@ function App() {
 
     try {
       const client = window.google.accounts.oauth2.initTokenClient({
-        client_id: settings.googleClientId,
+        client_id: GOOGLE_CLIENT_ID,
         scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.email',
         callback: async (tokenResponse) => {
           if (tokenResponse.access_token) {
-            localStorage.setItem('gcal_access_token', tokenResponse.access_token);
-            localStorage.setItem('gcal_token_expiry', (Date.now() + tokenResponse.expires_in * 1000).toString());
-            
-            // Fetch email immediately on login
+            api.storeGCalToken(tokenResponse.access_token, tokenResponse.expires_in * 1000);
+
             try {
-              const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
-              });
-              if (res.ok) {
-                const info = await res.json();
-                if (info.email) {
-                  localStorage.setItem('gcal_user_email', info.email);
-                  setGcalEmail(info.email);
-                }
+              const email = await api.fetchGoogleEmail(tokenResponse.access_token);
+              if (email) {
+                api.storeGCalEmail(email);
+                setGcalEmail(email);
               }
             } catch (err) {
-              console.error('Error fetching user email on login callback:', err);
+              console.error('Error al obtener el correo de Google:', err);
             }
 
             setGcalConnected(true);
@@ -251,17 +231,6 @@ function App() {
       console.error('GIS Error:', err);
       showToast('Error al inicializar la autenticación de Google.', false);
     }
-  };
-
-  // Google Sign-Out
-  const handleGoogleLogout = () => {
-    localStorage.removeItem('gcal_access_token');
-    localStorage.removeItem('gcal_token_expiry');
-    localStorage.removeItem('gcal_user_email');
-    setGcalConnected(false);
-    setGcalEmail('');
-    showToast('Desconectado de Google Calendar');
-    fetchData();
   };
 
   // Toggle Theme
@@ -455,13 +424,42 @@ function App() {
   };
 
   const handleAddNewAppointmentDirectly = () => {
-    const todayStr = new Date().toLocaleString('sv-SE').slice(0, 10);
-    setTargetDateInput(todayStr);
+    setTargetDateInput(toDateInput(new Date()));
     setIsDatePickerModalOpen(true);
   };
 
+  // Abre el formulario de nueva cita con la hora del bloque libre elegido
+  const openAppointmentFromSlot = (day, slot) => {
+    const [hours, minutes] = slot.split(':').map(Number);
+    const startStr = toDateTimeInput(new Date(day.getFullYear(), day.getMonth(), day.getDate(), hours, minutes));
+
+    setNewEvent({
+      summary: 'Paciente - Evaluación Inicial',
+      start: startStr,
+      end: calculateEndTime(startStr, 'evaluacion'),
+      description: '',
+      phone_number: ''
+    });
+    setIsTimeLocked(true);
+    setTreatmentType('evaluacion');
+    setIsNewPatient(false);
+    setNewPatientName('');
+    setNewPatientPhone('');
+    setIsAppointmentModalOpen(true);
+  };
+
+  // Abre el modal de reprogramación con un rango inicial de 1 h desde `start`
+  const openReschedule = (cita, start) => {
+    setSelectedCitaForReschedule(cita);
+    setRescheduleEvent({
+      start: toDateTimeInput(start),
+      end: toDateTimeInput(new Date(start.getTime() + MS_HORA))
+    });
+    setIsRescheduleModalOpen(true);
+  };
+
   const handleOpenDetailFromGCal = (app) => {
-    let detailObj = app;
+    let detailObj;
     if (app && app.fecha_hora_cita && !app.start) {
       detailObj = app;
     } else {
@@ -509,7 +507,7 @@ function App() {
     setIsDetailModalOpen(true);
   };
 
-  const minDateTime = new Date().toLocaleString('sv-SE').replace(' ', 'T').slice(0, 16);
+  const minDateTime = toDateTimeInput(new Date());
 
   // Filter past appointments pending attendance review
   const pastAppointmentsToReview = citasDb.filter(cita => {
@@ -519,25 +517,10 @@ function App() {
     return isPast && isPendingAttendance;
   });
 
-  // Conectar automáticamente Google Calendar al iniciar sesión con la cuenta de usuario
-  useEffect(() => {
-    if (user && user.email) {
-      const token = api.getGCalToken();
-      setGcalConnected(!!token);
-      setGcalEmail(user.email);
-      localStorage.setItem('gcal_user_email', user.email);
-      fetchData();
-    }
-  }, [user]);
-
   // Sesión real de Supabase Auth: es la única fuente de verdad del login.
   // La RLS de Supabase valida el JWT de esta sesión en cada consulta.
   useEffect(() => {
-    if (!api.supabase) {
-      setAuthError('Supabase no está configurado. Revisa las variables de entorno.');
-      setAuthReady(true);
-      return;
-    }
+    if (!api.supabase) return;
 
     const applySession = (session) => {
       if (!session) {
@@ -548,6 +531,9 @@ function App() {
       if (result.success) {
         authService.storeGCalTokenFromSession(session);
         setGcalConnected(!!api.getGCalToken());
+        // La cuenta del CRM es la misma que la de Google Calendar
+        api.storeGCalEmail(result.user.email);
+        setGcalEmail(result.user.email);
         setAuthError('');
         setUser(result.user);
       } else {
@@ -598,6 +584,7 @@ function App() {
             onClick={() => setSuccessMsg('')}
             className="btn-icon"
             title="Cerrar notificación"
+            aria-label="Cerrar notificación"
             data-testid="btn-close-toast-success"
           >
             <X size={14} />
@@ -613,6 +600,7 @@ function App() {
             onClick={() => setErrorMsg('')}
             className="btn-icon"
             title="Cerrar notificación"
+            aria-label="Cerrar notificación"
             data-testid="btn-close-toast-error"
           >
             <X size={14} />
@@ -660,9 +648,6 @@ function App() {
             user={user}
             onLogout={() => {
               authService.logout();
-              localStorage.removeItem('gcal_access_token');
-              localStorage.removeItem('gcal_token_expiry');
-              localStorage.removeItem('gcal_user_email');
               setGcalConnected(false);
               setGcalEmail('');
               setUser(null);
@@ -672,8 +657,8 @@ function App() {
 
         {/* LOADING SHIMMER */}
         {loading && (
-          <div className="loading-state">
-            <div className="spinner" />
+          <div className="loading-state" role="status" aria-live="polite">
+            <div className="spinner" aria-hidden="true" />
             <p>Sincronizando con Google Calendar y Supabase…</p>
           </div>
         )}
@@ -702,32 +687,7 @@ function App() {
                 gcalConnected={gcalConnected}
                 onOpenDetail={handleOpenDetailFromGCal}
                 onDeleteAppointment={handleDeleteAppointment}
-                onAddAppointmentFromSlot={(slot) => {
-                  const [hours, minutes] = slot.split(':').map(Number);
-                  const startStr = new Date(
-                    selectedAgendaDate.getFullYear(), 
-                    selectedAgendaDate.getMonth(), 
-                    selectedAgendaDate.getDate(), 
-                    hours, 
-                    minutes
-                  ).toLocaleString('sv-SE').replace(' ', 'T').slice(0, 16);
-                  
-                  const endStr = calculateEndTime(startStr, 'evaluacion');
-                  
-                  setNewEvent({
-                    summary: 'Paciente - Evaluación Inicial',
-                    start: startStr,
-                    end: endStr,
-                    description: '',
-                    phone_number: ''
-                  });
-                  setIsTimeLocked(true);
-                  setTreatmentType('evaluacion');
-                  setIsNewPatient(false);
-                  setNewPatientName('');
-                  setNewPatientPhone('');
-                  setIsAppointmentModalOpen(true);
-                }}
+                onAddAppointmentFromSlot={(slot) => openAppointmentFromSlot(selectedAgendaDate, slot)}
               />
             )}
 
@@ -736,13 +696,9 @@ function App() {
                 pastAppointmentsToReview={pastAppointmentsToReview}
                 onMarkAttendance={handleUpdateAppointmentStatus}
                 onOpenReschedule={(cita) => {
-                  setSelectedCitaForReschedule(cita);
                   const tomorrow = new Date();
                   tomorrow.setDate(tomorrow.getDate() + 1);
-                  const tomorrowStr = tomorrow.toLocaleString('sv-SE').replace(' ', 'T').slice(0, 16);
-                  const tomorrowEndStr = new Date(tomorrow.getTime() + 60 * 60 * 1000).toLocaleString('sv-SE').replace(' ', 'T').slice(0, 16);
-                  setRescheduleEvent({ start: tomorrowStr, end: tomorrowEndStr });
-                  setIsRescheduleModalOpen(true);
+                  openReschedule(cita, tomorrow);
                 }}
                 hasRequiredGCalGmail={hasRequiredGCalGmail}
               />
@@ -750,7 +706,7 @@ function App() {
 
             {activeTab === 'chats' && (
               <ChatsView 
-                chatwootEmbedUrl={chatwootEmbedUrl} 
+                chatwootEmbedUrl={chatwootDashboardUrl} 
                 chatwootDashboardUrl={chatwootDashboardUrl}
               />
             )}
@@ -766,11 +722,7 @@ function App() {
                 onSelectDay={(day) => {
                   setSelectedDayForAgenda(day);
                 }}
-                onAddAppointment={() => {
-                  const todayStr = new Date().toLocaleString('sv-SE').slice(0, 10);
-                  setTargetDateInput(todayStr);
-                  setIsDatePickerModalOpen(true);
-                }}
+                onAddAppointment={handleAddNewAppointmentDirectly}
               />
             )}
           </>
@@ -813,31 +765,8 @@ function App() {
         onOpenDetail={handleOpenDetailFromGCal}
         onDeleteAppointment={handleDeleteAppointment}
         onAddAppointmentFromSlot={(slot) => {
-          const [hours, minutes] = slot.split(':').map(Number);
-          const startStr = new Date(
-            selectedDayForAgenda.getFullYear(), 
-            selectedDayForAgenda.getMonth(), 
-            selectedDayForAgenda.getDate(), 
-            hours, 
-            minutes
-          ).toLocaleString('sv-SE').replace(' ', 'T').slice(0, 16);
-          
-          const endStr = calculateEndTime(startStr, 'evaluacion');
-          
-          setNewEvent({
-            summary: 'Paciente - Evaluación Inicial',
-            start: startStr,
-            end: endStr,
-            description: '',
-            phone_number: ''
-          });
-          setIsTimeLocked(true);
-          setTreatmentType('evaluacion');
-          setIsNewPatient(false);
-          setNewPatientName('');
-          setNewPatientPhone('');
+          openAppointmentFromSlot(selectedDayForAgenda, slot);
           setSelectedDayForAgenda(null);
-          setIsAppointmentModalOpen(true);
         }}
       />
 
@@ -863,14 +792,8 @@ function App() {
           setIsDetailModalOpen(false);
         }}
         onReschedule={(cita) => {
-          setSelectedCitaForReschedule(cita);
-          const date = cita.fecha_hora_cita ? new Date(cita.fecha_hora_cita) : new Date();
-          const startStr = date.toLocaleString('sv-SE').replace(' ', 'T').slice(0, 16);
-          const endStr = new Date(date.getTime() + 60 * 60 * 1000).toLocaleString('sv-SE').replace(' ', 'T').slice(0, 16);
-          
-          setRescheduleEvent({ start: startStr, end: endStr });
           setIsDetailModalOpen(false);
-          setIsRescheduleModalOpen(true);
+          openReschedule(cita, cita.fecha_hora_cita ? new Date(cita.fecha_hora_cita) : new Date());
         }}
         hasRequiredGCalGmail={hasRequiredGCalGmail}
       />

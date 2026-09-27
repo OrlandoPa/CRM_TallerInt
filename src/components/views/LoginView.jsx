@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { AlertCircle, Lock } from 'lucide-react';
+import ToothIcon from '../ui/ToothIcon';
 import { signInWithGoogle } from '../../services/authService';
 
 const FEATURES = [
@@ -31,7 +32,7 @@ function LoginView({ authError = '' }) {
     <div className="login" data-testid="login-view">
       <aside className="login-aside">
         <div className="login-brand">
-          <span className="brand-mark" aria-hidden="true">C</span>
+          <span className="brand-mark" aria-hidden="true"><ToothIcon size={17} /></span>
           Clínica odontológica
         </div>
 

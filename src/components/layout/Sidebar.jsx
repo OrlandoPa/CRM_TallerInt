@@ -9,6 +9,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen
 } from 'lucide-react';
+import ToothIcon from '../ui/ToothIcon';
 
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
@@ -24,7 +25,7 @@ function Sidebar({ activeTab, setActiveTab, theme, toggleTheme, pastAppointments
   return (
     <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
       <div className="brand">
-        <div className="brand-mark" aria-hidden="true">C</div>
+        <div className="brand-mark" aria-hidden="true"><ToothIcon size={17} /></div>
         {!isCollapsed && (
           <div className="brand-text">
             <span className="brand-name">Gestión de Citas</span>

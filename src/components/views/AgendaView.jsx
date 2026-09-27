@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, Trash2, Plus, AlertTriangle } from 'lucide-react';
-import { getLimaDate, formatHora, formatFechaLarga } from '../../utils/dateHelpers';
+import { getLimaDate, formatHora, formatFechaLarga, toDateInput } from '../../utils/dateHelpers';
 import { resolveContactIdentifier } from '../../utils/contactHelpers';
 import { esAtendida } from '../../utils/estadosCita';
 import StatusBadge from '../ui/StatusBadge';
@@ -244,7 +244,7 @@ function AgendaView({
             data-testid="input-agenda-date"
             type="date"
             className="form-control"
-            value={selectedAgendaDate.toLocaleString('sv-SE').slice(0, 10)}
+            value={toDateInput(selectedAgendaDate)}
             onChange={(e) => {
               if (e.target.value) {
                 const parts = e.target.value.split('-');

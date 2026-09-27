@@ -95,11 +95,11 @@ export const resolveContactIdentifier = (appDetails, leads = [], pacientes = [],
   const textToSearch = `${appDetails.description || ''} ${appDetails.summary || ''} ${appDetails.motivo_consulta || ''} ${appDetails.detalles_notas_cita || ''}`;
   
   // Try matching phone number format (e.g. +51 987 654 321, 987654321, +51987654321)
-  const phoneMatch = textToSearch.match(/(\+?\d{1,3}[\s\-]?)?9\d{2}[\s\-]?\d{3}[\s\-]?\d{3}/);
+  const phoneMatch = textToSearch.match(/(\+?\d{1,3}[\s-]?)?9\d{2}[\s-]?\d{3}[\s-]?\d{3}/);
   if (phoneMatch) return phoneMatch[0].trim();
 
   // Try matching username/handle format (e.g. @username)
-  const userMatch = textToSearch.match(/@[a-zA-Z0-9_\.-]+/);
+  const userMatch = textToSearch.match(/@[a-zA-Z0-9_.-]+/);
   if (userMatch) return userMatch[0].trim();
 
   return '';

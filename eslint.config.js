@@ -18,4 +18,11 @@ export default defineConfig([
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
   },
+  {
+    // Scripts de Node de la raíz (configuración y pruebas de carga locales)
+    files: ['*.js'],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
 ])

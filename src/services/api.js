@@ -24,17 +24,51 @@ if (!supabase) {
   console.error('Supabase no está configurado: define VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY.');
 }
 
+// Claves de localStorage de la conexión con Google Calendar
+const GCAL_TOKEN_KEY = 'gcal_access_token';
+const GCAL_EXPIRY_KEY = 'gcal_token_expiry';
+const GCAL_EMAIL_KEY = 'gcal_user_email';
+
+const clearGCalToken = () => {
+  localStorage.removeItem(GCAL_TOKEN_KEY);
+  localStorage.removeItem(GCAL_EXPIRY_KEY);
+};
+
+/** Guarda el token de Google Calendar y su vencimiento (expiresInMs desde ahora). */
+export const storeGCalToken = (token, expiresInMs) => {
+  localStorage.setItem(GCAL_TOKEN_KEY, token);
+  localStorage.setItem(GCAL_EXPIRY_KEY, (Date.now() + expiresInMs).toString());
+};
+
+export const getGCalEmail = () => localStorage.getItem(GCAL_EMAIL_KEY) || '';
+export const storeGCalEmail = (email) => localStorage.setItem(GCAL_EMAIL_KEY, email);
+
+/** Borra el token, su vencimiento y el correo de la cuenta de Google Calendar. */
+export const clearGCalSession = () => {
+  clearGCalToken();
+  localStorage.removeItem(GCAL_EMAIL_KEY);
+};
+
+/** Correo de la cuenta dueña del token de Google (null si no se pudo obtener). */
+export const fetchGoogleEmail = async (token) => {
+  const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) return null;
+  const info = await res.json();
+  return info.email || null;
+};
+
 // Helper to check and get Google Calendar access token
 export const getGCalToken = () => {
-  const token = localStorage.getItem('gcal_access_token');
-  const expiry = localStorage.getItem('gcal_token_expiry');
+  const token = localStorage.getItem(GCAL_TOKEN_KEY);
+  const expiry = localStorage.getItem(GCAL_EXPIRY_KEY);
   if (token && expiry && Date.now() < parseInt(expiry)) {
     return token;
   }
   // Clear expired token
   if (token) {
-    localStorage.removeItem('gcal_access_token');
-    localStorage.removeItem('gcal_token_expiry');
+    clearGCalToken();
   }
   return null;
 };
@@ -95,8 +129,7 @@ const requireGCalToken = () => {
 
 const gcalError = async (response, action) => {
   if (response.status === 401) {
-    localStorage.removeItem('gcal_access_token');
-    localStorage.removeItem('gcal_token_expiry');
+    clearGCalToken();
     return new Error(`La sesión de Google Calendar expiró (${action}). Reconecta y vuelve a intentarlo.`);
   }
   let detail = response.statusText;

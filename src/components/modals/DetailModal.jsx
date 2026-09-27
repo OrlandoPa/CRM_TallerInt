@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Phone, Trash2, CalendarClock } from 'lucide-react';
 import { getLimaDate, formatHora, formatFechaLarga } from '../../utils/dateHelpers';
 import { resolveContactIdentifier } from '../../utils/contactHelpers';
@@ -23,12 +23,19 @@ function DetailModal({
   const [isSavingPrescription, setIsSavingPrescription] = useState(false);
   const [prescriptionSaved, setPrescriptionSaved] = useState(false);
 
-  useEffect(() => {
-    if (selectedAppointmentDetails) {
+  // Cada vez que se abre una cita se carga su receta. Guardar actualiza la misma
+  // cita (mismo identificador), así que no borra el texto ni el aviso "Guardado".
+  const citaKey = isOpen && selectedAppointmentDetails
+    ? (selectedAppointmentDetails.google_event_id || selectedAppointmentDetails.id || null)
+    : undefined;
+  const [loadedCitaKey, setLoadedCitaKey] = useState();
+  if (citaKey !== loadedCitaKey) {
+    setLoadedCitaKey(citaKey);
+    if (citaKey !== undefined) {
       setPrescriptionText(selectedAppointmentDetails.tratamiento_receta || selectedAppointmentDetails.receta_medica || '');
       setPrescriptionSaved(false);
     }
-  }, [selectedAppointmentDetails]);
+  }
 
   if (!isOpen || !selectedAppointmentDetails) return null;
 
@@ -93,7 +100,7 @@ function DetailModal({
         <div className="form-group">
           <div className="field-head">
             <label htmlFor="tratamiento-receta" className="field-label">Tratamiento / receta</label>
-            {prescriptionSaved && <span className="saved-flag">Guardado</span>}
+            <span className="saved-flag" role="status">{prescriptionSaved ? 'Guardado' : ''}</span>
           </div>
           <textarea
             id="tratamiento-receta"

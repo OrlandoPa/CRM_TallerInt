@@ -91,8 +91,12 @@ export const calculateEndTime = (startStr, treatmentKey) => {
   }
 
   const endDate = new Date(startDate.getTime() + durationMinutes * 60000);
-  return endDate.toLocaleString('sv-SE').replace(' ', 'T').slice(0, 16);
+  return toDateTimeInput(endDate);
 };
+
+// Valores para <input type="date"> y <input type="datetime-local"> en hora local
+export const toDateInput = (date) => date.toLocaleString('sv-SE').slice(0, 10);
+export const toDateTimeInput = (date) => date.toLocaleString('sv-SE').replace(' ', 'T').slice(0, 16);
 
 export const getLimaDate = (dateOrStr) => {
   if (!dateOrStr) return null;
