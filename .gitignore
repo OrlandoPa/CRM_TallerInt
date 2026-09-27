@@ -35,12 +35,15 @@ MANUAL_USUARIO.md
 PRUEBAS_INTEGRACION.md
 STACK_TECNOLOGICO.md
 stress_test.js
+verificar_consistencia.js
+carga_bot.js
 DOCUMENTACION_ARQUITECTURA.md
 DOCUMENTACION_RAD_DESARROLLO.md
 CASOS_DE_PRUEBA.md
 PRUEBAS_CAJA_NEGRA.md
 PRUEBAS_E2E_SELENIUM.md
 REQUISITOS.md
+CAMBIOS_N8N.md
 
 # E2E Chrome test user data profiles
 tests/e2e/.chrome-user-data*
