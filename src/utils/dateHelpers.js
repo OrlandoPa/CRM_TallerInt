@@ -142,3 +142,25 @@ export const formatDiaCorto = (date) =>
 
 export const formatFechaLarga = (date) =>
   date ? date.toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '';
+
+// Jornadas de atención en minutos desde medianoche (mañana 8–12, tarde 16–21)
+export const JORNADAS = [
+  { nombre: 'Mañana', inicio: 8 * 60, fin: 12 * 60 },
+  { nombre: 'Tarde', inicio: 16 * 60, fin: 21 * 60 }
+];
+
+// Las citas duran un bloque (30 min) o dos bloques (1 h)
+export const DURACIONES_CITA = [30, 60];
+
+const aHHMM = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+
+// Horas de inicio válidas (cada 30 min) para una cita de la duración dada, por jornada
+export const getBloquesInicio = (duracionMin) =>
+  JORNADAS.map(j => {
+    const bloques = [];
+    for (let t = j.inicio; t + duracionMin <= j.fin; t += 30) bloques.push(aHHMM(t));
+    return { nombre: j.nombre, bloques };
+  });
+
+// Duración normalizada a bloques: 1 h si dura 60 min o más, si no 30 min
+export const normalizarDuracion = (minutos) => (minutos >= 60 ? 60 : 30);

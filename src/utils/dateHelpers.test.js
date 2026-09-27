@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isPeruHoliday, isValidWorkingHours, calculateEndTime } from './dateHelpers';
+import { isPeruHoliday, isValidWorkingHours, calculateEndTime, getBloquesInicio, normalizarDuracion } from './dateHelpers';
 
 describe('UT-FRONT-01: Verificación de Feriados Nacionales de Perú (isPeruHoliday)', () => {
   it('Debería retornar true para Fiestas Patrias (28 de Julio)', () => {
@@ -92,5 +92,28 @@ describe('UT-FRONT-03: Cálculo Dinámico de Hora de Fin (calculateEndTime)', ()
     const result = calculateEndTime(start, 'cirugia');
     console.log(`calculateEndTime('2026-07-15T09:00', 'cirugia') => Retornó: '${result}'`);
     expect(result).toBe('2026-07-15T10:00');
+  });
+});
+
+describe('Bloques de reprogramación (30 min / 1 h)', () => {
+  it('Citas de 30 min: bloques cada media hora de 08:00 a 11:30 y de 16:00 a 20:30', () => {
+    const [manana, tarde] = getBloquesInicio(30);
+    expect(manana.bloques).toEqual(['08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30']);
+    expect(tarde.bloques[0]).toBe('16:00');
+    expect(tarde.bloques.at(-1)).toBe('20:30');
+  });
+
+  it('Citas de 1 h: el último inicio deja la cita dentro de la jornada (11:00 y 20:00)', () => {
+    const [manana, tarde] = getBloquesInicio(60);
+    expect(manana.bloques.at(-1)).toBe('11:00');
+    expect(tarde.bloques.at(-1)).toBe('20:00');
+    expect([...manana.bloques, ...tarde.bloques].every(b => b.endsWith(':00') || b.endsWith(':30'))).toBe(true);
+  });
+
+  it('Normaliza la duración a 30 o 60 min', () => {
+    expect(normalizarDuracion(30)).toBe(30);
+    expect(normalizarDuracion(45)).toBe(30);
+    expect(normalizarDuracion(60)).toBe(60);
+    expect(normalizarDuracion(90)).toBe(60);
   });
 });

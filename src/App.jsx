@@ -426,15 +426,22 @@ function App() {
   };
 
   // Submit rescheduling
-  const handleRescheduleSubmit = async (e) => {
+  // El modal entrega el rango ya ajustado a bloques de 30 min (duración de 30 o 60 min)
+  const handleRescheduleSubmit = async (e, range) => {
     e.preventDefault();
-    if (!selectedCitaForReschedule || !rescheduleEvent.start || !rescheduleEvent.end) return;
+    if (!selectedCitaForReschedule || !range?.start || !range?.end) return;
+
+    const validation = isValidWorkingHours(range.start, range.end);
+    if (!validation.valid) {
+      showToast(validation.reason, false);
+      return;
+    }
 
     try {
       await api.rescheduleAppointment(
         selectedCitaForReschedule.google_event_id,
-        new Date(rescheduleEvent.start).toISOString(),
-        new Date(rescheduleEvent.end).toISOString()
+        range.start.toISOString(),
+        range.end.toISOString()
       );
       showToast('Cita reprogramada con éxito');
       setIsRescheduleModalOpen(false);
@@ -875,8 +882,8 @@ function App() {
         }}
         selectedCitaForReschedule={selectedCitaForReschedule}
         rescheduleEvent={rescheduleEvent}
-        setRescheduleEvent={setRescheduleEvent}
-        minDateTime={minDateTime}
+        citasDb={citasDb}
+        appointments={appointments}
         onSubmit={handleRescheduleSubmit}
       />
 
