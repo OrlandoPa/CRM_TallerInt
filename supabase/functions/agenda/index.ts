@@ -21,7 +21,8 @@ import { ESTADOS_ACTIVOS, sinReceta, validarRangoCita } from '../_shared/reglasA
 
 const env = (k: string) => Deno.env.get(k) ?? '';
 
-const ORIGENES = env('CRM_ORIGINS').split(',').map(s => s.trim()).filter(Boolean);
+// El navegador envía el origen sin barra final: se quita por si el secreto la trae
+const ORIGENES = env('CRM_ORIGINS').split(',').map(s => s.trim().replace(/\/+$/, '')).filter(Boolean);
 
 const corsPara = (req: Request) => {
   const origen = req.headers.get('Origin') ?? '';
