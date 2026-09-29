@@ -37,13 +37,25 @@ import DetailModal from './components/modals/DetailModal';
 import RescheduleModal from './components/modals/RescheduleModal';
 import DatePickerModal from './components/modals/DatePickerModal';
 
+const CLAVE_PESTANA = 'crm_pestana_activa';
+const PESTANAS = ['dashboard', 'agenda', 'attendance', 'calendar', 'pacientes', 'chats', 'admin'];
+
+const leerPestanaGuardada = () => {
+  try {
+    const guardada = sessionStorage.getItem(CLAVE_PESTANA);
+    return PESTANAS.includes(guardada) ? guardada : null;
+  } catch {
+    return null;
+  }
+};
+
 const getInitialParams = () => {
   if (typeof window === 'undefined') return { isEmbedded: false, activeTab: 'dashboard', convId: null };
   const params = new URLSearchParams(window.location.search);
   const isEmbedded = params.get('embed') === 'true';
   return {
     isEmbedded,
-    activeTab: isEmbedded ? 'chats' : 'dashboard',
+    activeTab: isEmbedded ? 'chats' : (leerPestanaGuardada() || 'dashboard'),
     convId: params.get('conversation_id') || null
   };
 };
@@ -67,7 +79,10 @@ function App() {
   const [pacientes, setPacientes] = useState([]);
   const [citasDb, setCitasDb] = useState([]);
   const [agendaConfig, setAgendaConfig] = useState(CONFIG_POR_DEFECTO);
+  // `loading` solo cubre la primera carga: las recargas posteriores no desmontan
+  // la vista (se perdía el apartado abierto); se indican con `sincronizando`
   const [loading, setLoading] = useState(true);
+  const [sincronizando, setSincronizando] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   // Error al leer Google Calendar (vía Edge Function); vacío = disponible
@@ -134,7 +149,7 @@ function App() {
   }, []);
 
   const fetchData = useCallback(async () => {
-    setLoading(true);
+    setSincronizando(true);
     setErrorMsg('');
     try {
       const year = currentDate.getFullYear();
@@ -170,19 +185,32 @@ function App() {
       console.error(err);
       setErrorMsg(`Error al sincronizar datos: ${err.message}`);
     } finally {
+      setSincronizando(false);
       setLoading(false);
     }
   }, [currentDate]);
 
-  // Sincronizar datos al iniciar sesión y al cambiar el mes del calendario
+  // Sincronizar datos al iniciar sesión y al cambiar el mes del calendario.
+  // Depende del correo, no del objeto `user`, para no recargar si solo se renueva la sesión.
+  const emailUsuario = user?.email;
   useEffect(() => {
-    if (user) {
+    if (emailUsuario) {
       const timer = setTimeout(() => {
         fetchData();
       }, 0);
       return () => clearTimeout(timer);
     }
-  }, [user, fetchData]);
+  }, [emailUsuario, fetchData]);
+
+  // Pestaña activa: se recuerda en la sesión del navegador por si el navegador recarga la página
+  useEffect(() => {
+    if (isEmbedded) return;
+    try {
+      sessionStorage.setItem(CLAVE_PESTANA, activeTab);
+    } catch {
+      // almacenamiento no disponible
+    }
+  }, [activeTab, isEmbedded]);
 
   // Si el rol cambia (o no es doctor) no se queda en una pestaña que no le corresponde
   const tabVisible = activeTab === 'admin' && !esDoctor ? 'dashboard' : activeTab;
@@ -440,19 +468,30 @@ function App() {
   useEffect(() => {
     if (!api.supabase) return;
     let vigente = true;
+    // Correo de la sesión ya aplicada: Supabase vuelve a emitir SIGNED_IN cada vez
+    // que la pestaña recupera el foco, y no hay que volver a cargar nada por eso
+    let emailAplicado = null;
 
     const applySession = async (session) => {
       if (!session) {
+        emailAplicado = null;
         setUser(null);
+        setLoading(true);
         return;
       }
       const result = await authService.cargarUsuario(session);
       if (!vigente) return;
       if (result.success) {
+        emailAplicado = result.user.email;
         authService.limpiarDatosAntiguos();
         setAuthError('');
-        setUser(result.user);
+        // Mismo usuario y rol: se conserva el objeto para no re-renderizar en cadena
+        setUser(prev => (prev && prev.email === result.user.email && prev.rol === result.user.rol
+          && prev.name === result.user.name && prev.picture === result.user.picture)
+          ? prev
+          : result.user);
       } else {
+        emailAplicado = null;
         setAuthError(result.error);
         setUser(null);
         authService.logout();
@@ -465,6 +504,7 @@ function App() {
     });
 
     const { data: authListener } = api.supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session?.user?.email?.trim().toLowerCase() === emailAplicado) return;
       if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'USER_UPDATED') {
         // Supabase recomienda no consultar la BD dentro de este callback: se difiere
         setTimeout(() => applySession(session), 0);
@@ -566,9 +606,11 @@ function App() {
             handleRefresh={handleRefresh}
             supabaseOnline={!!api.supabase}
             user={user}
+            sincronizando={sincronizando}
             onLogout={() => {
               authService.logout();
               setUser(null);
+              setLoading(true);
             }}
           />
         )}

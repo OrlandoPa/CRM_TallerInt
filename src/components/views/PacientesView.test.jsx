@@ -29,6 +29,30 @@ describe('Módulo de Pacientes', () => {
     expect(container.textContent).not.toContain('Carlos Ñique');
   });
 
+  it('encuentra el celular aunque se escriba con espacios', () => {
+    const { container, getByTestId } = renderVista(true);
+    fireEvent.change(getByTestId('input-buscar-paciente'), { target: { value: '987 654 321' } });
+    expect(container.querySelectorAll('[data-testid="paciente-item"]')).toHaveLength(1);
+    expect(container.textContent).toContain('Ana Torres');
+  });
+
+  it('filtra por pacientes sin citas y limpia los filtros', () => {
+    const { container, getByTestId } = renderVista(true);
+    fireEvent.change(getByTestId('select-filtro-paciente'), { target: { value: 'sin_citas' } });
+    expect(container.querySelectorAll('[data-testid="paciente-item"]')).toHaveLength(1);
+    expect(container.textContent).toContain('Carlos Ñique');
+    fireEvent.click(getByTestId('btn-limpiar-filtros-paciente'));
+    expect(container.querySelectorAll('[data-testid="paciente-item"]')).toHaveLength(2);
+  });
+
+  it('ordena por última cita dejando al final a quien no tiene citas', () => {
+    const { container, getByTestId } = renderVista(true);
+    fireEvent.change(getByTestId('select-orden-paciente'), { target: { value: 'ultima' } });
+    const items = container.querySelectorAll('[data-testid="paciente-item"]');
+    expect(items[0].textContent).toContain('Ana Torres');
+    expect(items[1].textContent).toContain('Carlos Ñique');
+  });
+
   it('el doctor ve los tratamientos en el historial; recepción no', () => {
     const doctor = renderVista(true);
     fireEvent.click(doctor.container.querySelector('[data-testid="paciente-item"]'));

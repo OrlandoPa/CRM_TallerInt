@@ -11,7 +11,7 @@ const PAGE_TITLES = {
   admin: 'Administración'
 };
 
-function Header({ activeTab, handleRefresh, supabaseOnline, user, onLogout }) {
+function Header({ activeTab, handleRefresh, supabaseOnline, user, onLogout, sincronizando = false }) {
   const today = new Date().toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long' });
 
   return (
@@ -25,7 +25,14 @@ function Header({ activeTab, handleRefresh, supabaseOnline, user, onLogout }) {
           <span className="dot" />
           {supabaseOnline ? 'Base de datos conectada' : 'Supabase sin configurar'}
         </div>
-        <button data-testid="btn-sync" onClick={handleRefresh} className="btn-icon" title="Sincronizar Datos">
+        <button
+          data-testid="btn-sync"
+          onClick={handleRefresh}
+          className={`btn-icon ${sincronizando ? 'is-syncing' : ''}`}
+          title={sincronizando ? 'Sincronizando…' : 'Sincronizar Datos'}
+          aria-busy={sincronizando}
+          disabled={sincronizando}
+        >
           <RefreshCw size={16} />
         </button>
 

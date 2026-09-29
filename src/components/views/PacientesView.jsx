@@ -121,8 +121,73 @@ function PacienteDetalle({ paciente, citas, esDoctor, onActualizarPaciente, onOp
   );
 }
 
+const MS_DIA = 24 * 60 * 60 * 1000;
+
+const FILTROS_PACIENTE = [
+  { id: 'todos', label: 'Todos' },
+  { id: 'proxima', label: 'Con cita próxima' },
+  { id: 'sin_citas', label: 'Sin citas' },
+  { id: 'inasistencias', label: 'Con inasistencias' },
+  { id: 'nuevos', label: 'Registrados (últimos 30 días)' },
+  { id: 'sin_consentimiento', label: 'Sin aviso de privacidad' }
+];
+
+const ORDENES_PACIENTE = [
+  { id: 'nombre', label: 'Nombre (A–Z)' },
+  { id: 'ultima', label: 'Última cita (reciente primero)' },
+  { id: 'proxima', label: 'Próxima cita (más cercana)' },
+  { id: 'registro', label: 'Registro (reciente primero)' }
+];
+
+const tiempo = (iso) => (iso ? new Date(iso).getTime() : NaN);
+
+// Resumen por paciente para filtrar y ordenar sin recorrer sus citas cada vez
+const resumirCitas = (citas, ahora) => {
+  let proxima = Infinity;
+  let ultima = -Infinity;
+  let inasistencias = 0;
+  citas.forEach(c => {
+    const t = tiempo(c.fecha_hora_cita);
+    if (Number.isNaN(t)) return;
+    if (c.estado_cita === ESTADOS_CITA.NO_ASISTIO) inasistencias += 1;
+    if (t < ahora) ultima = Math.max(ultima, t);
+    else if (esPendiente(c.estado_cita)) proxima = Math.min(proxima, t);
+  });
+  return { total: citas.length, proxima, ultima, inasistencias };
+};
+
+const cumpleFiltro = (filtro, p, r, ahora) => {
+  switch (filtro) {
+    case 'proxima': return Number.isFinite(r.proxima);
+    case 'sin_citas': return r.total === 0;
+    case 'inasistencias': return r.inasistencias > 0;
+    case 'nuevos': return tiempo(p.created_at) >= ahora - 30 * MS_DIA;
+    case 'sin_consentimiento': return !p.consentimiento_datos_at;
+    default: return true;
+  }
+};
+
+const porNombre = (a, b) => sinTildes(a.p.nombre_paciente).localeCompare(sinTildes(b.p.nombre_paciente));
+
+// Infinity - Infinity da NaN: los que no tienen fecha van al final
+const porTiempo = (x, y) => {
+  if (x === y) return 0;
+  if (!Number.isFinite(x)) return 1;
+  if (!Number.isFinite(y)) return -1;
+  return x - y;
+};
+
+const COMPARADORES = {
+  nombre: porNombre,
+  ultima: (a, b) => porTiempo(-a.r.ultima, -b.r.ultima) || porNombre(a, b),
+  proxima: (a, b) => porTiempo(a.r.proxima, b.r.proxima) || porNombre(a, b),
+  registro: (a, b) => porTiempo(-(tiempo(a.p.created_at) || -Infinity), -(tiempo(b.p.created_at) || -Infinity)) || porNombre(a, b)
+};
+
 function PacientesView({ pacientes, citasDb, esDoctor, onActualizarPaciente, onOpenDetail }) {
   const [busqueda, setBusqueda] = useState('');
+  const [filtro, setFiltro] = useState('todos');
+  const [orden, setOrden] = useState('nombre');
   const [seleccionado, setSeleccionado] = useState(null);
 
   const citasPorPaciente = useMemo(() => {
@@ -136,11 +201,22 @@ function PacientesView({ pacientes, citasDb, esDoctor, onActualizarPaciente, onO
   }, [citasDb]);
 
   const filtrados = useMemo(() => {
+    const ahora = new Date().getTime();
     const q = sinTildes(busqueda.trim());
-    return [...pacientes]
-      .filter(p => !q || sinTildes(p.nombre_paciente).includes(q) || sinTildes(p.identificador_paciente).includes(q))
-      .sort((a, b) => sinTildes(a.nombre_paciente).localeCompare(sinTildes(b.nombre_paciente)));
-  }, [pacientes, busqueda]);
+    // "987 654 321" o "+51 987..." también encuentran el celular guardado en E.164
+    const digitos = q.replace(/\D/g, '');
+    return pacientes
+      .map(p => ({ p, r: resumirCitas(citasPorPaciente.get(p.identificador_paciente) || [], ahora) }))
+      .filter(({ p }) => !q
+        || sinTildes(p.nombre_paciente).includes(q)
+        || sinTildes(p.identificador_paciente).includes(q)
+        || (digitos.length >= 3 && String(p.identificador_paciente).replace(/\D/g, '').includes(digitos)))
+      .filter(({ p, r }) => cumpleFiltro(filtro, p, r, ahora))
+      .sort(COMPARADORES[orden] || porNombre)
+      .map(({ p }) => p);
+  }, [pacientes, citasPorPaciente, busqueda, filtro, orden]);
+
+  const hayFiltros = busqueda.trim() !== '' || filtro !== 'todos';
 
   const paciente = pacientes.find(p => p.identificador_paciente === seleccionado) || null;
 
@@ -166,6 +242,42 @@ function PacientesView({ pacientes, citasDb, esDoctor, onActualizarPaciente, onO
                 onChange={(e) => setBusqueda(e.target.value)}
               />
             </div>
+            <div className="filter-row">
+              <div className="form-group">
+                <label htmlFor="filtro-paciente">Mostrar</label>
+                <select
+                  id="filtro-paciente"
+                  data-testid="select-filtro-paciente"
+                  className="form-control"
+                  value={filtro}
+                  onChange={(e) => setFiltro(e.target.value)}
+                >
+                  {FILTROS_PACIENTE.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label htmlFor="orden-paciente">Ordenar por</label>
+                <select
+                  id="orden-paciente"
+                  data-testid="select-orden-paciente"
+                  className="form-control"
+                  value={orden}
+                  onChange={(e) => setOrden(e.target.value)}
+                >
+                  {ORDENES_PACIENTE.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                </select>
+              </div>
+            </div>
+            {hayFiltros && (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm filter-clear"
+                data-testid="btn-limpiar-filtros-paciente"
+                onClick={() => { setBusqueda(''); setFiltro('todos'); }}
+              >
+                Limpiar filtros
+              </button>
+            )}
           </div>
           <div className="list-scroll">
             {filtrados.length === 0 ? (
