@@ -4,6 +4,7 @@ import { aHHMM } from '@compartido/reglasAgenda.js';
 import { useAgendaConfig } from '../../utils/agendaConfig';
 import { resolveContactIdentifier } from '../../utils/contactHelpers';
 import { esAtendida } from '../../utils/estadosCita';
+import { leerDescripcionEvento } from '../../utils/descripcionEvento';
 import StatusBadge from '../ui/StatusBadge';
 
 function AgendaView({
@@ -165,8 +166,8 @@ function AgendaView({
                         <span className="mono">{resolveContactIdentifier(dbCitaResolved, [], [], citasDb) || 'Sin teléfono'}</span>
                         {dbCitaResolved.detalles_notas_cita && <> · {dbCitaResolved.detalles_notas_cita}</>}
                       </span>
-                    ) : activeEvent.description && (
-                      <span className="slot-event-sub">{activeEvent.description}</span>
+                    ) : leerDescripcionEvento(activeEvent.description).notas && (
+                      <span className="slot-event-sub">{leerDescripcionEvento(activeEvent.description).notas}</span>
                     )}
                   </button>
 

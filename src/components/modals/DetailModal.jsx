@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Phone, Trash2, CalendarClock } from 'lucide-react';
+import { Phone, Trash2, CalendarClock, Bot, Monitor } from 'lucide-react';
 import { getLimaDate, formatHora, formatFechaLarga } from '../../utils/dateHelpers';
 import { resolveContactIdentifier } from '../../utils/contactHelpers';
+import { leerDescripcionEvento } from '../../utils/descripcionEvento';
 import { esAtendida } from '../../utils/estadosCita';
 import ModalShell from '../ui/ModalShell';
 import StatusBadge from '../ui/StatusBadge';
@@ -48,6 +49,7 @@ function DetailModal({
     || (cita.summary ? cita.summary.split(' - ')[0].trim() : '')
     || 'Paciente sin nombre';
   const date = cita.fecha_hora_cita ? getLimaDate(cita.fecha_hora_cita) : null;
+  const evento = leerDescripcionEvento(cita.descripcion_evento ?? cita.description);
 
   const requireGCal = (action) => () => {
     if (!agendaDisponible) {
@@ -89,7 +91,17 @@ function DetailModal({
             ) : 'No programada'}
           </dd>
           <dt>Notas</dt>
-          <dd>{cita.detalles_notas_cita || cita.description || 'Sin notas adicionales'}</dd>
+          <dd>{cita.detalles_notas_cita || evento.notas || 'Sin notas adicionales'}</dd>
+          {evento.origen && (
+            <>
+              <dt>Agendada por</dt>
+              <dd data-testid="detail-origen">
+                {evento.origen === 'whatsapp'
+                  ? <><Bot size={12} /> Bot de WhatsApp</>
+                  : <><Monitor size={12} /> CRM (personal de la clínica)</>}
+              </dd>
+            </>
+          )}
           {cita.correo_electronico && (
             <>
               <dt>Correo</dt>

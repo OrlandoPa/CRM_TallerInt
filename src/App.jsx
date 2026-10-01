@@ -449,7 +449,9 @@ function App() {
       }
     }
 
-    setSelectedAppointmentDetails(detailObj);
+    // La descripción del evento de Google dice si la agendó el bot de WhatsApp
+    const evento = app?.start ? app : appointments.find(e => e.id && e.id === detailObj.google_event_id);
+    setSelectedAppointmentDetails({ ...detailObj, descripcion_evento: evento?.description || '' });
     setIsDetailModalOpen(true);
   };
 

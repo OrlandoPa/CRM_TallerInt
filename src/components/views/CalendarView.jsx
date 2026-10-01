@@ -1,6 +1,7 @@
 import { ChevronLeft, ChevronRight, AlertCircle, Plus } from 'lucide-react';
 import { getLimaDate } from '../../utils/dateHelpers';
 import { tonoEstado } from '../../utils/estadosCita';
+import { leerDescripcionEvento } from '../../utils/descripcionEvento';
 
 const WEEKDAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
@@ -117,7 +118,7 @@ function CalendarView({
                         type="button"
                         key={evt.id}
                         className={`cal-event tone-${tonoEstado(dbCita?.estado_cita)}`}
-                        title={`${dbCita ? dbCita.pacientes?.nombre_paciente + ' - ' + dbCita.motivo_consulta : evt.summary}${evt.description ? `: ${evt.description}` : ''}`}
+                        title={`${dbCita ? dbCita.pacientes?.nombre_paciente + ' - ' + dbCita.motivo_consulta : evt.summary}${leerDescripcionEvento(evt.description).notas ? `: ${leerDescripcionEvento(evt.description).notas}` : ''}`}
                         onClick={(e) => {
                           e.stopPropagation(); // Avoid opening day details modal when clicking event
                           onOpenDetail(evt);

@@ -142,6 +142,10 @@ const fechaIso = (v: unknown, campo: string) => {
 // ---------------------------------------------------------------------
 // Acciones
 // ---------------------------------------------------------------------
+// Igual que la del bot de WhatsApp (n8n, nodo "Crear evento")
+const DESCRIPCION_PACIENTE =
+  'Tu cita en nuestra clínica odontológica.\nSi necesitas cambiarla o cancelarla, escríbenos por WhatsApp.';
+
 type Ctx = { db: SupabaseClient; admin: SupabaseClient; perfil: { email: string; rol: string } };
 type Datos = Record<string, unknown>;
 
@@ -217,10 +221,13 @@ const crearCita = async ({ db, admin, perfil }: Ctx, d: Datos) => {
   try {
     evento = await gcal('POST', '', {
       summary: titulo,
-      description: [notas, `Contacto: ${idPaciente}`].filter(Boolean).join('\n'),
+      // El paciente invitado ve la descripción: las notas internas quedan solo en la BD
+      description: `${DESCRIPCION_PACIENTE}\n\nAgendada desde el CRM · Contacto: ${idPaciente}`,
       start: { dateTime: inicio },
       end: { dateTime: fin },
-      ...(correo ? { attendees: [{ email: correo }] } : {}),
+      ...(correo
+        ? { attendees: [{ email: correo }], guestsCanInviteOthers: false, guestsCanSeeOtherGuests: false }
+        : {}),
       extendedProperties: { private: { tipo: 'cita', cita_id: String(cita.id) } }
     }, correo ? { sendUpdates: 'all' } : undefined);
     exigir(await db.from('citas').update({ google_event_id: evento.id }).eq('id', cita.id), 'vincular evento');
@@ -266,7 +273,8 @@ const reprogramarCita = async ({ db }: Ctx, d: Datos) => {
   }).eq('id', antes.id), 'reprogramar cita');
 
   try {
-    await gcal('PATCH', eventId, { start: { dateTime: inicio }, end: { dateTime: fin } });
+    // sendUpdates: si el paciente es invitado, Google le avisa del cambio
+    await gcal('PATCH', eventId, { start: { dateTime: inicio }, end: { dateTime: fin } }, { sendUpdates: 'all' });
   } catch (e) {
     await db.from('citas').update({
       fecha_hora_cita: antes.fecha_hora_cita,
@@ -286,7 +294,7 @@ const cancelarCita = async ({ db }: Ctx, d: Datos) => {
 
   exigir(await db.from('citas').update({ estado_cita: 'CANCELADA' }).eq('id', antes.id), 'cancelar cita');
   try {
-    await gcal('DELETE', eventId);
+    await gcal('DELETE', eventId, undefined, { sendUpdates: 'all' });
   } catch (e) {
     await db.from('citas').update({ estado_cita: antes.estado_cita }).eq('id', antes.id);
     throw e;
