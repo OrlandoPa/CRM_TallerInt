@@ -1,4 +1,4 @@
-# CRM Dental — Gestión de Citas
+# SGRC — Sistema de Gestión de Reserva de Citas
 
 Panel web para el personal de una clínica odontológica: agenda, calendario, control de asistencia, pacientes, tratamientos o recetas y acceso a las conversaciones de WhatsApp. Funciona junto a un asistente de WhatsApp construido en n8n que agenda, reprograma y cancela citas automáticamente.
 
