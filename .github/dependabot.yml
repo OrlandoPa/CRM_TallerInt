@@ -1,0 +1,23 @@
+# Revisión continua de dependencias (Anexo F, RNF-SEG-10): Dependabot abre
+# PRs semanales con actualizaciones; las de seguridad llegan apenas se publican
+# si "Dependabot security updates" está activo en Settings > Code security.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: America/Lima
+    open-pull-requests-limit: 5
+    groups:
+      desarrollo:
+        dependency-type: development
+        update-types: [minor, patch]
+      produccion:
+        dependency-type: production
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

@@ -23,6 +23,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # Falla con vulnerabilidades altas o críticas en cualquier dependencia (Anexo F, RNF-SEG-10)
+      - run: npm audit --audit-level=high
       - run: npm run lint
       - run: npm test
       - run: npm run build
