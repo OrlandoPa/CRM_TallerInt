@@ -1,0 +1,3 @@
+# Los scripts de los VPS deben tener finales de línea LF (Linux)
+*.sh text eol=lf
+infra/** text eol=lf
