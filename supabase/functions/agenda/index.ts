@@ -10,6 +10,10 @@
 //   Google falla (compensación), porque el personal no tiene DELETE.
 // * Orden: primero la BD (la exclusion constraint reserva el horario sin
 //   carreras) y luego Google; si Google falla se revierte la BD.
+// * Reintentos sin duplicados (_shared/calendarioIdempotente.js): los
+//   eventos se crean con un id propio derivado de la fila (sgrccita<id>,
+//   sgrcbloq<id>), así que un reintento no crea otro evento y la
+//   compensación puede borrarlo aunque Google no haya llegado a responder.
 //
 // Secretos (supabase secrets set ...): GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
 // GOOGLE_REFRESH_TOKEN, GOOGLE_CALENDAR_ID, CRM_ORIGINS (orígenes permitidos,
@@ -18,6 +22,7 @@
 
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { ESTADOS_ACTIVOS, sinReceta, validarRangoCita } from '../_shared/reglasAgenda.js';
+import { crearClienteCalendar, eventoEnHorario, idEventoGoogle } from '../_shared/calendarioIdempotente.js';
 
 const env = (k: string) => Deno.env.get(k) ?? '';
 
@@ -71,21 +76,14 @@ const urlEventos = (eventId = '') => {
   return `https://www.googleapis.com/calendar/v3/calendars/${cal}/events${eventId ? `/${encodeURIComponent(eventId)}` : ''}`;
 };
 
-const gcal = async (metodo: string, eventId = '', cuerpo?: unknown, query?: Record<string, string>) => {
-  const qs = query ? `?${new URLSearchParams(query)}` : '';
-  const r = await fetch(`${urlEventos(eventId)}${qs}`, {
-    method: metodo,
-    headers: { Authorization: `Bearer ${await tokenGoogle()}`, 'Content-Type': 'application/json' },
-    body: cuerpo ? JSON.stringify(cuerpo) : undefined
-  });
-  if (metodo === 'DELETE' && (r.status === 404 || r.status === 410)) return null; // ya no existe
-  if (!r.ok) {
-    const detalle = await r.json().catch(() => ({}));
-    console.error('Google Calendar', metodo, r.status, detalle);
-    throw new ErrorHttp(502, `Google Calendar: ${detalle?.error?.message ?? r.statusText}`);
-  }
-  return r.status === 204 ? null : r.json();
-};
+const calendario = crearClienteCalendar({
+  fetch,
+  obtenerToken: tokenGoogle,
+  urlEventos,
+  crearError: (status: number, mensaje: string) => new ErrorHttp(status, mensaje),
+  log: (...a: unknown[]) => console.error(...a)
+});
+const gcal = calendario.llamar;
 
 // ---------------------------------------------------------------------
 // Base de datos
@@ -217,9 +215,11 @@ const crearCita = async ({ db, admin, perfil }: Ctx, d: Datos) => {
   );
 
   // 2. Google Calendar; si falla, se deshace la fila
+  const idEvento = idEventoGoogle('cita', cita.id);
   let evento;
   try {
-    evento = await gcal('POST', '', {
+    evento = await calendario.crearEvento({
+      id: idEvento,
       summary: titulo,
       // El paciente invitado ve la descripción: las notas internas quedan solo en la BD
       description: `${DESCRIPCION_PACIENTE}\n\nAgendada desde el CRM · Contacto: ${idPaciente}`,
@@ -232,7 +232,8 @@ const crearCita = async ({ db, admin, perfil }: Ctx, d: Datos) => {
     }, correo ? { sendUpdates: 'all' } : undefined);
     exigir(await db.from('citas').update({ google_event_id: evento.id }).eq('id', cita.id), 'vincular evento');
   } catch (e) {
-    if (evento?.id) await gcal('DELETE', evento.id).catch(() => {});
+    // Por id: también borra el evento si Google lo creó pero la respuesta no llegó
+    await gcal('DELETE', idEvento, undefined, correo ? { sendUpdates: 'all' } : undefined).catch((err) => console.error('Evento huérfano por borrar a mano', idEvento, err));
     await admin.from('citas').delete().eq('id', cita.id);
     throw e;
   }
@@ -276,6 +277,8 @@ const reprogramarCita = async ({ db }: Ctx, d: Datos) => {
     // sendUpdates: si el paciente es invitado, Google le avisa del cambio
     await gcal('PATCH', eventId, { start: { dateTime: inicio }, end: { dateTime: fin } }, { sendUpdates: 'all' });
   } catch (e) {
+    // Si Google sí movió el evento (la respuesta se perdió), la BD ya está bien
+    if (eventoEnHorario(await calendario.leerEvento(eventId), inicio, fin)) return { ok: true };
     await db.from('citas').update({
       fecha_hora_cita: antes.fecha_hora_cita,
       fecha_hora_fin: antes.fecha_hora_fin,
@@ -314,10 +317,12 @@ const crearBloqueo = async ({ db, admin, perfil }: Ctx, d: Datos) => {
     await db.from('bloqueos_agenda').insert({ inicio, fin, motivo, creado_por: perfil.email }).select('id').single(),
     'crear bloqueo'
   );
+  const idEvento = idEventoGoogle('bloqueo', bloqueo.id);
   let evento;
   try {
     // Evento "ocupado" para que el bot de WhatsApp no ofrezca ese horario
-    evento = await gcal('POST', '', {
+    evento = await calendario.crearEvento({
+      id: idEvento,
       summary: `Bloqueado - ${motivo}`,
       start: { dateTime: inicio },
       end: { dateTime: fin },
@@ -326,7 +331,7 @@ const crearBloqueo = async ({ db, admin, perfil }: Ctx, d: Datos) => {
     });
     exigir(await db.from('bloqueos_agenda').update({ google_event_id: evento.id }).eq('id', bloqueo.id), 'vincular bloqueo');
   } catch (e) {
-    if (evento?.id) await gcal('DELETE', evento.id).catch(() => {});
+    await gcal('DELETE', idEvento).catch((err) => console.error('Evento huérfano por borrar a mano', idEvento, err));
     await admin.from('bloqueos_agenda').delete().eq('id', bloqueo.id);
     throw e;
   }
