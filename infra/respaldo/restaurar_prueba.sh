@@ -47,6 +47,16 @@ docker run -d --name "$CONT" -e POSTGRES_PASSWORD="$(head -c 24 /dev/urandom | b
 until docker exec "$CONT" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1; do sleep 1; done
 
 docker exec -i "$CONT" psql -U postgres -v ON_ERROR_STOP=1 -q < "$DIR/preparar_destino.sql"
+# Roles que el respaldo nombra en GRANT y ALTER DEFAULT PRIVILEGES (p. ej. supabase_admin, que
+# solo existe en Supabase): en un Postgres vacío faltan y pg_restore se detiene (16/10/2026).
+# Se crean sin login; el nombre ya viene filtrado por la expresión regular.
+roles=$(age -d -i "$AGE_IDENTIDAD" "$ARCHIVO" | docker exec -i "$CONT" pg_restore -f - \
+  | grep -E '^(GRANT|REVOKE|ALTER DEFAULT PRIVILEGES) ' \
+  | grep -oE '(TO|FROM|FOR ROLE) "?[A-Za-z_][A-Za-z0-9_]*' | awk '{print $NF}' | tr -d '"' \
+  | grep -vx PUBLIC | sort -u || true)
+for r in $roles; do
+  printf "do \$\$ begin if not exists (select 1 from pg_roles where rolname = '%s') then create role \"%s\" nologin; end if; end \$\$;\n" "$r" "$r"
+done | docker exec -i "$CONT" psql -U postgres -v ON_ERROR_STOP=1 -q
 age -d -i "$AGE_IDENTIDAD" "$ARCHIVO" \
   | docker exec -i "$CONT" pg_restore -U postgres -d postgres --no-owner --exit-on-error
 fin=$(date +%s)
