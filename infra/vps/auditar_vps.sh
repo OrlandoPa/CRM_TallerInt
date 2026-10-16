@@ -19,7 +19,8 @@ titulo "1. SSH (configuración efectiva: sshd -T)"
 if command -v sshd >/dev/null; then
   cfg="$(sshd -T 2>/dev/null)"
   val() { awk -v k="$1" '$1 == k {print $2; exit}' <<<"$cfg"; }
-  [ "$(val passwordauthentication)" = "no" ] && ok "Sin contraseñas (PasswordAuthentication no)" || falla "PasswordAuthentication = $(val passwordauthentication)"
+  [ "$(val passwordauthentication)" = "no" ] && ok "Sin contraseñas (PasswordAuthentication no)" \
+    || falla "PasswordAuthentication = $(val passwordauthentication) (en /etc/ssh/sshd_config.d/ gana el primer archivo en orden alfabético)"
   [ "$(val kbdinteractiveauthentication)" = "no" ] && ok "KbdInteractiveAuthentication no" || falla "KbdInteractiveAuthentication = $(val kbdinteractiveauthentication)"
   [ "$(val permitrootlogin)" = "no" ] && ok "Sin acceso remoto de root (PermitRootLogin no)" || falla "PermitRootLogin = $(val permitrootlogin)"
   [ "$(val pubkeyauthentication)" = "yes" ] && ok "Acceso con llave (PubkeyAuthentication yes)" || falla "PubkeyAuthentication = $(val pubkeyauthentication)"
@@ -33,11 +34,19 @@ fi
 titulo "2. Firewall (ufw)"
 if command -v ufw >/dev/null; then
   estado="$(ufw status verbose 2>/dev/null)"
-  grep -q "Status: active" <<<"$estado" && ok "ufw activo" || falla "ufw inactivo"
+  activo=0
+  grep -q "Status: active" <<<"$estado" && activo=1
+  [ "$activo" = 1 ] && ok "ufw activo" || falla "ufw inactivo"
   grep -q "deny (incoming)" <<<"$estado" && ok "Entrante denegado por defecto" || falla "La política de entrada no es deny"
   permitidos="$(awk '/ALLOW/ {print $1}' <<<"$estado" | sort -u | tr '\n' ' ')"
   extra="$(tr ' ' '\n' <<<"$permitidos" | grep -vE '^(22|80|443)(/tcp)?$|^(22|80|443)/tcp\(v6\)$|^$' | grep -vE '^(22|80|443)(/tcp)? *\(v6\)$' || true)"
-  [ -z "$extra" ] && ok "Solo se permiten 22, 80 y 443 ($permitidos)" || falla "Reglas de entrada adicionales: $(tr '\n' ' ' <<<"$extra")"
+  if [ "$activo" = 0 ]; then
+    aviso "Reglas no evaluadas: ufw está inactivo"
+  elif [ -z "$extra" ]; then
+    ok "Solo se permiten 22, 80 y 443 (${permitidos:-solo LIMIT 22})"
+  else
+    falla "Reglas de entrada adicionales: $(tr '\n' ' ' <<<"$extra")"
+  fi
 else
   falla "ufw no instalado"
 fi
