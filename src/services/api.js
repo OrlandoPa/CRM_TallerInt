@@ -310,6 +310,21 @@ export const crearBloqueo = ({ inicio, fin, motivo }) => agenda('crear_bloqueo',
 export const quitarBloqueo = (id) => agenda('quitar_bloqueo', { id });
 
 // 5. USUARIOS (solo el doctor: RLS)
+/**
+ * Últimos cambios registrados por los triggers de auditoría (solo el doctor: RLS).
+ * No trae datos_antes/datos_despues: la revisión periódica solo necesita quién,
+ * cuándo y qué campos cambiaron, sin mostrar el contenido (p. ej. recetas).
+ */
+export const getAuditoria = async ({ tabla = '', desde = null, limite = 200 } = {}) => {
+  let q = supabase.from('auditoria')
+    .select('id, created_at, tabla, operacion, registro_id, origen, usuario, aplicacion, campos_modificados')
+    .order('created_at', { ascending: false })
+    .limit(limite);
+  if (tabla) q = q.eq('tabla', tabla);
+  if (desde) q = q.gte('created_at', desde);
+  return exigir(await q, 'leer auditoría') || [];
+};
+
 export const getUsuarios = async () =>
   exigir(await supabase.from('usuarios_autorizados').select('*').order('rol').order('email'), 'leer usuarios') || [];
 

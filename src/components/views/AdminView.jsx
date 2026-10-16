@@ -3,12 +3,14 @@ import UsuariosPanel from './admin/UsuariosPanel';
 import ServiciosPanel from './admin/ServiciosPanel';
 import HorarioPanel from './admin/HorarioPanel';
 import BloqueosPanel from './admin/BloqueosPanel';
+import AuditoriaPanel from './admin/AuditoriaPanel';
 
 const PESTANAS = [
   { id: 'usuarios', label: 'Usuarios' },
   { id: 'servicios', label: 'Servicios' },
   { id: 'horario', label: 'Horario y feriados' },
-  { id: 'bloqueos', label: 'Bloqueos de agenda' }
+  { id: 'bloqueos', label: 'Bloqueos de agenda' },
+  { id: 'auditoria', label: 'Auditoría' }
 ];
 
 // Módulo exclusivo del doctor. La RLS de Supabase impide estas acciones a
@@ -65,6 +67,7 @@ function AdminView({ usuario, config, onConfigChanged, showToast }) {
         {activa === 'bloqueos' && (
           <BloqueosPanel bloqueos={config.bloqueos} onConfigChanged={onConfigChanged} showToast={showToast} />
         )}
+        {activa === 'auditoria' && <AuditoriaPanel showToast={showToast} />}
       </div>
     </div>
   );
