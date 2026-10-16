@@ -107,7 +107,11 @@ anotar('BE-05', 'Edge Function agenda sin sesión', ef.status === 401 || ef.stat
 const n8n = await http('https://n8n.orlandopa.dev/healthz/readiness');
 anotar('BE-18', 'n8n /healthz/readiness', n8n.status === 200 && n8n.texto.includes('"ok"'), `HTTP ${n8n.status} ${n8n.texto.slice(0, 40)}`);
 const cw = await http('https://chatwoot.orlandopa.dev/api');
-anotar('BE-18', 'Chatwoot /api', cw.status === 200 && cw.texto.includes('"data_services":"ok"'), `HTTP ${cw.status} ${cw.texto.slice(0, 120)}`);
+// data_services solo mira si la conexión de ese proceso de Rails sigue viva, sin reconectar: da
+// "failing" horas después de un reinicio aunque la base responda (16/10/2026, consulta real con
+// rails runner correcta). Por eso es informativo y la condición es Redis + HTTP 200.
+anotar('BE-18', 'Chatwoot /api', cw.status === 200 && cw.texto.includes('"queue_services":"ok"'), `HTTP ${cw.status} ${cw.texto.slice(0, 120)}`);
+anotar('BE-18', 'Chatwoot data_services (indicador poco fiable)', cw.texto.includes('"data_services":"ok"') ? true : null, cw.texto.match(/"data_services":"\w+"/)?.[0] ?? 'sin dato');
 const crm = await http('https://crm.orlandopa.dev/');
 anotar('FE-04', 'CRM publicado por HTTPS', crm.status === 200, `HTTP ${crm.status}`);
 const pol = await http('https://crm.orlandopa.dev/privacidad.html');
