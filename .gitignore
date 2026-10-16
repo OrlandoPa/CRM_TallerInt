@@ -62,6 +62,7 @@ CLAUDE.md
 Gesti*nCitas WhatsApp*.json
 Recordatorios Automaticos*.json
 Retenci*n de datos*.json
+Salud de credenciales*.json
 
 # Migraciones SQL (se ejecutan a mano en el SQL Editor de Supabase; no se versionan).
 # La Edge Function (supabase/functions) sí es código de la app y se versiona.
