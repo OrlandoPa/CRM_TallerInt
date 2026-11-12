@@ -76,10 +76,15 @@ const USO = {
   supabase: { vcpu: 0.5, ramGB: 0.5 },
 
   // CRM: archivos medidos en producción el 11/11/2026 (KB transferidos, comprimidos)
-  crmKB: {
+  // --linea-base: valores medidos antes de las mejoras de la semana 3 (11/11/2026)
+  crmKB: args['linea-base'] ? {
     propio: 147.8, //          index.html + index.js + index.css (Vercel)
     accesibilidad: 81.1, //    widget de UserWay (6 archivos)
-    fuentes: 182.7 + 1.9, //   IBM Plex Mono 400, IBM Plex Sans (variable) y Source Serif 4 + CSS
+    fuentes: 182.7 + 1.9, //   IBM Plex Mono 400, IBM Plex Sans (variable) y Source Serif 4 con eje óptico + CSS
+  } : {
+    propio: 146.2, //          medido tras el despliegue del 11/11/2026 (gzip)
+    accesibilidad: 81.1,
+    fuentes: 111.2 + 1.4, //   Source Serif 4 sin eje óptico (50.9 KB en vez de 122.4 KB); sin OpenDyslexic
   },
   // SQL del 11/11/2026: citas 9 978 bytes y pacientes 3 425 bytes en la base; con JSON y
   // configuración se redondea a 20 KB por carga (supuesto conservador)
