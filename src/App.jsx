@@ -36,6 +36,7 @@ import DayAgendaModal from './components/modals/DayAgendaModal';
 import DetailModal from './components/modals/DetailModal';
 import RescheduleModal from './components/modals/RescheduleModal';
 import DatePickerModal from './components/modals/DatePickerModal';
+import ComentarioModal from './components/modals/ComentarioModal';
 
 const CLAVE_PESTANA = 'crm_pestana_activa';
 const PESTANAS = ['dashboard', 'agenda', 'attendance', 'calendar', 'pacientes', 'chats', 'admin'];
@@ -72,7 +73,11 @@ function App() {
   const [authReady, setAuthReady] = useState(!api.supabase);
   const [authError, setAuthError] = useState(api.supabase ? '' : SUPABASE_MISSING_MSG);
   const [activeTab, setActiveTab] = useState(initialParams.activeTab);
-  const [theme, setTheme] = useState('light');
+  // Tema inicial según la preferencia del sistema (software verde, RNF-VERDE-08):
+  // en pantallas OLED el modo oscuro consume menos energía
+  const [theme, setTheme] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  );
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [leads, setLeads] = useState([]);
   const [appointments, setAppointments] = useState([]);
@@ -111,6 +116,7 @@ function App() {
   const [newPatientName, setNewPatientName] = useState('');
   const [newPatientPhone, setNewPatientPhone] = useState('');
   const [isDatePickerModalOpen, setIsDatePickerModalOpen] = useState(false);
+  const [isComentarioOpen, setIsComentarioOpen] = useState(false);
   const [targetDateInput, setTargetDateInput] = useState('');
   const [sendEmailReminder, setSendEmailReminder] = useState(false);
   const [newEvent, setNewEvent] = useState({
@@ -148,59 +154,100 @@ function App() {
     }
   }, []);
 
-  const fetchData = useCallback(async () => {
+  // Eventos de Google Calendar del mes visible. Es lo único que depende del mes:
+  // al navegar el calendario no se vuelve a leer el resto (software verde, RNF-VERDE-05).
+  const cargarEventosMes = useCallback(async () => {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    try {
+      setAppointments(await api.getAppointments(
+        new Date(year, month, 1).toISOString(),
+        new Date(year, month + 1, 1).toISOString()
+      ));
+      setCalendarError('');
+    } catch (err) {
+      // El error de Calendar se muestra en su propio aviso persistente
+      setCalendarError(err?.message || 'Error desconocido');
+    }
+  }, [currentDate]);
+
+  // Datos de la base: pacientes, citas, remitentes de WhatsApp y configuración de agenda
+  const cargarBase = useCallback(async () => {
+    // Cada fuente se carga por separado: si una falla, se informa y el resto se muestra igual
+    const [sesionesRes, pacientesRes, citasRes, configRes] = await Promise.allSettled([
+      api.getSesionesWhatsapp(),
+      api.getPacientes(),
+      api.getCitasDb(),
+      api.getAgendaConfig()
+    ]);
+
+    const pacientesLeidos = pacientesRes.status === 'fulfilled' ? pacientesRes.value : null;
+    if (pacientesLeidos) setPacientes(pacientesLeidos);
+    if (pacientesLeidos || sesionesRes.status === 'fulfilled') {
+      // Los leads se arman con los pacientes ya leídos: la tabla no se consulta dos veces
+      setLeads(api.construirLeads(
+        pacientesLeidos || [],
+        sesionesRes.status === 'fulfilled' ? sesionesRes.value : []
+      ));
+    }
+    if (citasRes.status === 'fulfilled') setCitasDb(citasRes.value);
+    if (configRes.status === 'fulfilled') setAgendaConfig(normalizarConfig(configRes.value));
+
+    const errors = [sesionesRes, pacientesRes, citasRes, configRes]
+      .filter(r => r.status === 'rejected')
+      .map(r => r.reason?.message || String(r.reason));
+    if (errors.length > 0) {
+      console.error('Errores al sincronizar:', errors);
+      setErrorMsg(`Error al sincronizar: ${[...new Set(errors)].join(' · ')}`);
+    }
+  }, []);
+
+  // Puede haber dos cargas a la vez (base y eventos del mes): el indicador se apaga con la última
+  const cargasEnCurso = useRef(0);
+  const sincronizar = useCallback(async (...cargas) => {
+    cargasEnCurso.current += 1;
     setSincronizando(true);
     setErrorMsg('');
     try {
-      const year = currentDate.getFullYear();
-      const month = currentDate.getMonth();
-      const timeMin = new Date(year, month, 1).toISOString();
-      const timeMax = new Date(year, month + 1, 1).toISOString();
-
-      // Cada fuente se carga por separado: si una falla, se informa y el resto se muestra igual
-      const [leadsRes, appointmentsRes, pacientesRes, citasRes, configRes] = await Promise.allSettled([
-        api.getLeads(),
-        api.getAppointments(timeMin, timeMax),
-        api.getPacientes(),
-        api.getCitasDb(),
-        api.getAgendaConfig()
-      ]);
-
-      if (leadsRes.status === 'fulfilled') setLeads(leadsRes.value);
-      if (appointmentsRes.status === 'fulfilled') setAppointments(appointmentsRes.value);
-      if (pacientesRes.status === 'fulfilled') setPacientes(pacientesRes.value);
-      if (citasRes.status === 'fulfilled') setCitasDb(citasRes.value);
-      if (configRes.status === 'fulfilled') setAgendaConfig(normalizarConfig(configRes.value));
-      setCalendarError(appointmentsRes.status === 'rejected' ? (appointmentsRes.reason?.message || 'Error desconocido') : '');
-
-      // El error de Calendar se muestra en su propio aviso persistente
-      const errors = [leadsRes, pacientesRes, citasRes, configRes]
-        .filter(r => r.status === 'rejected')
-        .map(r => r.reason?.message || String(r.reason));
-      if (errors.length > 0) {
-        console.error('Errores al sincronizar:', errors);
-        setErrorMsg(`Error al sincronizar: ${[...new Set(errors)].join(' · ')}`);
-      }
+      await Promise.all(cargas.map(cargar => cargar()));
     } catch (err) {
       console.error(err);
       setErrorMsg(`Error al sincronizar datos: ${err.message}`);
     } finally {
-      setSincronizando(false);
-      setLoading(false);
+      cargasEnCurso.current -= 1;
+      if (cargasEnCurso.current === 0) {
+        setSincronizando(false);
+        setLoading(false);
+      }
     }
-  }, [currentDate]);
+  }, []);
 
-  // Sincronizar datos al iniciar sesión y al cambiar el mes del calendario.
+  // Recarga completa: botón de sincronizar y después de crear, mover o cancelar citas
+  const fetchData = useCallback(
+    () => sincronizar(cargarBase, cargarEventosMes),
+    [sincronizar, cargarBase, cargarEventosMes]
+  );
+
+  // Al iniciar sesión se carga todo; al cambiar el mes del calendario, solo sus eventos.
   // Depende del correo, no del objeto `user`, para no recargar si solo se renueva la sesión.
   const emailUsuario = user?.email;
   useEffect(() => {
     if (emailUsuario) {
       const timer = setTimeout(() => {
-        fetchData();
+        sincronizar(cargarBase);
       }, 0);
       return () => clearTimeout(timer);
     }
-  }, [emailUsuario, fetchData]);
+  }, [emailUsuario, sincronizar, cargarBase]);
+
+  useEffect(() => {
+    if (emailUsuario) {
+      const timer = setTimeout(() => {
+        sincronizar(cargarEventosMes);
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [emailUsuario, sincronizar, cargarEventosMes]);
 
   // Pestaña activa: se recuerda en la sesión del navegador por si el navegador recarga la página
   useEffect(() => {
@@ -215,12 +262,12 @@ function App() {
   // Si el rol cambia (o no es doctor) no se queda en una pestaña que no le corresponde
   const tabVisible = activeTab === 'admin' && !esDoctor ? 'dashboard' : activeTab;
 
-  // Toggle Theme
-  const toggleTheme = () => {
-    const newTheme = theme === 'dark' ? 'light' : 'dark';
-    setTheme(newTheme);
-    document.documentElement.classList.toggle('dark', newTheme === 'dark');
-  };
+  // El tema (inicial o elegido) se aplica a <html>
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
 
   // Refresh data helper
   const handleRefresh = () => {
@@ -596,6 +643,7 @@ function App() {
           isCollapsed={isSidebarCollapsed}
           setIsCollapsed={setIsSidebarCollapsed}
           rol={user.rol}
+          onComentar={() => setIsComentarioOpen(true)}
         />
       )}
 
@@ -710,6 +758,12 @@ function App() {
       </main>
 
       {/* MODALS */}
+      <ComentarioModal
+        isOpen={isComentarioOpen}
+        onClose={() => setIsComentarioOpen(false)}
+        showToast={showToast}
+      />
+
       <DatePickerModal
         isOpen={isDatePickerModalOpen}
         onClose={() => {

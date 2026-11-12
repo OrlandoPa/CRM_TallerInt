@@ -9,7 +9,8 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Users,
-  ShieldCheck
+  ShieldCheck,
+  MessageSquareText
 } from 'lucide-react';
 import ToothIcon from '../ui/ToothIcon';
 
@@ -24,7 +25,7 @@ const NAV_ITEMS = [
   { id: 'admin', label: 'Administración', icon: ShieldCheck, soloRol: 'doctor' }
 ];
 
-function Sidebar({ activeTab, setActiveTab, theme, toggleTheme, pastAppointmentsToReview, isCollapsed, setIsCollapsed, rol }) {
+function Sidebar({ activeTab, setActiveTab, theme, toggleTheme, pastAppointmentsToReview, isCollapsed, setIsCollapsed, rol, onComentar }) {
   const pendingCount = pastAppointmentsToReview.length;
 
   return (
@@ -64,6 +65,18 @@ function Sidebar({ activeTab, setActiveTab, theme, toggleTheme, pastAppointments
       </nav>
 
       <div className="sidebar-footer">
+        {onComentar && (
+          <button
+            data-testid="btn-comentario"
+            onClick={onComentar}
+            className="nav-item"
+            title={isCollapsed ? 'Enviar comentario' : undefined}
+            aria-label="Enviar comentario sobre el sistema"
+          >
+            <MessageSquareText size={18} strokeWidth={1.75} />
+            {!isCollapsed && <span>Enviar comentario</span>}
+          </button>
+        )}
         <button
           data-testid="btn-theme-toggle"
           onClick={toggleTheme}

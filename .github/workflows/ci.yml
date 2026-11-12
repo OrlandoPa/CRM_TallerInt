@@ -28,3 +28,5 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+      # Presupuesto de tamaño del CRM (software verde, Anexo I, RNF-VERDE-07)
+      - run: npm run presupuesto

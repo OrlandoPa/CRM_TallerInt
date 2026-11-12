@@ -101,21 +101,52 @@ export const getPerfil = async () => {
   return Array.isArray(data) ? (data[0] || null) : data;
 };
 
+// --- Lecturas acotadas (software verde, RNF-VERDE-05) ---
+// Las tablas que crecen se leen con columnas explícitas y con un límite (rango de
+// fechas o número de filas): una columna nueva en la base no viaja al navegador
+// si la interfaz no la usa. Los límites coinciden con la retención de datos
+// (pacientes y citas: 2 años; mensajes: 90 días) y quedan muy por encima del
+// volumen de la clínica. Si una lectura llega al tope, se avisa en la consola.
+export const COLUMNAS_PACIENTES =
+  'identificador_paciente, nombre_paciente, created_at, consentimiento_datos_at, consentimiento_aviso_version';
+export const COLUMNAS_CITAS =
+  'id, identificador_paciente, fecha_hora_cita, fecha_hora_fin, servicio_clave, motivo_consulta, estado_cita, ' +
+  'google_event_id, detalles_notas_cita, correo_electronico, recordatorio_enviado, created_at, updated_at, ' +
+  'pacientes(identificador_paciente, nombre_paciente), tratamientos_cita(texto)';
+export const MAX_PACIENTES = 5000;
+export const MAX_SESIONES = 5000;
+export const MESES_CITAS = 24;
+const MS_DIA = 24 * 60 * 60 * 1000;
+
+const avisarTope = (filas, maximo, que) => {
+  if (filas.length >= maximo) console.warn(`Se leyeron ${maximo} ${que}: el resto no se cargó.`);
+  return filas;
+};
+
 // 1. CRM LEADS
-export const getLeads = async () => {
-  const { data: pacientesData, error: crmError } = await supabase
-    .from('pacientes')
-    .select('*');
-  if (crmError) throw dbError(crmError, 'leer pacientes');
+/**
+ * Remitentes de WhatsApp de la memoria del bot, sin repetir. Usa la función
+ * sesiones_whatsapp() (una fila por remitente); si la migración aún no se
+ * ejecutó, lee solo los últimos 90 días (la retención de la tabla).
+ */
+export const getSesionesWhatsapp = async () => {
+  const rpc = await supabase.rpc('sesiones_whatsapp');
+  if (!rpc.error) {
+    return avisarTope((rpc.data || []).map(f => f.session_id).filter(Boolean), MAX_SESIONES, 'remitentes');
+  }
+  if (rpc.error.code !== 'PGRST202') throw dbError(rpc.error, 'leer remitentes');
 
-  const { data: msgData, error: msgError } = await supabase
-    .from('mensajes_whatsapp')
-    .select('session_id')
-    .order('id', { ascending: false });
-  if (msgError) throw dbError(msgError, 'leer mensajes');
+  const desde = new Date(Date.now() - 90 * MS_DIA).toISOString();
+  const filas = exigir(
+    await supabase.from('mensajes_whatsapp').select('session_id')
+      .gte('created_at', desde).order('id', { ascending: false }).limit(MAX_SESIONES),
+    'leer mensajes'
+  ) || [];
+  return [...new Set(filas.map(m => m.session_id).filter(Boolean))];
+};
 
-  const uniqueSessions = msgData ? [...new Set(msgData.map(m => m.session_id).filter(Boolean))] : [];
-
+/** Combina pacientes y remitentes de WhatsApp (sin consultar la base otra vez). */
+export const construirLeads = (pacientesData = [], uniqueSessions = []) => {
   const leadsMap = new Map();
   (pacientesData || []).forEach(p => {
     const identificador = p.identificador_paciente;
@@ -132,7 +163,7 @@ export const getLeads = async () => {
     }
   });
 
-  uniqueSessions.forEach(session => {
+  (uniqueSessions || []).forEach(session => {
     const key = normalizarIdentificador(session);
     if (!leadsMap.has(key)) {
       leadsMap.set(key, {
@@ -188,9 +219,11 @@ export const rescheduleAppointment = (eventId, start, end) =>
 export const getPacientes = async () => {
   const { data, error } = await supabase
     .from('pacientes')
-    .select('*');
+    .select(COLUMNAS_PACIENTES)
+    .order('identificador_paciente')
+    .limit(MAX_PACIENTES);
   if (error) throw dbError(error, 'leer pacientes');
-  return data || [];
+  return avisarTope(data || [], MAX_PACIENTES, 'pacientes');
 };
 
 export const updatePaciente = async (identificador, cambios) => {
@@ -215,10 +248,14 @@ const aplanarCita = ({ tratamientos_cita: trat, ...c }) => ({
   tratamiento_receta: (Array.isArray(trat) ? trat[0]?.texto : trat?.texto) || ''
 });
 
+/** Citas desde hace MESES_CITAS meses (incluye las futuras). */
 export const getCitasDb = async () => {
+  const desde = new Date();
+  desde.setMonth(desde.getMonth() - MESES_CITAS);
   const { data, error } = await supabase
     .from('citas')
-    .select('*, pacientes(*), tratamientos_cita(texto)')
+    .select(COLUMNAS_CITAS)
+    .gte('fecha_hora_cita', desde.toISOString())
     .order('fecha_hora_cita', { ascending: true });
   if (error) throw dbError(error, 'leer citas');
   return (data || []).map(aplanarCita);
@@ -308,6 +345,37 @@ export const quitarFeriado = async (fecha) =>
 export const crearBloqueo = ({ inicio, fin, motivo }) => agenda('crear_bloqueo', { inicio, fin, motivo });
 
 export const quitarBloqueo = (id) => agenda('quitar_bloqueo', { id });
+
+// 4b. COMENTARIOS SOBRE EL SISTEMA (software verde, RNF-VERDE-13)
+export const CATEGORIAS_COMENTARIO = {
+  rendimiento: 'Rendimiento o lentitud',
+  uso: 'Uso o facilidad',
+  sostenibilidad: 'Consumo de datos o energía',
+  otro: 'Otro'
+};
+
+const sinTablaComentarios = (err) => err?.code === '42P01' || err?.code === 'PGRST205';
+
+/** Guarda un comentario del personal. Sin .select(): solo el doctor puede leerlos (RLS). */
+export const enviarComentario = async ({ categoria, texto }) => {
+  const limpio = String(texto || '').trim();
+  if (limpio.length < 3) throw new Error('Escribe tu comentario.');
+  if (!CATEGORIAS_COMENTARIO[categoria]) throw new Error('Elige una categoría.');
+  const { error } = await supabase.from('comentarios_sistema').insert({ categoria, texto: limpio });
+  if (sinTablaComentarios(error)) throw new Error('Los comentarios aún no están habilitados en la base de datos.', { cause: error });
+  if (error) throw dbError(error, 'guardar comentario');
+};
+
+/** Últimos comentarios (solo el doctor). */
+export const getComentarios = async ({ limite = 100 } = {}) => {
+  const { data, error } = await supabase.from('comentarios_sistema')
+    .select('id, created_at, autor, categoria, texto')
+    .order('created_at', { ascending: false })
+    .limit(limite);
+  if (sinTablaComentarios(error)) return [];
+  if (error) throw dbError(error, 'leer comentarios');
+  return data || [];
+};
 
 // 5. USUARIOS (solo el doctor: RLS)
 /**
